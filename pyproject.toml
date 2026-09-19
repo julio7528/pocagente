@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=84"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "getnet-support"
+version = "0.1.0"
+description = "Multi-agent support POC for Getnet sales cancellation analysis"
+requires-python = ">=3.14"
+
+dependencies = [
+    "fastapi==0.141.1",
+    "pydantic==2.13.5",
+    "uvicorn==0.53.0",
+    "fastembed==0.8.0",
+    "PyYAML==6.0.3",
+    "httpx==0.28.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.4.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["apps*"]
+exclude = [
+    "knowledge*",
+    "reference*",
+    "evaluation*",
+    "docs*",
+]

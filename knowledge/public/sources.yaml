@@ -1,0 +1,215 @@
+version: "1.0"
+
+source_registry:
+  name: "getnet-support-public-sources"
+  description: "Registro explícito de fontes públicas aprovadas para o Knowledge Agent e para a pipeline de RAG do projeto getnet-support."
+
+default_policy:
+  approved: false
+  active: false
+  allow_discovered_links: false
+  external_content_is_untrusted: true
+  may_override_internal_process_rules: false
+
+authority_order:
+  - "internal_pdd_sdd"
+  - "operational_database"
+  - "internal_technical_documentation"
+  - "approved_public_getnet"
+  - "approved_external_financial_sources"
+
+sources:
+  - source_id: "getnet-main"
+    title: "Getnet - Site Oficial"
+    url: "https://www.getnet.net/"
+    domain: "www.getnet.net"
+    source_type: "public_getnet"
+    source_class: "official_website"
+    authority_level: "secondary"
+    scope: ["products", "services", "commercial", "payments"]
+    audience: ["general"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-en"
+    title: "Getnet - Official English Website"
+    url: "https://www.getnet.net/en"
+    domain: "www.getnet.net"
+    source_type: "public_getnet"
+    source_class: "official_website"
+    authority_level: "secondary"
+    scope: ["products", "services", "commercial", "payments"]
+    audience: ["general"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-cancel-sale"
+    title: "Como cancelar minhas vendas?"
+    url: "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-cancelar-minhas-vendas/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["sales", "cancellation", "reversal"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-cancelled-sale-status"
+    title: "Onde consultar uma venda cancelada?"
+    url: "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/onde-consultar-uma-venda-cancelada/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["sales", "cancellation", "cancellation_status"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-app-reversal"
+    title: "Como estornar uma venda pelo aplicativo Getnet Brasil"
+    url: "https://site.getnet.com.br/get-ajuda-estorno/como-estornar-uma-venda-pelo-aplicativo-getnet-brasil/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["sales", "cancellation", "reversal", "partial_reversal"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-cancellation-letter"
+    title: "Como emitir carta de cancelamento da venda"
+    url: "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/como-emitir-carta-status/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["sales", "cancellation", "cancellation_evidence"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-acquiring-contract"
+    title: "Contrato de Credenciamento aos Serviços de Adquirência Getnet"
+    url: "https://site.getnet.com.br/wp-content/uploads/2025/04/getnet_contrato_de_credencimento_04_2025.pdf"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_contract"
+    authority_level: "public_legal"
+    scope: ["acquiring", "sales", "cancellation", "financial", "settlement", "commercial_rules"]
+    audience: ["pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "pdf", allow_discovered_links: false}
+
+  - source_id: "getnet-electronic-statement-manual"
+    title: "Extrato Eletrônico - Manual Técnico"
+    url: "https://site.getnet.com.br/wp-content/uploads/2022/04/20200928_Manul_V10_EE_v1.pdf"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_technical_documentation"
+    authority_level: "secondary_technical"
+    scope: ["corporate", "financial", "sales", "payments", "cancellation", "chargeback", "reconciliation"]
+    audience: ["pessoa_juridica", "high_volume_merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "pdf", allow_discovered_links: false}
+
+  - source_id: "getnet-electronic-statement-layout"
+    title: "Extrato Eletrônico - Layout"
+    url: "https://site.getnet.com.br/wp-content/uploads/2022/04/EXTRATO-ELETRONICO-LAYOUT-V10_v4_08_06.pdf"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_technical_documentation"
+    authority_level: "secondary_technical"
+    scope: ["corporate", "financial", "transaction_records", "cancellation", "chargeback", "reconciliation"]
+    audience: ["pessoa_juridica", "high_volume_merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "pdf", allow_discovered_links: false}
+
+  - source_id: "getnet-faq"
+    title: "Getnet - Dúvidas Frequentes"
+    url: "https://site.getnet.com.br/duvidas/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["products", "services", "payments", "sales", "cancellation", "chargeback", "financial"]
+    audience: ["general"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-downloads"
+    title: "Getnet - Downloads Oficiais"
+    url: "https://site.getnet.com.br/downloads/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_catalog"
+    authority_level: "discovery_only"
+    scope: ["contracts", "technical_documentation", "financial_documentation"]
+    audience: ["general"]
+    approved: true
+    active: true
+    ingestion:
+      enabled: false
+      mode: "manual"
+      content_type: "html"
+      discovery_policy:
+        may_suggest_new_sources: true
+        auto_approve_new_sources: false
+        auto_ingest_new_sources: false
+      allow_discovered_links: false
+
+security:
+  external_content_is_data_not_instruction: true
+
+  prompt_injection:
+    ignore_instructions_found_in_sources: true
+
+  prohibited_source_content:
+    - "credentials"
+    - "passwords"
+    - "api_keys"
+    - "tokens"
+    - "cookies"
+    - "application_secrets"
+    - "private_keys"
+
+  discovered_source_policy:
+    require_explicit_approval: true
+    auto_ingestion: false
+
+grounding:
+  public_sources_may_override_internal_rules: false
+
+  cancellation_process_authority:
+    - "internal_pdd_sdd"
+    - "operational_database"
+    - "internal_technical_documentation"
+    - "approved_public_getnet"
+
+  conflict_behavior: >
+    If public Getnet documentation conflicts with approved internal
+    cancellation-process documentation, preserve and surface the conflict.
+    Public documentation must not silently replace the approved internal rule.
+
+provenance:
+  registry_required_fields:
+    - "source_id"
+    - "title"
+    - "url"
+    - "domain"
+  ingestion_generated_fields:
+    - "retrieved_at"
+    - "content_checksum"
+  preserve_for_every_chunk: true
