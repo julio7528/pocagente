@@ -1,12 +1,15 @@
 MAPA ATUAL — GETNET SUPPORT POC
 ================================
 
+
 1. STACK / ARQUITETURA TÉCNICA                         ✅ CONCLUÍDO
+
 
    ✅ Django definido para:
       - frontend/web
       - autenticação/sessão
       - admin
+
 
    ✅ FastAPI definido para:
       - APIs internas
@@ -15,31 +18,42 @@ MAPA ATUAL — GETNET SUPPORT POC
       - tools
       - providers
 
+
    ✅ LangGraph definido para orquestração futura
    ✅ PostgreSQL definido como banco da POC
    ✅ pgvector definido para vetores
    ✅ Docker definido para infraestrutura local
 
 
+
+
 2. RAG — CONHECIMENTO, FONTES E AVALIAÇÃO
+
 
    ✅ Corpus interno R1
       ├─ PDD
       ├─ SDD
       └─ Technical Overview
 
+
    ✅ Corpus interno R2
       ├─ PDD
       ├─ SDD
       └─ Technical Overview
 
+
    ✅ Códigos Python de referência R1/R2
+
 
    ✅ Fontes públicas controladas
       └─ knowledge/public/sources.yaml
+         ├─ cancelamento/corporativo
+         └─ produtos, serviços e suporte oficial Getnet
+
 
    ✅ Política de segurança interna
       └─ knowledge/internal/security/security-policy.md
+
 
    ✅ Dataset de avaliação
       └─ evaluation/rag/dataset-v1.yaml
@@ -47,6 +61,16 @@ MAPA ATUAL — GETNET SUPPORT POC
          ├─ rag-019 segurança/credencial
          ├─ rag-025 acesso sensível
          └─ thresholds globais
+
+
+   ✅ Suíte de cenários do desafio
+      └─ evaluation/challenge/scenarios-v1.yaml
+         ├─ 13 cenários end-to-end
+         ├─ routing e seleção de capacidades
+         ├─ RAG vs Web Search
+         ├─ tools de Customer Support
+         └─ cooperação multiagente e segurança
+
 
    ✅ Regras já aprovadas
       ├─ provenance/citation
@@ -58,10 +82,15 @@ MAPA ATUAL — GETNET SUPPORT POC
       └─ segurança/auditoria
 
 
+
+
 3. IMPLEMENTAÇÃO EXECUTÁVEL DO RAG
 
 
+
+
    3.0 DECISÕES DE ARQUITETURA                         ✅ CONCLUÍDO
+
 
       ✅ PostgreSQL + pgvector
       ✅ FastEmbed
@@ -79,7 +108,10 @@ MAPA ATUAL — GETNET SUPPORT POC
       ✅ Tavily como web-search provider
 
 
+
+
    3.1 ESTRUTURA DE CÓDIGO RAG                         ✅ CONCLUÍDO
+
 
       ✅ FastAPI main.py
       ✅ /health
@@ -87,9 +119,11 @@ MAPA ATUAL — GETNET SUPPORT POC
       ✅ /chat placeholder
       ✅ autenticação interna fail-closed
 
+
       ✅ RAGService
       ✅ config
       ✅ models
+
 
       ✅ ingestion skeleton
       ✅ FastEmbed adapter
@@ -100,7 +134,10 @@ MAPA ATUAL — GETNET SUPPORT POC
       ✅ grounding skeleton
 
 
+
+
    3.2 AMBIENTE PYTHON / DEPENDÊNCIAS                  ✅ CONCLUÍDO
+
 
       ✅ .venv
       ✅ política do Harness para uso da .venv
@@ -118,10 +155,15 @@ MAPA ATUAL — GETNET SUPPORT POC
       ✅ compileall validado
 
 
+
+
 4. POSTGRESQL + PGVECTOR                               ← ESTAMOS AQUI
 
 
+
+
    4.0 INFRAESTRUTURA DO BANCO                         ✅ CONCLUÍDO
+
 
       ✅ Docker Desktop
       ✅ Docker Engine
@@ -136,16 +178,22 @@ MAPA ATUAL — GETNET SUPPORT POC
       ✅ extensão pgvector 0.8.6
 
 
-4.1 ARQUITETURA DOS SCHEMAS                         ← EM ANDAMENTO
+
+
+4.1 ARQUITETURA DOS SCHEMAS                         ✅ CONCLUÍD
+
 
    Objetivo:
    Definir conceitualmente a responsabilidade de cada schema,
    os limites entre eles e como os dados se relacionam.
 
+
    4.1.1 DEFINIR RESPONSABILIDADE DO SCHEMA RAG      ✅ CONCLUÍDO
+
 
       Finalidade:
       armazenar e organizar o conhecimento utilizado pelo RAG.
+
 
       Deve contemplar conceitualmente:
       - fontes de conhecimento
@@ -157,6 +205,7 @@ MAPA ATUAL — GETNET SUPPORT POC
       - busca semântica
       - metadados de execução de ingestão
 
+
       Não definir ainda:
       - campos
       - tipos
@@ -166,68 +215,101 @@ MAPA ATUAL — GETNET SUPPORT POC
       - DDL
 
 
-   4.1.2 DEFINIR RESPONSABILIDADE DO SCHEMA OPS       ← AGORA
+
+
+   4.1.2 DEFINIR RESPONSABILIDADE DO SCHEMA OPS       ✅ CONCLUÍDO
+
 
       Finalidade:
       representar o comportamento operacional observado do RPA.
 
-      Deve contemplar conceitualmente:
-      - cadastro da automação
-      - execuções
-      - processamentos
-      - logs
-      - alertas
-      - e-mails
-      - anexos
-      - ECs
-      - protocolos
-      - upload/download
-      - status do processo
 
-      Referência:
-      modelo Oracle reconstruído do processo de cancelamento.
+      Estruturas conceituais aprovadas:
+      - ops.automation_runs
+      - ops.incoming_emails
+      - ops.email_attachments
+      - ops.service_requests
+      - ops.establishments
+      - ops.execution_log
 
 
-   4.1.3 DEFINIR RESPONSABILIDADE DO SCHEMA AUDIT     ⏳
+      Regras aprovadas:
+      - R1 recebe a solicitação e cria o protocolo
+      - R2 monitora e continua um protocolo existente
+      - um protocolo pode ser acompanhado por múltiplas execuções R2
+      - execution_log mantém a linha do tempo operacional detalhada
+      - e-mail existe independentemente da geração de protocolo
+      - modelo Oracle reconstruído é somente referência funcional
+      - nenhuma tabela física ops foi criada
+
+
+
+
+   4.1.3 DEFINIR RESPONSABILIDADE DO SCHEMA AUDIT     ✅ CONCLUÍDO
+
 
       Finalidade:
-      registrar eventos de segurança e governança do agente.
+      registrar eventos de segurança e governança detectados pelos
+      controles do agente ou da aplicação.
 
-      Deve contemplar conceitualmente:
-      - solicitações de credenciais
-      - solicitações de secrets
-      - tentativa de acesso ao banco
-      - acesso a infraestrutura protegida
-      - prompt injection
-      - tentativa de bypass
-      - ação tomada
+
+      Estrutura conceitual aprovada:
+      - audit.security_events
+
+
+      Deve registrar conceitualmente:
+      - categoria do evento de segurança/governança
+      - componente de origem e referência da solicitação
       - conteúdo sanitizado
-      - revisão/auditoria
+      - ação tomada
+      - resultado
+      - metadados opcionais de revisão
 
 
-   4.1.4 DEFINIR LIMITES E FLUXO ENTRE OS SCHEMAS     ⏳
+      Regras aprovadas:
+      - nenhum secret ou credencial real pode ser persistido
+      - logs operacionais R1/R2 permanecem em ops
+      - conhecimento e retrieval permanecem em rag
+      - nenhuma tabela física audit foi criada
 
-      Definir claramente:
+
+
+
+   4.1.4 DEFINIR LIMITES E FLUXO ENTRE OS SCHEMAS     ✅ CONCLUÍDO
+
+
+      Responsabilidades aprovadas:
+
 
       rag
-      → responde "o que deveria acontecer?"
+      → conhecimento e comportamento esperado
+
 
       ops
-      → responde "o que realmente aconteceu?"
+      → fatos e estado operacional observados
+
 
       audit
-      → responde "houve algum evento de segurança ou governança?"
-
-      Regras:
-      - não misturar conhecimento RAG com dados operacionais
-      - não armazenar logs de segurança dentro do RAG
-      - não transformar respostas geradas pelo agente em conhecimento
-      - manter responsabilidades e ciclos de vida separados
+      → eventos de segurança e governança
 
 
-   4.1.5 APROVAR ARQUITETURA CONCEITUAL DOS SCHEMAS   ⏳
+      Fluxo aprovado:
+      - application/agents consultam um ou mais schemas conforme necessário
+      - LLM interpreta as evidências e produz conclusão grounded
+      - LangGraph permanece como camada planejada de orquestração
+      - não há cópia ou sincronização automática entre domínios
+      - AUDIT não é log geral de interações ou operações RPA
+      - respostas geradas pelo LLM não viram conhecimento RAG automaticamente
+      - nenhuma FK ou implementação física entre schemas foi definida
+
+
+
+
+   4.1.5 APROVAR ARQUITETURA CONCEITUAL DOS SCHEMAS   ✅ CONCLUÍDO
+
 
       Critérios para concluir 4.1:
+
 
       - responsabilidade de rag aprovada
       - responsabilidade de ops aprovada
@@ -236,7 +318,9 @@ MAPA ATUAL — GETNET SUPPORT POC
       - nenhuma sobreposição relevante de responsabilidade
       - fluxo de consulta entre schemas compreendido
 
+
       Resultado esperado:
+
 
       PostgreSQL
       ├── rag
@@ -248,51 +332,66 @@ MAPA ATUAL — GETNET SUPPORT POC
       └── audit
           └── segurança e governança
 
+
       Após aprovação:
       avançar para 4.2 — Arquitetura do Schema RAG.
 
 
-   4.2 ARQUITETURA DO SCHEMA RAG                       ⏳
-
-      Proposta atual:
-
-      rag.sources
-      rag.documents
-      rag.chunks
-      rag.ingestion_runs
-
-      Aqui ainda vamos:
-      - aprovar cada tabela
-      - definir responsabilidades
-      - definir relacionamentos
-
-      Estado atual:
-      - nenhuma tabela física rag, ops ou audit foi criada
 
 
-   4.3 ARQUITETURA DO SCHEMA OPS                       ⏳
+   4.2 ARQUITETURA DO SCHEMA RAG                       ✅ CONCLUÍDO
 
-      Usar como referência o Oracle reconstruído:
 
-      TBA_RPA
-      TBS_RPA_EXECUCAO
-      TBS_RPA_LOG
-      TBS_RPA_ALERTA
-      TBS_PROCESSAMENTO
-      TBF_6_EMAIL
-      TBA_6_ANEXO
-      TBA_6_EC
-      SERVCLI_PREP_RPA_CANC_VENDA
-      TBL_6_VALIDA_EXCEL_TEMP
+      Estruturas conceituais aprovadas:
+      - rag.sources
+      - rag.documents
+      - rag.chunks
+      - rag.ingestion_runs
 
-      Depois adaptar apenas o necessário para PostgreSQL/POC.
+
+      Relacionamentos conceituais aprovados:
+      - source 1:N documents
+      - document 1:N chunks
+      - document 1:N ingestion_runs
+
+
+      Regras aprovadas:
+      - rag.chunks como unidade principal de busca (retrieval unit)
+      - cadeia de proveniência: chunk -> document -> source
+      - controle de alteração/reprocessamento por checksum
+      - sem versionamento histórico de documentos ou chunks
+      - rastreamento de execução de ingestão (ingestion tracking)
+      - ingestão desacoplada da busca em query-time
+      - nenhuma tabela física rag criada; sem DDL, tipos ou VECTOR(N)
+
+
+   4.3 ARQUITETURA DO SCHEMA OPS                       ← AGORA
+
+
+      Detalhar as seis estruturas conceituais OPS aprovadas,
+      seus relacionamentos e regras:
+      - ops.automation_runs
+      - ops.incoming_emails
+      - ops.email_attachments
+      - ops.service_requests
+      - ops.establishments
+      - ops.execution_log
+
+
+      O Oracle reconstruído permanece somente como referência funcional;
+      seus nomes físicos e separação de tabelas não serão reproduzidos.
+
+
 
 
    4.4 ARQUITETURA DO SCHEMA AUDIT                     ⏳
 
-      Primeira tabela prevista:
+
+      Estrutura conceitual aprovada a detalhar:
+
 
       audit.security_events
+
 
       Para registrar:
       - credential request
@@ -305,7 +404,10 @@ MAPA ATUAL — GETNET SUPPORT POC
       - ação tomada
 
 
+
+
    4.5 MODELO FÍSICO DO BANCO                          ⏳
+
 
       Definir:
       - campos
@@ -320,12 +422,16 @@ MAPA ATUAL — GETNET SUPPORT POC
       - TSVECTOR
       - VECTOR(N)
 
+
       ⚠️ Antes de VECTOR(N):
          definir definitivamente o modelo FastEmbed
          para sabermos a dimensão do vetor.
 
 
+
+
    4.6 CRIAR TABELAS / DDL / MIGRATIONS                ⏳
+
 
       Criar fisicamente:
       - schema rag
@@ -336,7 +442,10 @@ MAPA ATUAL — GETNET SUPPORT POC
       - constraints
 
 
+
+
    4.7 DEPENDÊNCIAS PYTHON DO BANCO                    ⏳
+
 
       Previstas:
       - SQLAlchemy
@@ -344,14 +453,20 @@ MAPA ATUAL — GETNET SUPPORT POC
       - pgvector
 
 
+
+
    4.8 CAMADA DE ACESSO AO BANCO                       ⏳
+
 
       RAGRepository
       OperationalRepository
       AuditRepository
 
 
+
+
    4.9 DADOS FICTÍCIOS / SEED                          ⏳
+
 
       - execuções RPA
       - protocolos
@@ -361,7 +476,10 @@ MAPA ATUAL — GETNET SUPPORT POC
       - casos de sucesso/erro/atraso
 
 
+
+
    4.10 VALIDAÇÃO DO BANCO                             ⏳
+
 
       - conexão
       - inserts
@@ -373,7 +491,10 @@ MAPA ATUAL — GETNET SUPPORT POC
       - auditoria
 
 
+
+
 5. INGESTION EXECUTÁVEL                                ⏳
+
 
    loader real
    ↓
@@ -390,7 +511,10 @@ MAPA ATUAL — GETNET SUPPORT POC
    PostgreSQL
 
 
+
+
 6. FASTEMBED EXECUTÁVEL                                ⏳
+
 
    escolher modelo definitivo
    ↓
@@ -401,7 +525,10 @@ MAPA ATUAL — GETNET SUPPORT POC
    persistir em rag.chunks
 
 
+
+
 7. HYBRID RETRIEVAL + RRF                              ⏳
+
 
    PostgreSQL FTS → Top 10
    pgvector       → Top 10
@@ -411,7 +538,10 @@ MAPA ATUAL — GETNET SUPPORT POC
          Top 5
 
 
+
+
 8. GROUNDING / ANTI-ALUCINAÇÃO                         ⏳
+
 
    - evidência suficiente
    - evidência insuficiente
@@ -421,16 +551,36 @@ MAPA ATUAL — GETNET SUPPORT POC
    - resposta grounded
 
 
-9. KNOWLEDGE AGENT + TOOLS + TAVILY                    ⏳
 
-   Knowledge Agent
-   ├─ RAG
-   ├─ operational tools
-   ├─ security guardrails
-   └─ Tavily controlado
+
+9. MULTI-AGENT + RAG + TOOLS + TAVILY                 ⏳
+
+
+   Router Agent
+   ├─ Knowledge Agent
+   │  ├─ RAG interno
+   │  ├─ RAG público Getnet aprovado
+   │  └─ Tavily/Web Search controlado
+   ├─ Customer Support Agent
+   │  └─ tools controladas de cliente/OPS
+   ├─ Human Escalation Agent
+   │  ├─ acionar quando o usuário solicitar atendimento humano
+   │  ├─ acionar quando o sistema não conseguir resolver com evidência/confiança suficiente
+   │  ├─ solicitar confirmação do usuário antes da transferência
+   │  ├─ manter a conversa ativa na mesma experiência de chat
+   │  ├─ encaminhar a conversa para uma fila de atendimento humano
+   │  ├─ permitir que um segundo usuário autenticado, atuando como atendente, aceite e continue a conversa
+   │  ├─ suspender respostas automáticas enquanto o atendimento estiver sob responsabilidade humana
+   │  ├─ permitir devolução explícita do controle ao fluxo automatizado
+   │  ├─ transferir somente o contexto necessário da conversa ativa
+   │  ├─ não implementar memória persistente entre sessões/conversas
+   │  ├─ tornar estado e responsável pelo handoff observáveis e testáveis
+   │  └─ considerar WhatsApp apenas como possível canal futuro; a POC inicial usa o próprio chat da aplicação
+   └─ coordenação multiagente quando necessária
 
 
 10. SECURITY / AUDIT RUNTIME                           ⏳
+
 
     detectar solicitação sensível
     ↓
@@ -443,23 +593,31 @@ MAPA ATUAL — GETNET SUPPORT POC
     resposta de política
 
 
+
+
 11. EVALUATION RUNNER                                  ⏳
 
-    executar dataset-v1.yaml
-    ↓
-    25 casos
-    ↓
-    medir:
-    - Top-5 source rate
-    - provenance
-    - unsupported facts
-    - insufficient evidence
-    - security blocking
-    - audit logging
-    - redaction
+
+    executar evaluation/rag/dataset-v1.yaml
+    ├─ 25 casos de RAG/grounding/security
+    └─ medir:
+       - Top-5 source rate
+       - provenance
+       - unsupported facts
+       - insufficient evidence
+       - security blocking
+       - audit logging
+       - redaction
+
+
+    executar evaluation/challenge/scenarios-v1.yaml
+    └─ 13 cenários de routing/capabilities/tools/cooperação
+
+
 
 
 12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL               ⏳
+
 
     Django
        ↓
@@ -470,7 +628,10 @@ MAPA ATUAL — GETNET SUPPORT POC
     RAG / OPS / Audit / Tavily
 
 
+
+
 13. TESTES E ENTREGA DA POC                            ⏳
+
 
     - testes unitários
     - integração

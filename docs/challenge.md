@@ -1,4 +1,4 @@
-# AI Hardcore Engineer - Multi-Agent Support System
+﻿# AI Hardcore Engineer - Multi-Agent Support System
 
 ## Overview
 

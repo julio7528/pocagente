@@ -1,4 +1,4 @@
-version: "1.0"
+version: "1.1"
 
 source_registry:
   name: "getnet-support-public-sources"
@@ -8,6 +8,7 @@ default_policy:
   approved: false
   active: false
   allow_discovered_links: false
+  unrestricted_crawling: false
   external_content_is_untrusted: true
   may_override_internal_process_rules: false
 
@@ -143,8 +144,164 @@ sources:
     source_type: "public_getnet"
     source_class: "official_support"
     authority_level: "secondary"
-    scope: ["products", "services", "payments", "sales", "cancellation", "chargeback", "financial"]
+    scope: ["products", "services", "support", "card_machines", "payments", "pix", "sales", "settlement", "receivables", "cancellation", "chargeback", "financial"]
     audience: ["general"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-help-center"
+    title: "Get Ajuda - Central de Ajuda Getnet"
+    url: "https://site.getnet.com.br/get-ajuda/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["products", "services", "support", "card_machines", "pix", "sales", "settlement", "receivables", "cancellation", "transaction_support"]
+    audience: ["general", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-card-machines"
+    title: "Getnet - Maquininhas Get Clássica e Get Smart"
+    url: "https://site.getnet.com.br/produtos-fisicos/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_product"
+    authority_level: "secondary"
+    scope: ["products", "card_machines", "get_classica", "get_smart", "connectivity", "payments", "pix", "installments"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-get-classica"
+    title: "Get Clássica - Maquininha Getnet"
+    url: "https://site.getnet.com.br/maquininha/get-classica/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_product"
+    authority_level: "secondary"
+    scope: ["products", "card_machines", "get_classica", "connectivity", "payments", "pix", "installments"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-get-smart"
+    title: "Get Smart - Maquininha Getnet"
+    url: "https://site.getnet.com.br/maquininha/get-smart/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_product"
+    authority_level: "secondary"
+    scope: ["products", "card_machines", "get_smart", "connectivity", "payments", "pix", "installments", "business_apps"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-pix-support"
+    title: "Pix - Get Ajuda"
+    url: "https://site.getnet.com.br/get-ajuda-pix/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["services", "pix", "payments", "bank_account", "banking_address", "activation", "sales"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-payment-link"
+    title: "Link de Pagamento Getnet"
+    url: "https://site.getnet.com.br/link-de-pagamento/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_service"
+    authority_level: "secondary"
+    scope: ["services", "payment_link", "online_sales", "whatsapp_sales", "payments", "pix", "installments"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-receivables-advance"
+    title: "Como antecipar suas vendas pelo app"
+    url: "https://site.getnet.com.br/get-ajuda-antecipacao-de-venda/como-antecipar-sua-vendas-pelo-app/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["services", "receivables", "receivables_advance", "settlement", "financial"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-reduced-receipt-plan"
+    title: "Plano de Recebimento Reduzido"
+    url: "https://site.getnet.com.br/get-ajuda-receba-ja/plano-de-recebimento-reduzido/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["services", "sales", "settlement", "receivables", "receipt_schedule", "financial"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-crediario"
+    title: "Crediário Getnet"
+    url: "https://site.getnet.com.br/crediario/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_service"
+    authority_level: "secondary"
+    scope: ["services", "crediario", "installments", "payments", "settlement", "financial"]
+    audience: ["pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-card-machine-wifi"
+    title: "Como configurar o Wi-Fi na sua maquininha Getnet?"
+    url: "https://site.getnet.com.br/get-ajuda-configuracoes/como-configurar-o-wi-fi-na-sua-maquininha-getnet/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["support", "card_machines", "connectivity", "wifi", "troubleshooting"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-card-machine-errors"
+    title: "Erros na Maquininha - Get Ajuda"
+    url: "https://site.getnet.com.br/get-ajuda-erros-maquininha/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["support", "card_machines", "transaction_decline", "transaction_errors", "connectivity", "troubleshooting"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
+    approved: true
+    active: true
+    ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
+
+  - source_id: "getnet-sale-statuses"
+    title: "Quais são os possíveis status das minhas vendas?"
+    url: "https://site.getnet.com.br/get-ajuda-gestao-de-vendas/quais-possiveis-status-das-minhas-vendas/"
+    domain: "site.getnet.com.br"
+    source_type: "public_getnet"
+    source_class: "official_support"
+    authority_level: "secondary"
+    scope: ["support", "sales", "transaction_status", "transaction_decline", "cancellation", "reversal", "pix"]
+    audience: ["pessoa_fisica", "mei", "pessoa_juridica", "merchant"]
     approved: true
     active: true
     ingestion: {enabled: true, mode: "manual", content_type: "html", allow_discovered_links: false}
