@@ -365,7 +365,7 @@ MAPA ATUAL — GETNET SUPPORT POC
       - nenhuma tabela física rag criada; sem DDL, tipos ou VECTOR(N)
 
 
-   4.3 ARQUITETURA DO SCHEMA OPS                       ← AGORA
+   4.3 ARQUITETURA DO SCHEMA OPS                       ✅ CONCLUÍDO
 
 
       Detalhar as seis estruturas conceituais OPS aprovadas,
@@ -378,13 +378,31 @@ MAPA ATUAL — GETNET SUPPORT POC
       - ops.execution_log
 
 
+      Resumo aprovado da arquitetura conceitual OPS:
+      - seis estruturas: ops.automation_runs, ops.incoming_emails,
+        ops.email_attachments, ops.service_requests, ops.establishments e
+        ops.execution_log
+      - uma execução processa N itens;
+      - uma execução R1 processa N incoming_emails;
+      - um incoming_email possui N email_attachments;
+      - um incoming_email possui 0..1 service_request;
+      - um e-mail corresponde a um protocolo único, reutilizado pelo R2;
+      - service_requests não possui attachment_id;
+      - establishments possui generated_file_name;
+      - o handoff R1 -> R2 ocorre por establishments;
+      - o estado atual fica em establishments;
+      - o histórico cronológico fica em execution_log;
+      - um item pode ser observado por múltiplas execuções R2;
+      - timestamps representam data e hora completas;
+      - nenhuma estrutura física foi criada.
+
       O Oracle reconstruído permanece somente como referência funcional;
       seus nomes físicos e separação de tabelas não serão reproduzidos.
 
 
 
 
-   4.4 ARQUITETURA DO SCHEMA AUDIT                     ⏳
+   4.4 ARQUITETURA DO SCHEMA AUDIT                     ✅ CONCLUÍDO
 
 
       Estrutura conceitual aprovada a detalhar:
@@ -403,45 +421,61 @@ MAPA ATUAL — GETNET SUPPORT POC
       - texto sanitizado
       - ação tomada
 
-
-
-
-   4.5 MODELO FÍSICO DO BANCO                          ⏳
-
-
-      Definir:
-      - campos
-      - tipos
-      - PK
-      - FK
-      - UNIQUE
-      - NOT NULL
-      - CHECK
-      - indexes
-      - JSONB
-      - TSVECTOR
-      - VECTOR(N)
-
-
-      ⚠️ Antes de VECTOR(N):
-         definir definitivamente o modelo FastEmbed
-         para sabermos a dimensão do vetor.
+      Arquitetura conceitual aprovada:
+      - campos: event_id, occurred_at, event_type, source_component,
+        user_identifier, request_reference, resource_category,
+        sanitized_content, action_taken, result, review_status, reviewed_at,
+        review_note e created_at;
+      - um request produz 0..N eventos; normal=0, protected simples=1,
+        multi-threat=N;
+      - cada evento possui um único event_type; eventos multi-threat compartilham
+        request_reference, sem arrays, coleções JSON ou tabelas de junção;
+      - sanitização/redação ocorre antes da persistência;
+      - fluxo: input -> detection -> sanitization/redaction -> action ->
+        persistência -> safe response;
+      - AUDIT contém somente evidência de segurança/governança sanitizada;
+      - nenhuma estrutura física, tipo SQL, enum, constraint, índice, migration
+        ou DDL foi criada.
 
 
 
 
-   4.6 CRIAR TABELAS / DDL / MIGRATIONS                ⏳
+### 4.5 MODELO FÍSICO DO BANCO DE DADOS — ✅ CONCLUÍDO
+
+#### 4.5.1 CONVENÇÕES FÍSICAS GLOBAIS ✅ CONCLUÍDO
+#### 4.5.2 MODELO FÍSICO DO SCHEMA RAG  ✅ CONCLUÍDO
+#### 4.5.3 DECISÃO FINAL DO MODELO FASTEMBED  ✅ CONCLUÍDO
+#### 4.5.4 FULL TEXT SEARCH — MODELO FÍSICO  ✅ CONCLUÍDO
+#### 4.5.5 PGVECTOR — MODELO FÍSICO  ✅ CONCLUÍDO
+#### 4.5.6 MODELO FÍSICO DO SCHEMA OPS  ✅ CONCLUÍDO
+#### 4.5.7 MODELO FÍSICO DO SCHEMA AUDIT  ✅ CONCLUÍDO
+#### 4.5.8 ESTRATÉGIA DE ÍNDICES  ✅ CONCLUÍDO
+#### 4.5.9 CONSTRAINTS E INTEGRIDADE  ✅ CONCLUÍDO
+#### 4.5.10 NULLABILITY E ESTADOS PARCIAIS  ✅ CONCLUÍDO
+#### 4.5.11 DELETE / RETENTION / CASCADE BEHAVIOR  ✅ CONCLUÍDO
+#### 4.5.12 PERFORMANCE E VOLUME DO POC  ✅ CONCLUÍDO
+#### 4.5.13 SEGURANÇA DO MODELO FÍSICO  ✅ CONCLUÍDO
+#### 4.5.14 ESPECIFICAÇÃO FÍSICA FINAL  ✅ CONCLUÍDO
+#### 4.5.15 DOCUMENTAÇÃO E DECISION LOG  ✅ CONCLUÍDO
+#### 4.5.16 CRITÉRIOS DE CONCLUSÃO DO 4.5  ✅ CONCLUÍDO
 
 
-      Criar fisicamente:
-      - schema rag
-      - schema ops
-      - schema audit
-      - tabelas
-      - índices
-      - constraints
 
+### 4.6 CRIAR TABELAS / DDL / MIGRATIONS ← AGORA
 
+#### 4.6.1 DEFINIR ESTRATÉGIA DE MIGRATIONS  ✅ CONCLUÍDO
+#### 4.6.2 DEFINIR ESTRUTURA E ORDEM DAS MIGRATIONS  ✅ CONCLUÍDO
+#### 4.6.3 CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS  ← AGORA
+#### 4.6.4 CRIAR TABELAS DO SCHEMA RAG
+#### 4.6.5 CRIAR TABELAS DO SCHEMA OPS
+#### 4.6.6 CRIAR TABELA DO SCHEMA AUDIT
+#### 4.6.7 IMPLEMENTAR CONSTRAINTS E INTEGRIDADE
+#### 4.6.8 CRIAR ÍNDICES E ACCESS PATHS
+#### 4.6.9 DEFINIR COMPORTAMENTO DE EXECUÇÃO, TRANSAÇÃO E ROLLBACK
+#### 4.6.10 APLICAR MIGRATIONS NO POSTGRESQL LOCAL
+#### 4.6.11 VALIDAR ESTRUTURA FÍSICA CRIADA
+#### 4.6.12 ATUALIZAR DOCUMENTAÇÃO E DECISION LOG
+#### 4.6.13 CRITÉRIOS DE CONCLUSÃO DO 4.6
 
 
    4.7 DEPENDÊNCIAS PYTHON DO BANCO                    ⏳
@@ -516,13 +550,18 @@ MAPA ATUAL — GETNET SUPPORT POC
 6. FASTEMBED EXECUTÁVEL                                ⏳
 
 
-   escolher modelo definitivo
-   ↓
-   definir dimensão
-   ↓
-   gerar embeddings
-   ↓
-   persistir em rag.chunks
+usar modelo aprovado:
+sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+↓
+usar dimensão aprovada:
+384 / VECTOR(384)
+↓
+gerar embeddings
+↓
+persistir em rag.chunks
+
+Implementação de runtime permanece pendente; esta etapa não cria DDL,
+migrações ou objetos de banco.
 
 
 

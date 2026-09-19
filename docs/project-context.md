@@ -10,9 +10,9 @@ evidence without relying on chat history.
 
 **Current major phase:** PostgreSQL + pgvector
 
-**Current task:** Detailed schema architecture
+**Current task:** Physical database creation (phase 4.6; not implemented)
 
-**Current subtask:** 4.4 — AUDIT Schema Architecture
+**Current subtask:** 4.6.3 — CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS
 
 **Conceptual schema architecture status:**
 
@@ -23,6 +23,7 @@ evidence without relying on chat history.
 5. complete conceptual schema architecture — approved
 6. 4.2 RAG detailed schema architecture — completed
 7. 4.3 OPS detailed schema architecture — completed
+8. 4.4 AUDIT detailed schema architecture — completed
 
 **Current status:**
 
@@ -34,8 +35,65 @@ evidence without relying on chat history.
 - Phase 4.2 is complete; detailed conceptual architecture of the RAG schema (`rag.sources`, `rag.documents`, `rag.chunks`, `rag.ingestion_runs`) is approved.
 - Phase 4.3 is complete; detailed conceptual architecture of the OPS schema (`ops.automation_runs`, `ops.incoming_emails`, `ops.email_attachments`, `ops.service_requests`, `ops.establishments`, `ops.execution_log`) is approved.
 - RAG, OPS, and AUDIT conceptual responsibilities and boundaries are approved.
-- No physical RAG, OPS, or AUDIT schema or table has been created yet.
-- The project now advances to 4.4 — AUDIT Schema Architecture.
+- No physical RAG, OPS, or AUDIT schema or table has been created yet; physical
+  database creation remains pending for phase 4.6.
+- Phases 4.4 and 4.5 are complete; phase 4.6 is current and not implemented.
+- Phase 4.6.1 Migration Strategy is approved and complete: native sequential PostgreSQL SQL migration files; Alembic and SQLAlchemy are excluded; the scope is structural only; and migrations are decoupled from application startup.
+- Applied migrations are immutable and evolve only through new sequential files. They contain no business or operational data; synthetic POC seed is deferred to phase 4.9, later data enters through runtime inserts, and rollback is explicit and controlled without automation.
+- Phase 4.6.2 Migration Structure and Execution Order is approved and complete: the initial construction is defined as exactly six sequential files, 0001 through 0006, covering prerequisites/schemas, RAG tables, OPS tables, the independent AUDIT table, constraints, and indexes.
+- The approved order follows table dependencies; primary keys, NOT NULL requirements, and defaults are created with tables; constraints are ordered UNIQUE, CHECK, simple foreign keys, then composite foreign keys; 0006 contains 21 explicit indexes without duplicate UNIQUE-backed indexes.
+- No migration files or physical database objects have been created.
+- Phase 4.5.1 is complete; global PostgreSQL physical conventions are approved.
+- Phase 4.5.2 is complete; the RAG physical model is approved in
+  `docs/database-physical-model.md`.
+- The RAG physical model uses stable `document_key` identity, nullable
+  pre-publication checksums, atomic current-chunk replacement without version
+  history, required FTS and vector retrieval representations, and ingestion-run
+  provenance with source/document integrity.
+- RAG publication uses a single-worker ingestion flow.
+- Phase 4.5.3 is complete. The approved embedding configuration is FastEmbed
+  `0.8.0` with `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`,
+  ONNX Runtime on local CPU, optional GPU, 384 dimensions, and
+  `VECTOR(384)` storage.
+- FastEmbed mean pooling is the approved current behavior; no additional manual
+  normalization is applied. Older E5 or sentence-transformers embeddings are
+  incompatible and require full re-embedding.
+- Phase 4.5.4 is complete; the approved FTS design uses `TSVECTOR`, standard
+  `portuguese` and `simple` configurations, title/section/content inputs,
+  application-controlled native generation, planned GIN
+  `gin_chunks__search_vector`, `websearch_to_tsquery`, `ts_rank_cd`, up to 10
+  lexical candidates, and RRF hybrid fusion.
+- Phase 4.5.5 is complete. The approved pgvector design uses `VECTOR(384)`
+  with strict cosine distance through `<=>`, exact nearest-neighbor scanning,
+  and no active ANN index. HNSW is a future-only preference if benchmarks
+  require ANN; it is not active or implemented. Semantic retrieval is limited
+  to 10 candidates, applies active source/document filters, and uses rank-based
+  RRF with snapshot consistency across lexical, semantic, and provenance data.
+- Phase 4.5.6 is complete. The approved OPS physical model defines six tables
+  with BIGINT identity technical keys, TIMESTAMPTZ instants, explicit status
+  checks, planned indexes only, email 0..1 protocol cardinality, composite
+  provenance FKs, the R1-to-R2 establishment handoff with TEXT business
+  numbers, and chronological `execution_log` retention using optional
+  `SET NULL` entity references.
+- Incoming emails are R1 intake records. R2 cannot own incoming emails. The
+  `run_id` FK guarantees that the referenced automation run exists, but does
+  not by itself guarantee `robot = 'R1'`; R1-only ownership remains an
+  application invariant in the approved final model. No redundant
+  `robot` column or trigger is introduced.
+- Phases 4.5.1 through 4.5.16 are complete. Phase 4.5 is COMPLETED / APPROVED
+  after the final documentation gate. Exactly 11 tables are specified in
+  `docs/database-physical-model.md`; no physical objects have been created.
+- POC volume ranges are planning assumptions. Exact cosine, the existing
+  query indexes, complementary unindexed JSONB and no partitioning remain
+  proportional starting choices; performance certification is not claimed.
+- The field-security review is complete: governed RAG, minimized OPS,
+  sanitized AUDIT and anti-secret rules for all fields. Production IAM remains
+  outside this phase.
+- The 29 planned query access paths (7 RAG, 18 OPS, 4 AUDIT) are preserved.
+  Two existing OPS composite-FK target UNIQUEs also require backing indexes;
+  the full future non-PK backing-index total is 31. None has been created.
+- The next phase is 4.6 — CRIAR TABELAS / DDL / MIGRATIONS; implementation
+  remains pending.
 
 ## Architecture in Force
 
@@ -292,6 +350,48 @@ and `pip check` have been validated with the required interpreter.
 The application database username is intentionally omitted from this context.
 Passwords and other `.env` values must never be copied into documentation.
 
+## Development Tooling — PostgreSQL MCP
+
+The PostgreSQL MCP is approved only as external development, debugging,
+inspection, and validation tooling. It is not part of the runtime architecture
+and is not a production dependency.
+
+### Tooling configuration
+
+- MCP package: `@microsoft/postgres-mcp`
+- Codex server name: `getnet-postgres`
+- Connection profile: `getnet-support-ro`
+- Connection endpoint: `127.0.0.1:5432`
+- Database: `getnet_support`
+- SSL: disabled (`false`)
+- Access mode: read-only (`ro`)
+- Secret storage: OS-level secure credential storage
+
+Passwords, password hashes, tokens, secret connection strings, credentials,
+credential locations, and `.env` values must never be logged or copied into
+documentation.
+
+### Validation state
+
+- PostgreSQL version: `17.11`
+- Database: `getnet_support`
+- Extension: pgvector `0.8.6`
+- Present schemas: `public`, `information_schema`, `pg_catalog`, `pg_toast`
+- Planned schemas: `rag`, `ops`, `audit` — not yet created (`null`), as expected
+  during the pre-schema creation phase.
+
+### Scope and write policy
+
+- The MCP is for external development/debug/inspection/validation tooling only;
+  it is not runtime architecture.
+- FastAPI, Django, LangGraph, and Agents do not depend on the MCP.
+- The current profile is read-only. DDL, migrations, and repository writes use
+  standard project workflows only.
+- Future inspection may cover schemas, tables, columns, constraints, indexes,
+  pgvector, PostgreSQL Full Text Search, and OPS data.
+- An optional future read-only dedicated database user is a defense-in-depth
+  consideration; do not implement it now.
+
 ## Planned Database Schemas
 
 ### `rag`
@@ -345,8 +445,11 @@ Approved conceptual structures:
 - `rag.chunks`
 - `rag.ingestion_runs`
 
-These structures are conceptual. No physical `rag` schema, table, DDL,
-migration, or index exists yet.
+The conceptual responsibilities were approved in phase 4.2 and their
+PostgreSQL physical representation was approved in phase 4.5.2. Physical
+schemas, tables, DDL, migrations, and ORM objects remain pending for phase 4.6.
+The authoritative detailed physical specification is
+`docs/database-physical-model.md`.
 
 #### `rag.sources` — Approved responsibility
 
@@ -376,8 +479,10 @@ Approved conceptual information:
 - `created_at`
 - `updated_at`
 
-These remain conceptual fields only. Do not assign SQL types, constraints,
-PK/FK implementation, enums, or indexes.
+The physical design is approved in phase 4.5.2: stable canonical source
+identity, UUID technical key, classification and explicit activation rules,
+and the approved constraints are recorded in
+`docs/database-physical-model.md`.
 
 Approved relationship:
 
@@ -404,7 +509,9 @@ Approved conceptual information:
 - `created_at`
 - `updated_at`
 
-These remain conceptual fields only.
+The physical design is approved in phase 4.5.2 and is detailed in
+`docs/database-physical-model.md`. `document_key` provides stable identity;
+title remains descriptive and mutable. No document version history is kept.
 
 **Important approved simplification — No historical document versions:**
 The POC does NOT maintain historical document versions. Do NOT introduce:
@@ -451,7 +558,10 @@ Approved conceptual information:
 - `search_vector`
 - `created_at`
 
-These remain conceptual fields only.
+The physical design is approved in phase 4.5.2 and is detailed in
+`docs/database-physical-model.md`. `rag.chunks` remains the persistent
+retrieval unit, and published chunks require both vector and FTS
+representations.
 
 Conceptual responsibilities:
 
@@ -461,8 +571,8 @@ Conceptual responsibilities:
 - `content_type`: conceptual category such as business rule, document section,
   technical description, code symbol, policy, etc.
 - `metadata`: auxiliary provenance/context metadata.
-- `embedding`: semantic-vector representation used by pgvector (do NOT define
-  `VECTOR(N)` yet).
+- `embedding`: semantic-vector representation used by pgvector; the approved
+  physical representation is `VECTOR(384)`.
 - `search_vector`: lexical representation used by PostgreSQL Full Text Search
   (do NOT define `TSVECTOR` implementation details or indexes yet).
 
@@ -504,7 +614,9 @@ Approved conceptual information:
 - `result_message`
 - `created_at`
 
-These remain conceptual fields only.
+The physical design is approved in phase 4.5.2 and is detailed in
+`docs/database-physical-model.md`. Ingestion runs preserve execution history,
+source/document provenance integrity, and the approved lifecycle states.
 
 Conceptual operation examples include:
 
@@ -512,7 +624,8 @@ Conceptual operation examples include:
 - `REINGEST`
 - `SKIPPED_UNCHANGED`
 
-Do not define physical database enums or constraints yet.
+The lifecycle states, categorical checks, and integrity rules are approved in
+phase 4.5.2 and are detailed in `docs/database-physical-model.md`.
 
 Approved relationship:
 
@@ -620,7 +733,8 @@ This supports:
 - citation/attribution;
 - auditability.
 
-Do not define physical joins, FK constraints, SQL queries, or indexes yet.
+The approved RAG physical joins, FK constraints, and indexes are documented in
+`docs/database-physical-model.md`; no database objects have been created.
 
 #### Retrieval responsibility
 
@@ -707,8 +821,10 @@ Approved conceptual structures:
 - `ops.establishments`
 - `ops.execution_log`
 
-These remain conceptual structures only; no physical `ops` schema, table, DDL,
-migration, constraints, or index has been created.
+The OPS physical design was approved in phase 4.5.6 and is detailed in
+`docs/database-physical-model.md`. No physical `ops` schema, table, DDL,
+migration, constraint, or index has been created; implementation remains
+pending for phase 4.6.
 
 #### `ops.automation_runs` — Approved responsibility
 
@@ -748,6 +864,11 @@ Rules:
 - an email has N attachments (`ops.incoming_emails` 1:N `ops.email_attachments`);
 - when reaching protocol creation, 1 email generates exactly 1 protocol (`ops.incoming_emails` 0..1 `ops.service_requests`);
 - all attachments of that email belong to the same request/protocol.
+
+Incoming emails are strictly R1 intake records; R2 runs must never own them.
+The `run_id` FK guarantees only that the referenced automation run exists. It
+does not enforce `robot = 'R1'`; R1-only ownership is an application invariant.
+No redundant `robot` column or trigger is introduced.
 
 Approved conceptual fields:
 
@@ -833,11 +954,12 @@ Approved conceptual fields:
 `status` represents the consolidated protocol state across its operational
 items:
 
-- while items are pending or waiting, `status` remains in progress (e.g. `IN_PROGRESS`);
+- while items are pending or waiting, `status` remains `PROCESSING`;
 - when all required items are concluded, `status` transitions to completed (`COMPLETED`).
 
-Do not define physical enums, SQL types, constraints, or SQL consolidation rules
-at this stage.
+The physical types, constraints, and consolidation rules are approved in phase
+4.5.6 and documented in `docs/database-physical-model.md`; no database objects
+have been created.
 
 #### `ops.establishments` — Approved responsibility
 
@@ -890,7 +1012,7 @@ Examples:
 
 - after R1: `upload_status = SUCCESS`, `processing_status = WAITING_RESULT`.
 - R2 with result not yet released: `upload_status = SUCCESS`, `download_status = NOT_AVAILABLE`, `processing_status = WAITING_RESULT`.
-- final state: `upload_status = SUCCESS`, `download_status = SUCCESS`, `processing_status = COMPLETED`.
+- final state: `upload_status = SUCCESS`, `download_status = DOWNLOADED`, `processing_status = COMPLETED`.
 
 If the portal has not yet made the result available, that does not mean the R2
 execution failed technically. If a technical communication failure, timeout, or
@@ -937,8 +1059,9 @@ instant in time:
 - `created_at`
 - `updated_at`
 
-The physical SQL type (`TIMESTAMP`, `TIMESTAMPTZ`, etc.) will be chosen in phase
-4.5. The current decision is semantic: full timestamps for all time instants.
+The physical SQL type for all time instants is `TIMESTAMPTZ`, approved in phase
+4.5.6. The current decision remains semantic UTC instants; no database object
+has been created.
 
 **Difference between log status and process status:**
 The approved conceptual statuses of `execution_log` remain:
@@ -1001,7 +1124,9 @@ Conceitualmente:
 - um mesmo protocolo/item pode ser observado por múltiplas execuções R2;
 - `execution_log` correlaciona essas execuções e entidades ao longo do tempo.
 
-Do not define physical PK/FK constraints or SQL joins yet.
+The physical OPS PK/FK constraints and joins are approved in phase 4.5.6 and
+documented in `docs/database-physical-model.md`; no database objects have been
+created.
 
 #### Detailed R1 and R2 execution flow
 
@@ -1069,13 +1194,14 @@ which owns observed operational state and answers what actually happened
 operationally. AUDIT is not used for ordinary RPA operational logs and does not
 determine business process state.
 
-The initial POC uses one approved conceptual structure:
+The initial POC uses one approved conceptual and physical table model:
 
 - `audit.security_events`
 
-This intentionally simplified model remains conceptual. No physical `audit`
-schema or table has been created, and multiple audit tables must not be
-introduced unless a future approved requirement requires them.
+The physical model is approved in phase 4.5.7 and detailed in
+`docs/database-physical-model.md`. No physical `audit` schema or table has
+been created, and multiple audit tables must not be introduced unless a future
+approved requirement requires them.
 
 #### `audit.security_events`
 
@@ -1090,6 +1216,7 @@ Approved conceptual fields:
 - `source_component`
 - `user_identifier`
 - `request_reference`
+- `resource_category`
 - `sanitized_content`
 - `action_taken`
 - `result`
@@ -1099,24 +1226,26 @@ Approved conceptual fields:
 - `created_at`
 
 `event_id` identifies the event and `occurred_at` records when it occurred.
-`event_type` identifies its conceptual security/governance category.
+`event_type` identifies its security/governance category.
 `source_component` identifies the detecting or generating component, such as a
 Router Agent, Knowledge Agent, Customer Support Agent, tool gateway, security
-guardrail, or application boundary; no fixed physical enum is approved yet.
+guardrail, or application boundary; it is nonblank TEXT without a fixed
+category CHECK or PostgreSQL ENUM.
 
 `user_identifier` identifies the related user only when available and
 authorized. `request_reference` provides correlation to the originating
 request, session, or conversation without storing the entire request payload.
 `sanitized_content` contains only a sanitized description of the relevant
-request or detected content. `action_taken` describes the protective action,
-conceptually including `BLOCKED`, `DENIED`, `IGNORED`, `REDACTED`, or
-`ALLOWED_WITH_RESTRICTION`, while `result` captures the security decision
-outcome. No physical constraint or enum has been approved.
+request or detected content and may be null when safe persistence is not
+possible. Approved `action_taken` values are `BLOCK`, `DENY_ACCESS`, `REDACT`,
+`SAFE_RESPONSE`, and `ESCALATE`. Approved `result` values are `SUCCESS`,
+`PARTIAL`, and `ERROR`; both use TEXT + CHECK rather than PostgreSQL ENUM.
 
-The optional `review_status`, `reviewed_at`, and `review_note` fields support
-later governance review within the same POC structure. No separate review
-table, review workflow implementation, or Django Admin behavior is approved at
-this stage. `created_at` records creation of the audit record.
+`review_status` is mandatory with default `UNREVIEWED`; `reviewed_at` and
+`review_note` are optional. A reviewed event requires `reviewed_at >=
+occurred_at`; an unreviewed event has no review timestamp. No separate review
+table, queue implementation, review workflow, or Django Admin behavior is
+approved. `created_at` records persistence of the audit record.
 
 #### Approved conceptual event categories
 
@@ -1130,8 +1259,21 @@ this stage. `created_at` records creation of the audit record.
 - `AUTHORIZATION_BYPASS_ATTEMPT`
 - `SECURITY_POLICY_PROBE`
 
-These are conceptual categories only. Database enums and `CHECK` constraints
-have not been defined.
+These categories use the approved TEXT + CHECK physical strategy.
+
+`resource_category` is nullable, including for prompt-injection events, and
+uses the approved values `DATABASE_CREDENTIAL`, `API_KEY`, `PASSWORD`,
+`ACCESS_TOKEN`, `PRIVATE_KEY`, `COOKIE`, `CONNECTION_STRING`,
+`SECRET_LOCATION`, `PROTECTED_PATH`, `AUTHENTICATION_CONTROL`,
+`INTERNAL_INFRASTRUCTURE`, and `OTHER_PROTECTED_RESOURCE`. Real secrets,
+tokens, keys, paths, connection strings, and credentials are never persisted.
+
+`event_id` identifies one individual security/governance event. `occurred_at`
+is the full event datetime instant; `created_at` is the distinct persistence
+datetime. `user_identifier` is optional and is used only when available,
+authorized, and appropriate, without redundant PII. `request_reference`
+correlates a request, session, or conversation; one request may reference
+multiple event records, and the full request payload is never stored.
 
 #### Sanitization and secret handling
 
@@ -1145,6 +1287,22 @@ sensitive content is detected, the conceptual flow is:
 Only a sanitized description may be stored. For example, the audit description
 may state that credential-like sensitive content was detected and removed; it
 must never reproduce the value itself.
+
+### AUDIT cardinality and lifecycle
+
+One request produces zero to N `audit.security_events` records: a normal
+request produces zero, a simple protected request may produce one, and a
+multi-threat request may produce multiple records. Each event record has one
+conceptual `event_type`; multi-threat records share `request_reference` and do
+not use arrays, JSON collections, or junction tables.
+
+The conceptual lifecycle is:
+
+`input -> detection -> sanitization/redaction -> action -> persist audit.security_events -> safe response`
+
+`action_taken` records the applied control, while `result` records the distinct
+decision outcome. Review metadata follows the approved phase 4.5.7 nullability
+and timestamp checks; no review workflow is implemented.
 
 #### Information outside AUDIT
 
@@ -1444,11 +1602,7 @@ here.
 
 ## Current Pending Decisions
 
-- Detailed OPS table architecture, responsibilities, and relationships in phase 4.3.
-- Detailed AUDIT table architecture in phase 4.4.
-- Final FastEmbed model and embedding vector dimension.
-- Physical-model decisions.
-- PK, FK, index, uniqueness, nullability, and constraint strategy.
+- Phase 4.6.3 PostgreSQL prerequisites and schema creation.
 - Python database libraries and repository implementation.
 - Executable ingestion.
 - Executable embeddings.
@@ -1461,20 +1615,18 @@ here.
 
 ## Immediate Next Step
 
-Begin 4.3 — OPS Schema Architecture.
+Begin 4.6.3 — CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS.
 
-Review and approve the detailed responsibilities, relationships, and
-conceptual behavior of:
+Phase 4.5 is COMPLETED / APPROVED: the final gate validated all 11 table
+models, relationships, hybrid PKs, integrity, lifecycle nullability, planned
+indexes, retention, retrieval configuration and physical field security.
+The detailed authority is `docs/database-physical-model.md`; historical
+decisions remain in `docs/decision-log.md`. R1-only intake is application-
+enforced; its FK verifies run existence only.
 
-- `ops.automation_runs`
-- `ops.incoming_emails`
-- `ops.email_attachments`
-- `ops.service_requests`
-- `ops.establishments`
-- `ops.execution_log`
-
-Do not create physical tables, DDL, migrations, PK/FK constraints, indexes, or
-`VECTOR(N)` yet. These remain assigned to later roadmap phases.
+No physical database objects, DDL, migrations, indexes, triggers, ORM,
+repositories or runtime logic were created by the documentation closure.
+Phase 4.6 and later implementation steps remain unimplemented.
 
 ## Documentation Maintenance Rules
 
