@@ -1665,3 +1665,49 @@ explicit without introducing runtime or migration-tool complexity.
 
 **Status:** Approved; Phase 4.6.2 complete; Phase 4.6.3 current; Phase 4.6
 incomplete.
+
+---
+
+## DEC-113 — Migration structure approval: placement and execution boundaries
+
+**Decision:** Reaffirm DEC-112 and its exact six-file sequence under
+`database/migrations/`: `0001_prerequisites_and_schemas.sql` ->
+`0002_rag_tables.sql` -> `0003_ops_tables.sql` -> `0004_audit_table.sql` ->
+`0005_constraints.sql` -> `0006_indexes.sql`. The responsibilities and RAG/OPS
+table dependency orders recorded in DEC-112 remain unchanged.
+
+Table creation in 0002–0004 owns columns, PostgreSQL types, PKs, approved
+UUID/identity generation, both nullable and NOT NULL definitions, and defaults.
+0005 owns all 10 UNIQUEs, approved CHECKs, and 14 FKs, including approved
+ON DELETE actions and ON UPDATE RESTRICT. Its strict order is UNIQUE -> CHECK
+-> simple FKs -> composite FKs. These UNIQUE targets must precede their
+dependent composite FKs:
+
+- `rag.documents(document_id, source_id)` for
+  `rag.ingestion_runs(document_id, source_id)`;
+- `ops.automation_runs(run_id, robot)` for `ops.execution_log(run_id, robot)`;
+- `ops.incoming_emails(email_id, run_id)` for
+  `ops.service_requests(email_id, r1_run_id)`.
+
+The approved accounting is 29 query access paths and 31 future non-PK backing
+indexes: 10 UNIQUE-backed plus 21 explicit indexes assigned to 0006. Verify the
+exact inventory against `docs/database-physical-model.md` during 4.6.8.
+0006 includes `gin_chunks__search_vector` on `rag.chunks.search_vector` and
+does not duplicate PK/UNIQUE backing indexes. ANN (HNSW/IVFFlat), JSONB GIN,
+speculative indexes, FTS triggers, generated FTS columns, and global timestamp
+triggers remain excluded.
+
+The database is structurally ready only after all six migrations succeed.
+Application runtime, repositories, seed, ingestion, and operational processes
+must not depend on intermediate construction states. Migrations contain no
+synthetic, business, operational, or RAG corpus data. Synthetic seed belongs to
+4.9; production data is forbidden. Explicit manual rollback implementation
+remains deferred to 4.6.9. The pgvector creation-versus-verification decision
+remains deferred to 4.6.3. All Phase 4.5 physical decisions and the native SQL
+strategy from DEC-111 are preserved.
+
+**Rationale:** Make the approved placement, index accounting, and readiness
+conditions explicit without rewriting DEC-112 or advancing implementation.
+
+**Status:** Approved; 4.6.2 complete; 4.6.3 current; Phase 4.6 incomplete.
+No directory, SQL migration file, or database object was created by this task.

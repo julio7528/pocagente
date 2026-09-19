@@ -43,6 +43,13 @@ evidence without relying on chat history.
 - Phase 4.6.2 Migration Structure and Execution Order is approved and complete: the initial construction is defined as exactly six sequential files, 0001 through 0006, covering prerequisites/schemas, RAG tables, OPS tables, the independent AUDIT table, constraints, and indexes.
 - The approved order follows table dependencies; primary keys, NOT NULL requirements, and defaults are created with tables; constraints are ordered UNIQUE, CHECK, simple foreign keys, then composite foreign keys; 0006 contains 21 explicit indexes without duplicate UNIQUE-backed indexes.
 - No migration files or physical database objects have been created.
+- DEC-112 and DEC-113 define the six-file sequence and execution boundary.
+  Initial table creation owns types, PKs, UUID/identity generation, nullability,
+  and defaults; 0005 owns UNIQUE/CHECK/FK rules. The 21 explicit indexes in
+  0006 are the 31 non-PK backing indexes minus 10 UNIQUE-backed indexes, with
+  exact inventory verification deferred to 4.6.8. Runtime, repositories, seed,
+  ingestion, and operational processes require the complete successful sequence.
+  Phase 4.6 remains incomplete; physical implementation has not started.
 - Phase 4.5.1 is complete; global PostgreSQL physical conventions are approved.
 - Phase 4.5.2 is complete; the RAG physical model is approved in
   `docs/database-physical-model.md`.
