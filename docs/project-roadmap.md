@@ -46,7 +46,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
    ✅ Fontes públicas controladas
-      └─ knowledge/public/sources.yaml
+      └─ knowledge/internal/cancellation-process/public/sources.yaml
          ├─ cancelamento/corporativo
          └─ produtos, serviços e suporte oficial Getnet
 
@@ -65,7 +65,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
    ✅ Suíte de cenários do desafio
       └─ evaluation/challenge/scenarios-v1.yaml
-         ├─ 13 cenários end-to-end
+         ├─ 14 cenários end-to-end
          ├─ routing e seleção de capacidades
          ├─ RAG vs Web Search
          ├─ tools de Customer Support
@@ -116,8 +116,8 @@ MAPA ATUAL — GETNET SUPPORT POC
       ✅ FastAPI main.py
       ✅ /health
       ✅ /ready
-      ✅ /chat placeholder
-      ✅ autenticação interna fail-closed
+      ✅ /chat autenticado sobre o runtime de orquestração
+      ✅ autenticação interna Bearer fail-closed
 
 
       ✅ RAGService
@@ -157,7 +157,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-4. POSTGRESQL + PGVECTOR                               ← ESTAMOS AQUI
+4. POSTGRESQL + PGVECTOR                               ✅ CONCLUÍDO
 
 
 
@@ -461,45 +461,67 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-### 4.6 CRIAR TABELAS / DDL / MIGRATIONS ← AGORA
+### 4.6 CRIAR TABELAS / DDL / MIGRATIONS ✅ CONCLUÍDO
 
 #### 4.6.1 DEFINIR ESTRATÉGIA DE MIGRATIONS  ✅ CONCLUÍDO
 #### 4.6.2 DEFINIR ESTRUTURA E ORDEM DAS MIGRATIONS  ✅ CONCLUÍDO
-#### 4.6.3 CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS  ← AGORA
-#### 4.6.4 CRIAR TABELAS DO SCHEMA RAG
-#### 4.6.5 CRIAR TABELAS DO SCHEMA OPS
-#### 4.6.6 CRIAR TABELA DO SCHEMA AUDIT
-#### 4.6.7 IMPLEMENTAR CONSTRAINTS E INTEGRIDADE
-#### 4.6.8 CRIAR ÍNDICES E ACCESS PATHS
-#### 4.6.9 DEFINIR COMPORTAMENTO DE EXECUÇÃO, TRANSAÇÃO E ROLLBACK
-#### 4.6.10 APLICAR MIGRATIONS NO POSTGRESQL LOCAL
-#### 4.6.11 VALIDAR ESTRUTURA FÍSICA CRIADA
-#### 4.6.12 ATUALIZAR DOCUMENTAÇÃO E DECISION LOG
-#### 4.6.13 CRITÉRIOS DE CONCLUSÃO DO 4.6
+#### 4.6.3 CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS  ✅ CONCLUÍDO
+#### 4.6.4 CRIAR TABELAS DO SCHEMA RAG  ✅ CONCLUÍDO
+#### 4.6.5 CRIAR TABELAS DO SCHEMA OPS  ✅ CONCLUÍDO
+#### 4.6.6 CRIAR TABELA DO SCHEMA AUDIT  ✅ CONCLUÍDO
+#### 4.6.7 IMPLEMENTAR CONSTRAINTS E INTEGRIDADE  ✅ CONCLUÍDO
+#### 4.6.8 CRIAR ÍNDICES E ACCESS PATHS  ✅ CONCLUÍDO
+#### 4.6.9 DEFINIR COMPORTAMENTO DE EXECUÇÃO, TRANSAÇÃO E ROLLBACK  ✅ CONCLUÍDO
+#### 4.6.10 APLICAR MIGRATIONS NO POSTGRESQL LOCAL  ✅ CONCLUÍDO
+#### 4.6.11 VALIDAR ESTRUTURA FÍSICA CRIADA  ✅ CONCLUÍDO
+#### 4.6.12 ATUALIZAR DOCUMENTAÇÃO E DECISION LOG  ✅ CONCLUÍDO
+#### 4.6.13 CRITÉRIOS DE CONCLUSÃO DO 4.6  ✅ CONCLUÍDO
 
 
-   4.7 DEPENDÊNCIAS PYTHON DO BANCO                    ⏳
+### 4.7 DEPENDÊNCIAS PYTHON DO BANCO ✅ CONCLUÍDO
 
-
-      Previstas:
-      - SQLAlchemy
-      - psycopg
-      - pgvector
-
-
-
-
-   4.8 CAMADA DE ACESSO AO BANCO                       ⏳
-
-
-      RAGRepository
-      OperationalRepository
-      AuditRepository
+#### 4.7.1 LEVANTAR REQUISITOS DA CAMADA PYTHON DE BANCO  ✅ CONCLUÍDO
+#### 4.7.2 DEFINIR ESTRATÉGIA DE ACESSO PYTHON AO POSTGRESQL  ✅ CONCLUÍDO
+#### 4.7.3 DEFINIR DRIVER POSTGRESQL E MODO DE INSTALAÇÃO  ✅ CONCLUÍDO
+#### 4.7.4 AVALIAR NECESSIDADE DO SQLALCHEMY  ✅ CONCLUÍDO
+#### 4.7.5 DEFINIR INTEGRAÇÃO PYTHON COM PGVECTOR  ✅ CONCLUÍDO
+#### 4.7.6 DEFINIR DEPENDÊNCIAS E VERSÕES APROVADAS  ✅ CONCLUÍDO
+#### 4.7.7 ATUALIZAR PYPROJECT.TOML  ✅ CONCLUÍDO
+#### 4.7.8 INSTALAR DEPENDÊNCIAS NO AMBIENTE PYTHON  ✅ CONCLUÍDO
+#### 4.7.9 VALIDAR INSTALAÇÃO, IMPORTS E COMPATIBILIDADE  ✅ CONCLUÍDO
+#### 4.7.10 ATUALIZAR DOCUMENTAÇÃO E DECISION LOG  ✅ CONCLUÍDO
+#### 4.7.11 CRITÉRIOS DE CONCLUSÃO DO 4.7  ✅ CONCLUÍDO
 
 
 
 
-   4.9 DADOS FICTÍCIOS / SEED                          ⏳
+### 4.8 CAMADA DE ACESSO AO BANCO  ✅ CONCLUÍDO / APROVADO
+
+#### 4.8.1 DEFINIR ARQUITETURA DA CAMADA DE ACESSO AO BANCO  ✅ CONCLUÍDO
+#### 4.8.2 DEFINIR CONFIGURAÇÃO E PARÂMETROS DE CONEXÃO  ✅ CONCLUÍDO
+#### 4.8.3 DEFINIR LIFECYCLE DE CONEXÕES E CONNECTION POOL  ✅ CONCLUÍDO
+#### 4.8.4 IMPLEMENTAR COMPONENTE CENTRAL DE CONEXÃO POSTGRESQL  ✅ CONCLUÍDO
+#### 4.8.5 INTEGRAR PGVECTOR AO LIFECYCLE DAS CONEXÕES  ✅ CONCLUÍDO
+#### 4.8.6 DEFINIR CONTRATOS E RESPONSABILIDADES DOS REPOSITORIES  ✅ CONCLUÍDO
+#### 4.8.7 IMPLEMENTAR RAGREPOSITORY  ✅ CONCLUÍDO
+#### 4.8.8 IMPLEMENTAR OPERATIONALREPOSITORY  ✅ CONCLUÍDO
+#### 4.8.9 IMPLEMENTAR AUDITREPOSITORY  ✅ CONCLUÍDO
+#### 4.8.10 IMPLEMENTAR CONTROLE TRANSACIONAL DA CAMADA DE ACESSO  ✅ CONCLUÍDO
+#### 4.8.11 IMPLEMENTAR MAPEAMENTO DE RESULTADOS PARA MODELOS PYTHON  ✅ CONCLUÍDO
+#### 4.8.12 IMPLEMENTAR TRATAMENTO DE ERROS DE BANCO  ✅ CONCLUÍDO
+#### 4.8.13 VALIDAR CONEXÃO REAL COM POSTGRESQL  ✅ CONCLUÍDO
+#### 4.8.14 VALIDAR REPOSITORIES E OPERAÇÕES BÁSICAS  ✅ CONCLUÍDO
+#### 4.8.15 ATUALIZAR DOCUMENTAÇÃO E DECISION LOG  ✅ CONCLUÍDO
+#### 4.8.16 CRITÉRIOS DE CONCLUSÃO DO 4.8  ✅ CONCLUÍDO
+
+
+
+
+   4.9 DADOS FICTÍCIOS / SEED                          ✅ COMPLETED / APPROVED
+
+      4.9.1 DEFINIR ESTRUTURA REUTILIZÁVEL DE SEED OPS  ✅ CONCLUÍDO
+      4.9.2 INSERIR CASO 001 — SUCESSO R1/R2            ✅ CONCLUÍDO
+      4.9.3 DEFINIR E INSERIR CENÁRIOS OPS ADICIONAIS    ✅ CONCLUÍDO
 
 
       - execuções RPA
@@ -512,7 +534,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-   4.10 VALIDAÇÃO DO BANCO                             ⏳
+   4.10 VALIDAÇÃO DO BANCO                             ✅ COMPLETED / APPROVED
 
 
       - conexão
@@ -527,46 +549,53 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-5. INGESTION EXECUTÁVEL                                ⏳
+5. INGESTION EXECUTÁVEL                                ✅ CONCLUÍDO
 
+   5.1 Loader real                                      ✅ CONCLUÍDO
+   5.2 Normalization                                    ✅ CONCLUÍDO
+   5.3 Validator                                        ✅ CONCLUÍDO
+   5.4 Checksum                                         ✅ CONCLUÍDO
+   5.5 INGEST / REINGEST / SKIPPED_UNCHANGED           ✅ CONCLUÍDO
+   5.6 Controlled reprocessing preparation              ✅ CONCLUÍDO
+   5.7 Structural chunking                              ✅ CONCLUÍDO
+   5.8 Metadata + provenance                            ✅ CONCLUÍDO
+   5.9 Prepared ingestion contracts                     ✅ CONCLUÍDO
+   5.10 Ingestion application service                   ✅ CONCLUÍDO
+   5.11 Manual CLI entry points                         ✅ CONCLUÍDO
+   5.12 Real corpus validation                          ✅ CONCLUÍDO
+   5.13 Regression validation                           ✅ CONCLUÍDO
+   5.14 Database safety validation                      ✅ CONCLUÍDO
+   5.15 Documentation / completion gate                 ✅ CONCLUÍDO
 
-   loader real
-   ↓
-   validator
-   ↓
-   checksum
-   ↓
-   reprocessamento controlado
-   ↓
-   structural chunking
-   ↓
-   metadata
-   ↓
-   PostgreSQL
-
-
-
-
-6. FASTEMBED EXECUTÁVEL                                ⏳
-
-
-usar modelo aprovado:
-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
-↓
-usar dimensão aprovada:
-384 / VECTOR(384)
-↓
-gerar embeddings
-↓
-persistir em rag.chunks
-
-Implementação de runtime permanece pendente; esta etapa não cria DDL,
-migrações ou objetos de banco.
+   Phase 5 produces deterministic validated PreparedChunks only.
+   Phase 6 owns FastEmbed 384, FTS payload preparation, and atomic PostgreSQL publication.
 
 
 
 
-7. HYBRID RETRIEVAL + RRF                              ⏳
+6. FASTEMBED EXECUTÁVEL                                ✅ CONCLUÍDO
+
+   6.1 FastEmbed adapter                                ✅ CONCLUÍDO
+   6.2 Validação de embeddings (384 dims, finite)       ✅ CONCLUÍDO
+   6.3 Integração PreparedIngestion -> Embeddings       ✅ CONCLUÍDO
+   6.4 Geração nativa PostgreSQL FTS (pesos A,B,C,D)    ✅ CONCLUÍDO
+   6.5 Contratos de publicação (PublicationChunk/Result)✅ CONCLUÍDO
+   6.6 RAGPublicationService centralizado               ✅ CONCLUÍDO
+   6.7 Publicação atômica PostgresDatabase.transaction  ✅ CONCLUÍDO
+   6.8 SKIPPED_UNCHANGED e REINGEST atômico             ✅ CONCLUÍDO
+   6.9 Validação E2E com corpus curado real (99 chunks) ✅ CONCLUÍDO
+   6.10 Regressão e documentação                        ✅ CONCLUÍDO
+
+   Modelo aprovado: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+   Dimensão: 384 / VECTOR(384)
+   Execução: Local CPU (ONNX Runtime), sem normalização manual de vetores.
+   Corpus real publicado: PDD (52 chunks), SDD (20 chunks), Tech Overview (27 chunks).
+   Smoke tests: Lexical search (FTS) e Semantic search (pgvector) validados no banco real.
+
+
+
+
+7. HYBRID RETRIEVAL + RRF                              ✅ CONCLUÍDO
 
 
    PostgreSQL FTS → Top 10
@@ -576,10 +605,13 @@ migrações ou objetos de banco.
            ↓
          Top 5
 
+   REPEATABLE READ / READ ONLY snapshot; RRF k=60; chunk_id deduplication
+   with best-channel-rank and stable chunk_id tie-breaking.
 
 
 
-8. GROUNDING / ANTI-ALUCINAÇÃO                         ⏳
+
+8. GROUNDING / ANTI-ALUCINAÇÃO                         ✅ CONCLUÍDO
 
 
    - evidência suficiente
@@ -589,10 +621,45 @@ migrações ou objetos de banco.
    - source priority
    - resposta grounded
 
+   GroundedContext imutável e provider-neutral, com provenance completo,
+   citações determinísticas e suficiência estrutural. Sem geração por LLM.
 
 
 
-9. MULTI-AGENT + RAG + TOOLS + TAVILY                 ⏳
+
+9. MULTI-AGENT + RAG + TOOLS + TAVILY                 ← AGORA
+
+   9.1 SDD Foundation, 9.2 LLM Provider / DeepSeek, 9.3 Knowledge Agent,
+   9.4 OPS Tools, 9.5 Customer Support Agent, 9.6 Router Agent, and 9.7 LangGraph
+   orchestration and 9.8 Tavily fallback are complete. Knowledge composes the approved Hybrid Retrieval/RRF and
+   ContextBuilder boundaries with the provider-neutral LLM interface, returns
+   controlled insufficient-evidence results without LLM invocation, and exposes
+   only safe citations. Real PostgreSQL retrieval/grounding and opt-in DeepSeek
+   validation passed; the API key remains local runtime configuration and is not
+   committed. Phase 9.8 provides bounded, provider-neutral Tavily public live
+   evidence only: current questions use it directly and Payment Link/WhatsApp
+   uses RAG first with controlled fallback. Live evidence passes typed
+   non-persistent grounding before generation; official Getnet priority is read
+   from the approved source registry. It never persists web results or obtains
+   private OPS facts. Phase 9.9 Human Escalation is complete: explicit
+   confirmation reaches `WAITING_HUMAN`, authorized operator acceptance alone
+   reaches human ownership, and only human ownership suspends automation. It
+   is non-persistent and has no Django or ticket implementation. Phase 9.10
+   `/chat` is complete: strict authenticated FastAPI transport maps through a
+   narrow application adapter to orchestration and returns only allowlisted,
+   provider-neutral responses. The next reviewed scope is 9.11 end-to-end
+   validation.
+   Phase 9.4 provides read-only, authorization-gated
+   `lookup_protocol_status` and `inspect_execution_failure` application tools
+   over the approved `OperationalRepository`; they return observed typed facts
+   only and were validated against persisted synthetic OPS records. Phase 9.5
+   consumes only these tools and the provider-neutral LLM boundary; it keeps
+   deterministic observed facts separate from explicitly labeled LLM inferences.
+   Phase 9.6 returns only immutable typed capability decisions and security blocks;
+   it executes no specialized agent, tool, web search, or human handoff.
+   Phase 9.7 coordinates those decisions through an acyclic LangGraph topology,
+   preserves Knowledge citations and Customer Support FACT/INFERENCE results, and
+   terminates security, ambiguity, web-pending, and human-pending routes safely.
 
 
    Router Agent
@@ -601,7 +668,13 @@ migrações ou objetos de banco.
    │  ├─ RAG público Getnet aprovado
    │  └─ Tavily/Web Search controlado
    ├─ Customer Support Agent
-   │  └─ tools controladas de cliente/OPS
+   │  ├─ tools controladas de cliente/OPS:
+   │  │  ├─ lookup_protocol_status (fatos do estado operacional de protocolo)
+   │  │  └─ inspect_execution_failure (evidências operacionais de falha de execução)
+   │  ├─ interpretação de causa-raiz provável baseada em evidências (fato vs inferência)
+   │  ├─ oferta explícita de escalonamento humano após diagnóstico quando apropriado
+   │  ├─ handoff confirmado pelo usuário para o Human Escalation Agent
+   │  └─ abertura/tratamento de ticket de suporte conduzido por humano após assunção
    ├─ Human Escalation Agent
    │  ├─ acionar quando o usuário solicitar atendimento humano
    │  ├─ acionar quando o sistema não conseguir resolver com evidência/confiança suficiente
@@ -650,7 +723,7 @@ migrações ou objetos de banco.
 
 
     executar evaluation/challenge/scenarios-v1.yaml
-    └─ 13 cenários de routing/capabilities/tools/cooperação
+    └─ 14 cenários de routing/capabilities/tools/cooperação
 
 
 

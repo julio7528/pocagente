@@ -1,0 +1,81 @@
+{
+  "scenario_id": "caso_001_sucesso",
+  "protocol_number": "POC-OPS-0001",
+  "email": {
+    "received_at": "2026-09-01T09:01:00-04:00",
+    "processed_at": "2026-09-01T09:04:00-04:00",
+    "sender": "maria@joana.com",
+    "recipient": "atendimento@getnet.com",
+    "subject": "Solicitação de cancelamento de estabelecimento",
+    "attachment_count": 1,
+    "sender_status": "VALID",
+    "processing_status": "PROCESSED"
+  },
+  "attachment": {
+    "file_name": "solicitacao_cancelamento_maria.xlsx",
+    "file_type": "XLSX",
+    "received_at": "2026-09-01T09:03:00-04:00",
+    "validation_status": "VALID",
+    "validation_message": "Arquivo validado para processamento.",
+    "establishment_count": 1,
+    "processing_status": "PROCESSED"
+  },
+  "establishment": {
+    "establishment_number": "1234567890",
+    "generated_file_name": "cancelamento_estabelecimento_1234567890.txt",
+    "r1_state_at": "2026-09-01T09:12:00-04:00",
+    "r1_processing_status": "WAITING_RESULT",
+    "r1_upload_status": "SUCCESS",
+    "r1_upload_at": "2026-09-01T09:12:00-04:00",
+    "r1_download_status": "NOT_AVAILABLE",
+    "available_at": "2026-09-02T09:04:00-04:00",
+    "available_processing_status": "RESULT_AVAILABLE",
+    "available_download_status": "AVAILABLE",
+    "final_at": "2026-09-02T09:06:00-04:00",
+    "final_processing_status": "COMPLETED",
+    "final_upload_status": "SUCCESS",
+    "final_download_status": "DOWNLOADED",
+    "download_at": "2026-09-02T09:06:00-04:00",
+    "return_email_at": "2026-09-02T09:08:00-04:00",
+    "result_message": "Resultado processado com sucesso."
+  },
+  "request": {
+    "initial_updated_at": "2026-09-01T09:06:00-04:00",
+    "r1_updated_at": "2026-09-01T09:13:00-04:00",
+    "r1_status": "WAITING_RESULT",
+    "final_updated_at": "2026-09-02T09:08:00-04:00",
+    "final_status": "COMPLETED",
+    "result": "Cancelamento concluído com sucesso.",
+    "completed_at": "2026-09-02T09:08:00-04:00",
+    "return_email_at": "2026-09-02T09:08:00-04:00"
+  },
+  "r1": {
+    "started_at": "2026-09-01T09:00:00-04:00",
+    "finished_at": "2026-09-01T09:15:00-04:00",
+    "status": "SUCCESS",
+    "result_message": "Processamento R1 concluído com sucesso.",
+    "events": [
+      {"timestamp":"2026-09-01T09:01:00-04:00","event":"EMAIL_RECEBIDO","status":"SUCCESS","message":"E-mail recebido para processamento.","references":["email"]},
+      {"timestamp":"2026-09-01T09:02:00-04:00","event":"REMETENTE_VALIDADO","status":"SUCCESS","message":"Remetente validado com sucesso.","references":["email"]},
+      {"timestamp":"2026-09-01T09:03:00-04:00","event":"ANEXO_RECEBIDO","status":"SUCCESS","message":"Arquivo solicitacao_cancelamento_maria.xlsx recebido.","references":["email","attachment"]},
+      {"timestamp":"2026-09-01T09:04:00-04:00","event":"ANEXO_VALIDADO","status":"SUCCESS","message":"Arquivo solicitacao_cancelamento_maria.xlsx validado com sucesso.","references":["email","attachment"]},
+      {"timestamp":"2026-09-01T09:06:00-04:00","event":"PROTOCOLO_CRIADO","status":"SUCCESS","message":"Protocolo POC-OPS-0001 criado com sucesso.","references":["email","attachment","request"]},
+      {"timestamp":"2026-09-01T09:08:00-04:00","event":"ESTABELECIMENTO_IDENTIFICADO","status":"SUCCESS","message":"Estabelecimento 1234567890 identificado para processamento.","references":["email","attachment","request","establishment"]},
+      {"timestamp":"2026-09-01T09:10:00-04:00","event":"ARQUIVO_GERADO","status":"SUCCESS","message":"Arquivo cancelamento_estabelecimento_1234567890.txt gerado com sucesso.","references":["email","attachment","request","establishment"]},
+      {"timestamp":"2026-09-01T09:12:00-04:00","event":"ARQUIVO_ENVIADO","status":"SUCCESS","message":"Arquivo enviado ao portal com sucesso.","references":["email","attachment","request","establishment"]},
+      {"timestamp":"2026-09-01T09:13:00-04:00","event":"AGUARDANDO_RESULTADO","status":"SUCCESS","message":"Protocolo aguardando disponibilização do resultado.","references":["email","attachment","request","establishment"]},
+      {"timestamp":"2026-09-01T09:15:00-04:00","event":"PROCESSAMENTO_R1_CONCLUIDO","status":"SUCCESS","message":"Processamento do R1 concluído com sucesso.","references":["email","attachment","request","establishment"]}
+    ]
+  },
+  "r2": {
+    "started_at":"2026-09-02T09:00:00-04:00","finished_at":"2026-09-02T09:10:00-04:00","status":"SUCCESS","result_message":"Processamento R2 concluído com sucesso.",
+    "events":[
+      {"timestamp":"2026-09-02T09:01:00-04:00","event":"PROCESSAMENTO_R2_INICIADO","status":"SUCCESS","message":"Monitoramento do protocolo iniciado pelo R2.","references":["request","establishment"]},
+      {"timestamp":"2026-09-02T09:03:00-04:00","event":"RESULTADO_CONSULTADO","status":"SUCCESS","message":"Disponibilidade do resultado consultada com sucesso.","references":["request","establishment"]},
+      {"timestamp":"2026-09-02T09:04:00-04:00","event":"RESULTADO_DISPONIVEL","status":"SUCCESS","message":"Resultado disponível para download.","references":["request","establishment"]},
+      {"timestamp":"2026-09-02T09:06:00-04:00","event":"ARQUIVO_BAIXADO","status":"SUCCESS","message":"Arquivo de resultado baixado com sucesso.","references":["request","establishment"]},
+      {"timestamp":"2026-09-02T09:08:00-04:00","event":"EMAIL_RETORNO_ENVIADO","status":"SUCCESS","message":"E-mail de retorno enviado com sucesso.","references":["request","establishment"]},
+      {"timestamp":"2026-09-02T09:10:00-04:00","event":"PROCESSAMENTO_R2_CONCLUIDO","status":"SUCCESS","message":"Processamento do R2 concluído com sucesso.","references":["request","establishment"]}
+    ]
+  }
+}

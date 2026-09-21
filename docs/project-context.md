@@ -8,11 +8,11 @@ evidence without relying on chat history.
 
 ## Current Phase
 
-**Current major phase:** PostgreSQL + pgvector
+**Current major phase:** Phase 9 MULTI-AGENT + RAG + TOOLS + TAVILY
 
-**Current task:** Physical database creation (phase 4.6; not implemented)
+**Current task:** Phase 9 MULTI-AGENT + RAG + TOOLS + TAVILY
 
-**Current subtask:** 4.6.3 — CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS
+**Current subtask:** Phase 9.10 `/chat` complete; Phase 9.11 End-to-End Validation next
 
 **Conceptual schema architecture status:**
 
@@ -24,6 +24,8 @@ evidence without relying on chat history.
 6. 4.2 RAG detailed schema architecture — completed
 7. 4.3 OPS detailed schema architecture — completed
 8. 4.4 AUDIT detailed schema architecture — completed
+9. Phase 5 Ingestion Preparation — completed
+10. Phase 6 Executable FastEmbed + Atomic RAG Publication — completed
 
 **Current status:**
 
@@ -35,21 +37,310 @@ evidence without relying on chat history.
 - Phase 4.2 is complete; detailed conceptual architecture of the RAG schema (`rag.sources`, `rag.documents`, `rag.chunks`, `rag.ingestion_runs`) is approved.
 - Phase 4.3 is complete; detailed conceptual architecture of the OPS schema (`ops.automation_runs`, `ops.incoming_emails`, `ops.email_attachments`, `ops.service_requests`, `ops.establishments`, `ops.execution_log`) is approved.
 - RAG, OPS, and AUDIT conceptual responsibilities and boundaries are approved.
-- No physical RAG, OPS, or AUDIT schema or table has been created yet; physical
-  database creation remains pending for phase 4.6.
-- Phases 4.4 and 4.5 are complete; phase 4.6 is current and not implemented.
+- The Phase 4.6.3 migration created the `rag`, `ops`, and `audit` schemas.
+- Phases 4.4 through 4.9 are complete and approved.
 - Phase 4.6.1 Migration Strategy is approved and complete: native sequential PostgreSQL SQL migration files; Alembic and SQLAlchemy are excluded; the scope is structural only; and migrations are decoupled from application startup.
 - Applied migrations are immutable and evolve only through new sequential files. They contain no business or operational data; synthetic POC seed is deferred to phase 4.9, later data enters through runtime inserts, and rollback is explicit and controlled without automation.
 - Phase 4.6.2 Migration Structure and Execution Order is approved and complete: the initial construction is defined as exactly six sequential files, 0001 through 0006, covering prerequisites/schemas, RAG tables, OPS tables, the independent AUDIT table, constraints, and indexes.
 - The approved order follows table dependencies; primary keys, NOT NULL requirements, and defaults are created with tables; constraints are ordered UNIQUE, CHECK, simple foreign keys, then composite foreign keys; 0006 contains 21 explicit indexes without duplicate UNIQUE-backed indexes.
-- No migration files or physical database objects have been created.
+- `database/migrations/0001_prerequisites_and_schemas.sql` exists and was
+  successfully executed through PostgreSQL MCP. PostgreSQL major 17, pgvector
+  0.8.6, vector type availability, zero application tables, and zero
+  application indexes were validated.
+- `database/migrations/0002_rag_tables.sql` exists and was successfully
+  executed through PostgreSQL MCP. It materialized `rag.sources`,
+  `rag.documents`, `rag.chunks`, and `rag.ingestion_runs` with the approved
+  UUID/BIGINT identity PK strategy, TIMESTAMPTZ fields, and deterministic
+  defaults. `rag.chunks.metadata` is JSONB, `embedding` is VECTOR(384), and
+  `search_vector` is TSVECTOR.
+- The RAG tables contain no application data. No document-version table, FK,
+  business UNIQUE, CHECK, explicit application index, GIN index, ANN/HNSW/
+  IVFFlat index, trigger, function, procedure, view, or materialized view was
+  created. Atomic document replacement remains a runtime responsibility.
+- `database/migrations/0003_ops_tables.sql` exists and was successfully
+  executed through PostgreSQL MCP. It materialized `ops.automation_runs`,
+  `ops.incoming_emails`, `ops.email_attachments`, `ops.service_requests`,
+  `ops.establishments`, and `ops.execution_log`: 65 approved columns with
+  BIGINT `BY DEFAULT` identity PKs, approved TIMESTAMPTZ/nullability/defaults,
+  R1/R2 provenance, service-request protocol ownership, establishment handoff,
+  and optional execution-log correlations.
+- OPS tables contain no application data. No OPS FK, business UNIQUE, CHECK,
+  explicit application index, trigger, function, procedure, view, or
+  materialized view was created; 0005 and 0006 retain those responsibilities.
+- `database/migrations/0004_audit_table.sql` exists and was successfully
+  executed through PostgreSQL MCP. It materialized `audit.security_events`
+  with 14 approved columns, BIGINT `BY DEFAULT` identity PK, and approved
+  TIMESTAMPTZ/nullability/defaults. `request_reference` remains nullable TEXT
+  correlation only, without an FK.
+- AUDIT contains no application data, external FK, business UNIQUE, CHECK,
+  explicit application index, auxiliary review table, trigger, procedure,
+  secret-scanning function, or raw secret/request-payload storage. No automatic
+  retention or TTL was introduced. All 11 approved application tables exist.
+- `database/migrations/0005_constraints.sql` exists and was successfully
+  executed through PostgreSQL MCP. It materialized all 10 approved UNIQUE
+  constraints, 14 foreign keys, and 59 approved CHECK constraints (20 RAG,
+  28 OPS, 11 AUDIT). Catalog validation confirmed all FK actions: ON UPDATE
+  RESTRICT; the sole CASCADE from documents to chunks; targeted document-only
+  SET NULL for ingestion history; and SET NULL for optional execution-log
+  entity references.
+- `database/migrations/0006_indexes.sql` was successfully executed through
+  PostgreSQL MCP. RO catalog validation confirmed exactly 21 approved explicit
+  access-path indexes: 3 RAG, 14 OPS, and 4 AUDIT. The FTS index
+  `gin_chunks__search_vector` uses GIN; all five approved partial predicates
+  are present; and the 10 UNIQUE-backed and 11 PK-backed indexes remain
+  unduplicated, for 42 application indexes and 31 non-PK backing indexes.
+- The approved query-access-path inventory remains 29. No HNSW, IVFFlat, ANN,
+  vector, JSONB GIN, or speculative index exists; no application data was
+  inserted. AUDIT remains without an external FK.
+- Phase 4.6.9 is complete. The forward sequence remains exactly `0001` through
+  `0006`, each migration owns an explicit transaction, execution stops on the
+  first failure, and applied migrations are immutable. Already-materialized or
+  unknown-COMMIT outcomes require catalog inspection before retry; migrations
+  remain outside application startup and runtime.
+- `database/rollback/rollback_initial_schema.sql` exists as a manual,
+  destructive, empty-database-only rollback artifact. It explicitly reverses
+  the approved indexes, constraints, tables, and schemas without CASCADE and
+  preserves pgvector. It was structurally validated but not destructively
+  executed. A controlled MCP RW temporary-transaction rollback smoke test
+  succeeded; RO validation confirmed the live application database was
+  unchanged. At that point, phase 4.6.10 became current.
+- Phase 4.6.10 is complete. After RO confirmation that all 11 application
+  tables were empty, the approved rollback artifact was executed through the
+  controlled RW MCP profile. It removed the application schemas while
+  preserving pgvector; the six immutable migrations were then reapplied in
+  strict order and validated between each execution.
+- Final Phase 4.6 RO catalog validation confirmed PostgreSQL 17, pgvector
+  0.8.6, the three approved schemas, 11 approved tables, and all 119 approved
+  fields. It confirmed 2 UUID PKs, 9 BIGINT `BY DEFAULT` identity PKs, 10
+  non-PK UNIQUE constraints, 14 FKs, 59 CHECK constraints, approved
+  nullability/defaults/delete/update behavior, 21 explicit indexes, 31
+  non-PK backing indexes, 42 total application indexes, and 29 query access
+  paths. `VECTOR(384)`, TSVECTOR, and the FTS GIN index exist; ANN/HNSW/
+  IVFFlat, JSONB GIN, PostgreSQL ENUMs, application triggers/procedures, and
+  application data do not exist. The six migrations are applied and the manual
+  rollback artifact exists. Phase 4.6 is complete; phase 4.7 is current.
 - DEC-112 and DEC-113 define the six-file sequence and execution boundary.
   Initial table creation owns types, PKs, UUID/identity generation, nullability,
   and defaults; 0005 owns UNIQUE/CHECK/FK rules. The 21 explicit indexes in
   0006 are the 31 non-PK backing indexes minus 10 UNIQUE-backed indexes, with
-  exact inventory verification deferred to 4.6.8. Runtime, repositories, seed,
-  ingestion, and operational processes require the complete successful sequence.
-  Phase 4.6 remains incomplete; physical implementation has not started.
+  exact inventory was verified in 4.6.8 and final catalog validation. Runtime,
+  repositories, seed, ingestion, and operational processes remain outside
+  Phase 4.6; phase 4.7 is current.
+- Phase 4.7.1 is complete (DEC-123): technical requirements for the Python
+  database access layer are approved (PostgreSQL-native targeting PostgreSQL 17
+  with pgvector 0.8.6; Python 3.14 compatibility; async-first access for
+  FastAPI runtime; parameterized SQL; explicit transaction support;
+  schema-qualified SQL; explicit PostgreSQL-native SQL approved; engine
+  support for UUID, BIGINT, TIMESTAMPTZ, JSONB, TSVECTOR, VECTOR(384);
+  PostgreSQL native FTS and pgvector cosine distance support; runtime
+  decoupled from external native migrations; Alembic excluded; MCP as dev
+  tooling only). Zero driver selection or package installation in 4.7.1.
+- Phase 4.7.2 is complete (DEC-124): PostgreSQL-native repository access
+  strategy is approved (Repository pattern boundary with `RAGRepository`,
+  `OperationalRepository`, and `AuditRepository`; Pydantic models as
+  application/domain models; ORM not mandatory; explicit parameterized
+  PostgreSQL SQL; async-first runtime; centralized connection-pool-capable
+  lifecycle; external native SQL migrations; Alembic excluded; MCP as
+  diagnostic/development utility only). Driver selection and package additions
+- Phase 4.7.3 is complete (DEC-125): PostgreSQL driver and installation mode
+  approved (Psycopg 3 via `psycopg[binary]`; native asyncio runtime model
+  using `AsyncConnection` and `AsyncCursor`; no extras added now,
+  `psycopg[pool]` deferred to later runtime/lifecycle step; verified
+  compatibility with Python 3.14, PostgreSQL 17, and Windows; zero local libpq
+  or C build tooling prerequisites; Alembic excluded; SQLAlchemy undecided and
+  deferred to Phase 4.7.4; zero edits to `pyproject.toml` and package
+  pinning/installation deferred to Phase 4.7.6).
+- Phase 4.7.4 is complete (DEC-126): SQLAlchemy evaluated and intentionally
+  excluded from the POC runtime architecture (SQLAlchemy not required and not
+  added as dependency; SQLAlchemy ORM, Core, and AsyncEngine/Session not
+  adopted; runtime pipeline confirmed as
+  `FastAPI/App -> Services -> Repositories -> Psycopg 3 -> PostgreSQL 17`;
+  direct native execution with async-first parameterized SQL; direct use of
+  PostgreSQL native capabilities including FTS, TSVECTOR, JSONB, pgvector, and
+  VECTOR(384) without abstraction wrappers; Pydantic models remain application
+  models; external native PostgreSQL SQL migrations decoupled from runtime;
+  Alembic excluded; reconsider only if concrete requirements emerge).
+- Phase 4.7.5 is complete (DEC-127): Python integration with pgvector approved
+  (`pgvector` Python package; direct Psycopg 3 integration via
+  `pgvector.psycopg`; `register_vector_async()` called once upon physical
+  database connection initialization; pool connection hook allowed in Phase
+  4.8 lifecycle but no pooling implemented now; strict alignment with
+  `rag.chunks.embedding` as `VECTOR(384)` and 384 dimensions; exact cosine
+  similarity search using operator `<=>`; no HNSW, IVFFlat, or ANN indexing;
+  `pgvector` acts strictly as a type adapter and does not own repositories,
+  SQL generation, migrations, pooling, ranking, or business logic;
+  `CREATE EXTENSION` remains exclusively owned by SQL migrations; zero edits to
+  `pyproject.toml` and package installation/pinning deferred to Phase 4.7.6).
+- Phase 4.7.6 is complete (DEC-128): approved Python database dependency set
+  and exact version-pinning policy established:
+  - `psycopg[binary]==3.3.6` approved as the PostgreSQL-native driver (binary
+    distribution avoids local C compiler/libpq build tooling prerequisites on
+    Windows and Python 3.14; provides native async, transactions, and
+    parameterized SQL).
+  - `pgvector==0.5.0` approved as the Python VECTOR adapter with direct
+    `pgvector.psycopg` integration.
+  - Strict exact `==` version pinning policy adopted for reproducibility.
+  - Forbidden alternatives confirmed excluded: SQLAlchemy, Alembic, psycopg2,
+    asyncpg, `psycopg[c]`, `psycopg[pool]`/`psycopg_pool`, and `numpy` (not
+    added solely for pgvector).
+  - Scope boundary: no edits made to `pyproject.toml` in this step (deferred to
+    Phase 4.7.7); package installation deferred to Phase 4.7.8.
+- Phase 4.7.7 is complete (DEC-129): `pyproject.toml` updated with approved
+  database dependencies declaring `psycopg[binary]==3.3.6` and `pgvector==0.5.0`
+  under `[project].dependencies` with strict exact version pinning; existing
+  dependencies (`fastapi==0.141.1`, `pydantic==2.13.5`, `uvicorn==0.53.0`,
+  `fastembed==0.8.0`, `PyYAML==6.0.3`, `httpx==0.28.1`) and `requires-python = ">=3.14"`
+  preserved; TOML syntax verified valid; zero dependencies installed in the
+  virtual environment (installation deferred to Phase 4.7.8).
+- Phase 4.7.8 is complete (DEC-130): approved database dependencies installed
+  in the active project virtual environment (`F:\My Drive\dev\pocagente\.venv`)
+  via `python -m pip install -e .` executed at `F:\My Drive\dev\pocagente\getnet-support`:
+  - `psycopg==3.3.6` installed and verified via `pip show`.
+  - `psycopg-binary==3.3.6` installed and verified via `pip show` (`psycopg[binary]` extra).
+  - `pgvector==0.5.0` installed and verified via `pip show`.
+  - `tzdata==2026.4` installed as transitive dependency for psycopg timezone handling.
+  - `getnet-support==0.1.0` editable project installation maintained (`-e .`).
+  - Confirmed zero forbidden/excluded dependencies present in `.venv`:
+    SQLAlchemy, Alembic, psycopg2, asyncpg, `psycopg[c]`, `psycopg[pool]`/`psycopg_pool`,
+    and extra numpy dependencies confirmed absent.
+- Phase 4.7.9 is complete: validation, import, and compatibility checks
+  passed:
+  - Active Python interpreter confirmed from approved `.venv` (`F:\My Drive\dev\pocagente\.venv`).
+  - Python version 3.14.2 confirmed (satisfies `>=3.14`).
+  - `pyproject.toml` verified declaring exact pins: `psycopg[binary]==3.3.6` and `pgvector==0.5.0`.
+  - Installed packages verified via metadata: `psycopg==3.3.6`, `psycopg-binary==3.3.6`, `pgvector==0.5.0`, `tzdata==2026.4`, and editable `getnet-support==0.1.0`.
+  - `python -m pip check` passed with zero broken requirements.
+  - Package imports succeeded: `import psycopg`, `from psycopg import AsyncConnection`, `import pgvector`, `from pgvector.psycopg import register_vector_async`.
+  - Imported `psycopg.__version__` confirmed as `3.3.6`; `pgvector` package version confirmed as `0.5.0`.
+  - `AsyncConnection` confirmed available and valid class; `register_vector_async` confirmed available and callable.
+  - Application compile validation (`python -m compileall apps`) succeeded without errors.
+  - SQLAlchemy remains intentionally excluded; Alembic remains excluded.
+  - Zero database queries, pools, connections, repository code, or runtime modifications introduced.
+- Phase 4.7 is COMPLETED and APPROVED under DEC-131; all 11 completion criteria passed.
+- Phase 4.8 is COMPLETED / APPROVED. Phase 4.8.1 established the architecture
+  in DEC-133; references below to future structure describe that historical
+  decision point:
+  - Architecture pipeline: `FastAPI / Agents -> Application Services -> Repositories -> Central Database Infrastructure -> Psycopg 3 + pgvector adapter -> PostgreSQL 17`.
+  - Future package structure planned under `apps/agent_api/app/database/`:
+    - `config.py`: database configuration and connection parameters;
+    - `connection.py`: centralized connection, lifecycle, and transaction management;
+    - `vector.py`: pgvector connection registration;
+    - `errors.py`: safe database error abstraction;
+    - `mapping.py`: database row to Python/Pydantic mapping;
+    - `repositories/rag.py`: RAG persistence;
+    - `repositories/operational.py`: OPS persistence;
+    - `repositories/audit.py`: AUDIT persistence.
+  - Strict persistence boundary: repositories own all database SQL; agents, endpoints, tools, and application services must never execute raw database SQL directly.
+  - Customer Support tools consume application/service boundaries backed by `OperationalRepository`, not PostgreSQL directly.
+  - Runtime database access is async-first via native Psycopg 3 (`AsyncConnection`, `AsyncCursor`).
+  - SQL remains explicit, parameterized, PostgreSQL-native, and schema-qualified (`rag.*`, `ops.*`, `audit.*`).
+  - Centralized connection lifecycle: pool-capable; repositories borrow connections and do not create/destroy them independently.
+  - Composable transaction boundaries: support multiple repository operations within one atomic transaction; repository methods do not force independent commits when a larger transaction is required.
+  - Centralized pgvector registration per physical connection (`register_vector_async`); not repeated by repository queries.
+  - Application/domain models remain Pydantic-based; no ORM is introduced.
+  - SQLAlchemy and Alembic remain excluded; migrations remain external native PostgreSQL SQL and are never executed at application startup.
+  - PostgreSQL MCP remains external development/diagnostic tooling only.
+  - No connection or pool creation as a module-import side effect; concrete pooling implementation deferred to Phase 4.8.3.
+- Phase 4.8.2 is complete (DEC-134): database connection configuration approved:
+  - Environment variable family reused: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_SSLMODE`, `POSTGRES_CONNECT_TIMEOUT_SECONDS`, `POSTGRES_POOL_MIN_SIZE`, `POSTGRES_POOL_MAX_SIZE`, `POSTGRES_POOL_TIMEOUT_SECONDS`.
+  - Local POC defaults documented in `.env.example`: `127.0.0.1:5432`, `getnet_support`, `getnet_app`, the owner-approved local password value, `disable` SSL mode, connect timeout `5`s, pool min `1`, pool max `5`, pool acquisition timeout `5`s. The value itself is never copied into documentation.
+  - Invariants: `.env` remains the secret, Git-ignored runtime source; `.env.example` is reference material and may temporarily retain owner-approved local POC values, an exception that must not extend to production, non-POC, shared, or externally distributed credentials; `DATABASE_URL` is rejected/not introduced; connection parameters pass to Psycopg as structured keyword arguments rather than a concatenated URI; configuration validates host, port, db name, user, password presence, SSL mode, timeouts, and min/max consistency; no `pydantic-settings` dependency is approved; containerization changes only `POSTGRES_HOST` (e.g. to `postgres`).
+- Phase 4.8.3 is complete (DEC-135): database connection lifecycle and AsyncConnectionPool approved:
+  - Runtime pool type: `psycopg_pool.AsyncConnectionPool`.
+  - Approved pool package: `psycopg-pool==3.3.2`, declared and installed in the active project virtual environment.
+  - Pool sizing & timeouts: `min_size=1`, `max_size=5`, acquisition timeout `5` seconds; constructed with `open=False`.
+  - Application lifecycle: explicitly `await pool.open()` during FastAPI lifespan startup; verify initial pool readiness before declaring DB-dependent runtime ready; `await pool.close()` during application shutdown.
+  - Pool singleton & access: one pool per FastAPI process; repository operations borrow connections via `async with pool.connection() as conn`; manual `getconn()/putconn()` prohibited as standard pattern; no pool/connection creation as module-import side effects; repositories borrow connections and do not create independent pools.
+  - Multi-worker budget: PostgreSQL connection budget accounts for `workers × max_size`; speculative pool expansion prohibited.
+  - Connection configuration hook: the pool `configure` callback delegates to
+    centralized `database/vector.py`, which calls `register_vector_async(conn)`
+    once per newly opened physical connection and returns it transaction-clean.
+  - Composable transactions: pooling supports multi-repository atomic transactions (Phase 4.8.10).
+  - Health & readiness: DB-dependent readiness fails closed if the pool cannot establish usable PostgreSQL connections.
+- Phase 4.8.4 is complete (DEC-136): immutable `DatabaseConfig` and explicit
+  environment loading are validated; `PostgresDatabase` centralizes one
+  `AsyncConnectionPool` constructed with `open=False`; and explicit async
+  `open()`/readiness `wait()`/`connection()`/`close()` lifecycle is implemented.
+  Structured Psycopg keyword arguments are used without `DATABASE_URL`, and no
+  connection or pool is created at module import.
+- Phase 4.8.4 validation used only mocked pool tests: 37 focused/full tests
+  passed, compilation and imports passed, and no real PostgreSQL integration
+  test or SQL execution occurred. Repositories remain pending; explicit
+  transaction abstraction remains Phase 4.8.10; real PostgreSQL validation
+  remains Phase 4.8.13.
+- Phase 4.8.5 is complete (DEC-137): `database/vector.py` centralizes the
+  official asynchronous pgvector adapter registration; `PostgresDatabase`
+  supplies `configure_pgvector_connection` to `AsyncConnectionPool.configure`;
+  registration occurs once per newly created physical connection before pool
+  availability, never per query or logical checkout.
+- Pgvector metadata-discovery work is followed by `rollback()` so each fresh
+  connection returns transaction-clean. Registration is fail-closed, cleanup
+  is attempted on registration failure, and the original registration error is
+  preserved if cleanup also fails. No DDL, global adapter registration, real
+  PostgreSQL connection, repository, or application transaction abstraction
+  was introduced. Validation passed with 43 tests, clean dependency checks,
+  compilation, and imports.
+- The project `.venv` reports no broken requirements. The known external
+  Google ADK/FastAPI conflict belongs to the global Python environment, is
+  unrelated to this implementation, and was not modified.
+- Phase 4.8.6 is complete (DEC-138): exactly three repository domains are
+  defined. `RAGRepository` owns the four `rag` tables,
+  `OperationalRepository` owns the six `ops` tables, and `AuditRepository`
+  owns `audit.security_events`.
+- Repositories are connection-bound persistence adapters. They receive an
+  injected `AsyncConnection`, create no pool or connection, do not close the
+  connection, and never call `commit()` or `rollback()`. Multiple repositories
+  may share the same connection under the future Phase 4.8.10 transaction
+  boundary, while cross-schema repository access remains prohibited.
+- `OperationalRepository` returns deterministic operational facts beneath the
+  Customer Support application-service/tool layer; it performs no diagnosis
+  or root-cause inference. `AuditRepository` accepts only sanitized security
+  and governance event data.
+- Final row mapping and database error translation are complete in Phases
+  4.8.11 and 4.8.12. Real connectivity and repository validation are complete
+  in Phases 4.8.13 and 4.8.14.
+- Phase 4.8.7 is complete (DEC-139): concrete `RAGRepository` implements
+  source/document persistence, stable checksum-aware document identity,
+  complete chunk replacement, ingestion lifecycle, PostgreSQL FTS retrieval,
+  and exact pgvector cosine retrieval over the four RAG tables. Retrieval
+  requires ACTIVE sources/documents and performs no RRF or grounding. Lexical
+  and semantic methods return `Sequence[SearchCandidate]`; `RepositoryRecord`
+  is restricted to write/mutation payloads. Earlier repository-record
+  retrieval wording is historical pre-4.8.11 context.
+- Phase 4.8.8 is complete (DEC-140): concrete `OperationalRepository` owns the
+  six OPS tables and implements operational persistence, protocol lookup,
+  establishment handling, append-only execution timelines, protocol-status
+  facts, and execution-failure evidence. It returns facts/evidence only and
+  performs no diagnosis or root-cause inference.
+- Phase 4.8.9 is complete (DEC-141): concrete `AuditRepository` owns only
+  `audit.security_events` and implements sanitized event persistence, PK
+  lookup, request correlation, unreviewed-event lookup, and review persistence
+  under the secret-safe boundary.
+- Phase 4.8.10 is complete (DEC-142): `PostgresDatabase.transaction()` obtains
+  one pooled `AsyncConnection` and delegates completion to Psycopg's native
+  transaction context. Normal exit commits, exceptional exit rolls back, and
+  original exceptions propagate. Multiple repositories can share that exact
+  connection; repositories still never commit, roll back, or own transactions.
+  No Unit of Work or custom nested/savepoint abstraction was introduced.
+- Phase 4.8.11 is complete (DEC-143): centralized immutable Pydantic mapping
+  keeps raw database rows behind repository read boundaries.
+- Phase 4.8.12 is complete (DEC-144): `SafeDatabaseError` subclasses provide
+  stable, secret-safe translation for recognized Psycopg and pool failures at
+  pool and repository boundaries. Driver details are retained only as exception
+  causes; validation and cancellation/control-flow exceptions propagate unchanged.
+  No retries, logging, or real PostgreSQL access were introduced.
+- Phase 4.8.13 is complete (DEC-145): the runtime `.env` configuration path,
+  `PostgresDatabase` pool open/wait/acquire/close lifecycle, PostgreSQL 17,
+  database `getnet_support`, pgvector 0.8.6, and registered vector round-trip
+  were validated through a real local application connection without exposing
+  credentials.
+- Phase 4.8.14 is complete (DEC-146): all public concrete RAG, OPS, and AUDIT
+  repository methods were exercised against real PostgreSQL with typed mapping,
+  PostgreSQL FTS, exact-cosine pgvector retrieval, operational evidence,
+  sanitized audit persistence, safe integrity-error translation, transaction
+  rollback, and an explicit zero-residual-data check.
+- Phase 4.8.15 and 4.8.16 are complete. DEC-147 records the successful final
+  audit and approves the complete Phase 4.8 database access layer.
 - Phase 4.5.1 is complete; global PostgreSQL physical conventions are approved.
 - Phase 4.5.2 is complete; the RAG physical model is approved in
   `docs/database-physical-model.md`.
@@ -119,12 +410,13 @@ evidence without relying on chat history.
 
 ### LangGraph
 
-- Planned orchestration layer for routing, specialized agents, state, handoff,
-  and escalation.
+- Implemented orchestration layer for routing, specialized agents, state,
+  handoff, and escalation.
 
-### Planned multi-agent responsibilities
+### Multi-agent responsibilities
 
-The runtime agents are approved architecture but are not implemented yet.
+The Phase 9 runtime agents and orchestration are implemented. Phase 9.11 final
+end-to-end validation remains pending.
 
 #### Router Agent
 
@@ -155,6 +447,38 @@ The runtime agents are approved architecture but are not implemented yet.
   state.
 - Public Web Search is not a substitute for customer-specific or operational
   evidence.
+- Exposes at least two approved controlled OPS tools:
+  - `lookup_protocol_status`: accepts an authorized protocol identifier (e.g.
+    `protocol_number`) and retrieves the current observed operational state
+    from `ops.service_requests`, `ops.establishments`, and relevant
+    `ops.execution_log` entries; returns structured operational facts only and
+    does not infer undocumented business rules.
+  - `inspect_execution_failure`: accepts an authorized execution/protocol/request
+    identifier and collects execution diagnostics (timeline, execution state,
+    relevant error evidence, last successful stage, failure stage, related
+    operational context) from `ops.automation_runs`, `ops.execution_log`,
+    `ops.service_requests`, `ops.establishments`, and when justified
+    `ops.incoming_emails` / `ops.email_attachments`; returns evidence, NOT an
+    invented root-cause conclusion.
+- Strict responsibility boundary: OPS tools retrieve observed facts and
+  evidence; the Customer Support Agent interprets the evidence and produces a
+  grounded probable root-cause diagnosis. The agent must distinguish FACT from
+  INFERENCE and must not claim a root cause as fact without sufficient evidence.
+- Approved Diagnostic-to-Human flow: when the Customer Support Agent identifies
+  a sufficiently grounded probable cause or determines that human action is
+  appropriate:
+  1. Explains the diagnosis and supporting evidence to the user;
+  2. Explicitly offers human escalation for support-ticket opening and handling;
+  3. Requires explicit user confirmation before initiating transfer;
+  4. Routes to the Human Escalation Agent after confirmation;
+  5. Transitions the active conversation to the human-handoff flow (e.g.
+     `WAITING_HUMAN`);
+  6. Provides only the minimum necessary diagnostic context to the authorized
+     human operator;
+  7. Leaves support-ticket opening/handling to the human operator (no automatic
+     AI ticketing or external ITSM integration in the initial POC);
+  8. Ensures automated agent responses are suspended while the conversation is
+     under human ownership.
 
 #### Human Escalation Agent
 
@@ -210,9 +534,34 @@ defined yet. Conceptual escalation reasons include `USER_REQUESTED_HUMAN`,
 Only minimum active-conversation context may be exposed to the assigned human.
 Secrets, credentials, protected infrastructure details, and secret locations
 remain prohibited, and relevant security events remain aligned with the
-sanitized AUDIT architecture. The design addresses the optional fourth-agent
-and human-handoff capabilities in `docs/challenge.md`, but remains approved
-architecture and planned implementation only.
+sanitized AUDIT architecture.
+
+For diagnostic escalations originating from the Customer Support Agent, the
+minimum necessary diagnostic context transferred to the human operator includes:
+- protocol identifier (`protocol_number`);
+- user problem summary;
+- current observed operational state;
+- execution run identifier (`run_id`) if applicable;
+- last successful stage;
+- observed failure stage;
+- sanitized error description (redacted of credentials and internal secrets);
+- chronological operational event / timeline trace;
+- agent interpretation clearly labeled as probable root cause diagnosis
+  (explicitly separated from verified facts);
+- record of explicit user confirmation.
+
+The diagnostic transfer strictly excludes:
+- secrets, passwords, tokens, API keys, private keys, connection strings, or DB credentials;
+- raw un-sanitized stack traces or internal environment paths;
+- persistent cross-session memory or unrelated conversational history.
+
+In the initial POC, ticket opening and handling is performed directly by the
+authorized human operator receiving this diagnostic package; there is no
+automatic AI ticket creation and no external ITSM integration. Automated
+responses remain suspended while the conversation is under human ownership.
+The design addresses the optional fourth-agent and human-handoff capabilities
+in `docs/challenge.md`, but remains approved architecture and planned
+implementation only.
 
 ### Data and infrastructure
 
@@ -255,7 +604,7 @@ architecture and planned implementation only.
 
 ## Approved Public Getnet Knowledge Scope
 
-`knowledge/public/sources.yaml` is the exact public-source registry. It now
+`knowledge/internal/cancellation-process/public/sources.yaml` is the exact public-source registry. It now
 contains approved general Getnet sources in addition to the existing
 cancellation/corporate sources. Persistent public RAG may cover official
 Getnet material for:
@@ -299,29 +648,32 @@ automatically persisted into RAG; volatile facts normally remain live evidence.
 
 ## Current RAG Code State
 
-The FastAPI/RAG package currently provides executable imports and typed
-interfaces, but not a completed RAG runtime.
+The FastAPI/RAG package provides executable retrieval, grounding, agents,
+orchestration, and the authenticated `/chat` transport boundary.
 
 Implemented as API structure or contracts:
 
 - FastAPI `main.py`;
 - `GET /health`;
-- `GET /ready` placeholder;
-- typed `POST /chat` placeholder;
-- fail-closed internal-service authentication placeholder;
+- dependency-aware `GET /ready`;
+- strict typed `POST /chat` over application orchestration;
+- fail-closed internal Bearer service authentication with trusted identity,
+  role, and optional OPS authorization claims;
 - `RAGService` facade;
 - RAG configuration and domain/provenance models;
-- ingestion loader, validator, and structural chunker skeletons;
-- FastEmbed adapter skeleton;
-- lexical, semantic, and hybrid retrieval skeletons;
-- RRF ranking skeleton;
-- grounding/context-builder skeleton.
+- executable ingestion loader, validator, and structural chunker;
+- FastEmbed adapter and atomic publication;
+- lexical and semantic repository retrievers;
+- consistent-snapshot hybrid retrieval and RRF ranking;
+- immutable provider-neutral grounding contracts and `ContextBuilder`.
 
-The ingestion, embeddings, database persistence, PostgreSQL FTS queries,
-pgvector queries, hybrid orchestration, RRF calculation, grounding runtime,
-LangGraph execution, and LLM calls are not implemented. Placeholder methods
-raise `NotImplementedError`, readiness remains unavailable, and `/chat` does not
-execute an agent.
+Grounding now consumes Phase 7 `RetrievedChunk` values, validates structured
+provenance, applies deterministic internal/public priority tiers, deduplicates
+physical chunks, and emits safe deterministic citations. `GroundedContext`
+uses structural `SUFFICIENT_CONTEXT` / `INSUFFICIENT_EVIDENCE` status only;
+there are no score thresholds, LLM calls, answer generation, or semantic claim
+classification. Retrieved text is passed as passive DATA only. Phase 9 agent,
+tool, web-search, and LLM orchestration remains out of scope.
 
 ## Python Environment
 
@@ -367,11 +719,13 @@ and is not a production dependency.
 
 - MCP package: `@microsoft/postgres-mcp`
 - Codex server name: `getnet-postgres`
-- Connection profile: `getnet-support-ro`
+- Inspection profile: `getnet-support-ro`
+- Controlled migration profile: `getnet-support-rw`
 - Connection endpoint: `127.0.0.1:5432`
 - Database: `getnet_support`
 - SSL: disabled (`false`)
-- Access mode: read-only (`ro`)
+- Access modes: RO for inspection/validation; RW only for explicitly approved
+  local POC migrations
 - Secret storage: OS-level secure credential storage
 
 Passwords, password hashes, tokens, secret connection strings, credentials,
@@ -383,17 +737,19 @@ documentation.
 - PostgreSQL version: `17.11`
 - Database: `getnet_support`
 - Extension: pgvector `0.8.6`
-- Present schemas: `public`, `information_schema`, `pg_catalog`, `pg_toast`
-- Planned schemas: `rag`, `ops`, `audit` — not yet created (`null`), as expected
-  during the pre-schema creation phase.
+- Present application schemas: `rag`, `ops`, `audit`
+- Present application tables: four RAG, six OPS, and `audit.security_events`.
 
 ### Scope and write policy
 
 - The MCP is for external development/debug/inspection/validation tooling only;
   it is not runtime architecture.
 - FastAPI, Django, LangGraph, and Agents do not depend on the MCP.
-- The current profile is read-only. DDL, migrations, and repository writes use
-  standard project workflows only.
+- `getnet-support-ro` is the default inspection and validation profile.
+- `getnet-support-rw` is limited to explicitly approved local POC migrations;
+  it is not general write access.
+- Versioned SQL migration files remain authoritative; MCP is only the controlled
+  execution/validation channel. Application startup does not run MCP migrations.
 - Future inspection may cover schemas, tables, columns, constraints, indexes,
   pgvector, PostgreSQL Full Text Search, and OPS data.
 - An optional future read-only dedicated database user is a defense-in-depth
@@ -1568,7 +1924,7 @@ The project maintains two separate evaluation suites:
 
 - `evaluation/rag/dataset-v1.yaml` contains 25 cases for RAG retrieval,
   grounding, provenance, insufficient-evidence, and security quality.
-- `evaluation/challenge/scenarios-v1.yaml` contains 13 end-to-end architectural
+- `evaluation/challenge/scenarios-v1.yaml` contains 14 end-to-end architectural
   scenarios for routing, agent and capability selection, RAG versus Web Search,
   controlled Customer Support tools, multi-agent cooperation, and security
   behavior.
@@ -1599,7 +1955,7 @@ here.
 - `knowledge/internal/cancellation-process/robot_01_r1/`
 - `knowledge/internal/cancellation-process/robot_02_r2/`
 - `knowledge/internal/security/security-policy.md`
-- `knowledge/public/sources.yaml`
+- `knowledge/internal/cancellation-process/public/sources.yaml`
 - `evaluation/rag/dataset-v1.yaml`
 - `evaluation/challenge/scenarios-v1.yaml`
 - `reference/automation-anywhere/cancelamento-vendas/`
@@ -1609,12 +1965,6 @@ here.
 
 ## Current Pending Decisions
 
-- Phase 4.6.3 PostgreSQL prerequisites and schema creation.
-- Python database libraries and repository implementation.
-- Executable ingestion.
-- Executable embeddings.
-- Executable hybrid retrieval and RRF.
-- Grounding runtime.
 - Router, Knowledge, and Customer Support Agent runtime.
 - Controlled Customer Support and OPS tools.
 - Evaluation runner.
@@ -1622,7 +1972,23 @@ here.
 
 ## Immediate Next Step
 
-Begin 4.6.3 — CRIAR PRÉ-REQUISITOS POSTGRESQL E SCHEMAS.
+Phase 4.9 — DADOS FICTÍCIOS / SEED is COMPLETED / APPROVED. OPS seeds are
+data-driven JSON definitions under `database/seed/ops/scenarios/`, discovered
+automatically, validated by Pydantic, and executed through:
+
+```text
+JSON scenario -> loader / Pydantic validation -> generic scenario executor
+-> PostgresDatabase.transaction() -> OperationalRepository -> PostgreSQL OPS
+```
+
+Protocol number is the idempotency key; existing protocols are skipped without
+mutation. Each scenario is atomic. R1 supports success or error termination,
+R2 may be absent after an R1 failure, and R2 supports success and failure
+outcomes. Seed content is synthetic development/POC data and remains within
+repository boundaries. Phase 4.10 validation and Phase 5 ingestion are
+complete. Phase 6 publication, Phase 7 hybrid retrieval, and Phase 8 grounding
+are complete; Phase 9 multi-agent/RAG/tools orchestration is now current and
+has not started.
 
 Phase 4.5 is COMPLETED / APPROVED: the final gate validated all 11 table
 models, relationships, hybrid PKs, integrity, lifecycle nullability, planned
@@ -1631,9 +1997,210 @@ The detailed authority is `docs/database-physical-model.md`; historical
 decisions remain in `docs/decision-log.md`. R1-only intake is application-
 enforced; its FK verifies run existence only.
 
-No physical database objects, DDL, migrations, indexes, triggers, ORM,
-repositories or runtime logic were created by the documentation closure.
-Phase 4.6 and later implementation steps remain unimplemented.
+Phase 4.6 physical implementation is complete and validated.
+
+Phase 4.7 is COMPLETED / APPROVED under DEC-123 through DEC-131. All 11
+completion criteria passed: Python >=3.14 confirmed; `pyproject.toml`
+declares approved exact pins (`psycopg[binary]==3.3.6`, `pgvector==0.5.0`);
+`psycopg==3.3.6`, `psycopg-binary==3.3.6`, `pgvector==0.5.0`, `tzdata==2026.4`,
+and editable `getnet-support==0.1.0` are installed and verified in the active
+virtual environment; `pip check` passed with zero broken requirements; imports
+of `psycopg`, `AsyncConnection`, `pgvector`, and callable `register_vector_async`
+succeeded; application compile validation (`compileall apps`) passed; SQLAlchemy,
+Alembic, psycopg2, asyncpg, and pooling remain excluded; no repository or
+runtime DB code was introduced; and zero database objects, migrations, commits,
+or pushes occurred.
+
+Phase 4.8 is COMPLETED / APPROVED. Phase 4.8.1 (DEC-133), Phase 4.8.2 (DEC-134),
+Phase 4.8.3 (DEC-135), Phase 4.8.4 (DEC-136), Phase 4.8.5 (DEC-137), and
+Phase 4.8.6 (DEC-138), Phase 4.8.7 (DEC-139), Phase 4.8.8 (DEC-140),
+Phase 4.8.9 (DEC-141), Phase 4.8.10 (DEC-142), Phase 4.8.11 (DEC-143),
+Phase 4.8.12 (DEC-144), Phase 4.8.13 (DEC-145), and Phase 4.8.14 (DEC-146) are
+COMPLETED / APPROVED:
+- 4.8.1 approved access pipeline (`FastAPI / Agents -> Services -> Repositories -> Database Infrastructure -> Psycopg 3 + pgvector -> PostgreSQL 17`), strict repository boundary, and Pydantic models with zero ORM.
+- 4.8.2 approved connection configuration reusing PostgreSQL environment variables (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, etc.), structured keyword argument passing, `.env` as the runtime source, and `.env.example` as local POC reference material without `DATABASE_URL`.
+- 4.8.3 approved connection lifecycle and `AsyncConnectionPool` (`psycopg-pool==3.3.2` approved dependency, min_size 1, max_size 5, acquisition timeout 5s, lifespan management with `await pool.open()` and `await pool.close()`, per-connection `configure` callback for pgvector, single pool per process, and fail-closed readiness).
+- 4.8.4 implemented and validated `DatabaseConfig` and centralized
+  `PostgresDatabase` with an `open=False` pool and explicit
+  open/wait/connection/close lifecycle. No real connection, SQL, pgvector
+  registration, repository, or transaction abstraction was introduced.
+- 4.8.5 implemented centralized `register_vector_async` integration through
+  `AsyncConnectionPool.configure`, once per new physical connection, with
+  transaction cleanup and fail-closed error propagation. Mocked validation
+  passed without a real PostgreSQL connection.
+- 4.8.6 defined `RAGRepository`, `OperationalRepository`, and
+  `AuditRepository` contracts plus a connection-bound `BaseRepository`.
+  Repositories receive an injected `AsyncConnection`, own neither pools nor
+  transactions, do not commit or roll back, and remain isolated to their
+  assigned schema. At the 4.8.6 completion point, mapping, error translation,
+  and real database validation were deferred to Phases 4.8.11, 4.8.12, and
+  4.8.13 respectively; those phases are now complete.
+- 4.8.7 implemented parameterized PostgreSQL persistence and FTS/exact-cosine
+  retrieval over the four RAG tables, with ACTIVE eligibility. The earlier
+  pre-4.8.11 implementation used temporary `RepositoryRecord` retrieval
+  results; current retrieval methods return `Sequence[SearchCandidate]`.
+- 4.8.8 implemented parameterized persistence and factual evidence queries
+  over the six OPS tables, without diagnosis or inference.
+- 4.8.9 implemented secret-safe, sanitized security-event persistence and
+  review/correlation queries over `audit.security_events` only.
+- 4.8.10 implemented `PostgresDatabase.transaction()` with one pool checkout,
+  one injected connection, and Psycopg native commit/rollback semantics.
+  Repositories remain transaction-free; no Unit of Work, nesting framework, or
+  real PostgreSQL validation was introduced.
+- 4.8.11 implemented the centralized database-row-to-Python/Pydantic result
+  mapping layer in `apps/agent_api/app/database/mapping.py` backed by immutable
+  Pydantic read models in `apps/agent_api/app/database/models.py`. Raw Psycopg
+  `dict_row` dictionaries no longer cross the repository read boundary. The
+  persisted RAG chunk model read from the database is `PersistedChunk`, while
+  structural chunking domain model `Chunk` remains untouched.
+  `SearchCandidate` combines `PersistedChunk`, `RetrievalProvenance`, and
+  channel evidence (`retrieval_channel`, `channel_rank`, `channel_score`).
+  Final `RetrievedChunk` remains the post-RRF ranked retrieval result combining
+  `PersistedChunk`, `RetrievalProvenance`, final `rank`, final `score`, and
+  `matched_channels`, consumed by `ContextBuilder`/grounding. RRF runtime and
+  grounding runtime remain unimplemented. OPS factual models
+  (`AutomationRunRecord`, `ServiceRequestRecord`, `EstablishmentRecord`,
+  `ExecutionLogRecord`, `ProtocolStatusFacts`, `ExecutionFailureEvidence`) and
+  AUDIT model (`SecurityEventRecord`) strictly represent database read results.
+  Write payloads continue to use `RepositoryRecord = Mapping[str, object]`.
+  DEC-142 composable transaction architecture remains intact. At the 4.8.11
+  completion point no real DB connection had been opened; Phases 4.8.13 and
+  4.8.14 have since completed that validation. No ORM was introduced.
+- 4.8.12 implemented centralized, secret-safe translation of recognized
+  Psycopg/pool failures into stable application-facing errors. Pool availability
+  failures are conservatively retryable; integrity and query failures are not.
+  Original driver failures are preserved as causes, while Pydantic validation,
+  application, and cancellation/control-flow exceptions remain unchanged. No
+  retries, automatic logging, real PostgreSQL connection, or SQL execution was
+  introduced.
+- 4.8.13 validated the real local runtime connection path through
+  `load_database_config()` and `PostgresDatabase`: pool open/wait/acquire/close,
+  PostgreSQL major version 17, database `getnet_support`, pgvector 0.8.6, and a
+  registered-adapter vector round-trip all passed without exposing secrets.
+- 4.8.14 validated every public concrete repository method against real
+  PostgreSQL. RAG persistence, lifecycle, typed mappings, FTS and exact cosine
+  retrieval passed; OPS lifecycle and evidence queries passed; AUDIT sanitized
+  persistence/review passed; a real UNIQUE violation mapped to
+  `SafeIntegrityError` with the original Psycopg cause; all synthetic writes
+  rolled back and the final read-only cleanliness check found zero test records.
+- 4.8.15 reconciled the roadmap, project context, repository contracts, and
+  decision log with the real validation evidence.
+- 4.8.16 completed the final audit: the six-test real integration suite and
+  complete 189-test fast suite passed, six real tests remained opt-in/skipped
+  during the fast run, compilation/dependency/import/whitespace checks passed,
+  protected files remained unchanged, and DEC-147 approved Phase 4.8.
+
+Phase 4.9 — DADOS FICTÍCIOS / SEED is COMPLETED / APPROVED. Its JSON-driven
+seed architecture, validation, generic executor, repository-backed persistence,
+transaction-per-scenario behavior, and lifecycle variation support are complete.
+Phase 4.10 VALIDAÇÃO DO BANCO is COMPLETED / APPROVED. Real connection,
+transaction, representative FK/constraint, pgvector, FTS, OPS factual-read,
+AUDIT, regression, compilation, dependency, and whitespace validation passed.
+Phase 5 INGESTION EXECUTÁVEL is complete. It implements UTF-8 curated Markdown
+and approved public-registry loading, deterministic normalization and SHA-256
+checksums, eligibility validation, ingestion decisions, structural chunking,
+JSON-compatible provenance, immutable prepared-ingestion contracts, a shared
+preparation service, and manual CLI paths. It prepares artifacts only: no
+embedding, FTS payload, or incomplete chunk publication occurs.
+
+Phase 6 FASTEMBED EXECUTÁVEL is COMPLETED / APPROVED under DEC-156 through DEC-159.
+It implements the local FastEmbed adapter (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`,
+384 dims, local ONNX CPU), native weighted PostgreSQL FTS vector generation (weights A, B, C, D),
+publication contracts (`PublicationChunk`, `PublicationResult`), centralized `RAGPublicationService`,
+and atomic publication via `PostgresDatabase.transaction()`. Embeddings are computed and validated
+pre-transaction; failures trigger full transaction rollback, preserving previous retrievable state.
+`SKIPPED_UNCHANGED` avoids re-embedding and replacement when checksum is identical; `REINGEST`
+atomically replaces all chunks. Real representative internal documents (PDD, SDD, Technical Overview)
+are published in `getnet_support` (1 active source, 3 active documents, 99 chunks). Real lexical and
+semantic smoke searches are verified.
+
+Phase 7 HYBRID RETRIEVAL + RRF is COMPLETED / APPROVED. It provides lexical
+and semantic candidate retrieval capped at 10 per channel, one shared
+read-only REPEATABLE READ snapshot, rank-only RRF with k=60, physical
+`chunk_id` deduplication, deterministic tie-breaking, and at most five
+`RetrievedChunk` results.
+
+Phase 8 GROUNDING / ANTI-HALLUCINATION is COMPLETED / APPROVED. `ContextBuilder`
+produces immutable provider-neutral `GroundedContext` values with complete
+internal `RetrievalProvenance` fields, deterministic C1..Cn citations,
+and separate safe user attribution. Internal citations use abstract labels;
+approved public citations may expose only a public title and URL. Tier 1 internal
+process priority governs Tier 2 internal technical and Tier 3 public evidence,
+while lower-priority evidence is retained. The structural evidence gate uses no
+raw retrieval score as sufficiency. The next phase is Phase 9 multi-agent/RAG/tools
+orchestration, which has not started.
+
+Phase 9 SDD Foundation is finalized and approved under `docs/specs/phase-9/`.
+The provider-neutral LLM boundary and its initial DeepSeek adapter are complete:
+validated environment configuration, controlled errors, and an explicitly
+enabled real-provider smoke test passed without committing or disclosing the
+local API key. Phase 9.3 Knowledge Agent is complete: it consumes only the
+approved Phase 7 Hybrid Retrieval/RRF and Phase 8 ContextBuilder boundaries,
+blocks generation for structurally insufficient evidence, treats retrieved text
+as passive data, and returns only safe citations. Real PostgreSQL
+retrieval/grounding with mocked generation and an opt-in real DeepSeek knowledge
+smoke test passed. Phase 9.8 implements only controlled, provider-neutral
+Tavily live-public evidence: current public questions may use it directly and
+Payment Link/WhatsApp remains persistent-RAG-first with conditional fallback.
+Live results pass through typed non-persistent live-web grounding before LLM
+generation; they reuse Phase 8 sufficiency/citation/passive-DATA safeguards
+without synthetic RAG provenance. Safe citations retain public URLs, official
+Getnet priority is derived from the approved source registry, and no result is
+persisted into RAG. No `/chat` runtime was introduced.
+
+Phase 9.4 OPS Tools is complete. `lookup_protocol_status` and
+`inspect_execution_failure` are narrow, read-only, authorization-gated
+application interfaces over `OperationalRepository.get_protocol_status_facts`
+and `OperationalRepository.get_execution_failure_facts`. They return typed
+observed OPS facts/evidence or controlled invalid, absent, unauthorized, and
+repository-error outcomes; they contain no SQL, database connection, diagnosis,
+or LLM behavior. Unit and opt-in real PostgreSQL validation against synthetic
+OPS records passed.
+
+Phase 9.5 Customer Support Agent is complete. It consumes only the approved
+authorization-gated OPS tools and the provider-neutral LLM boundary; it has no
+direct database access and no web-search capability. Typed results keep
+application-derived observed `ProtocolStatusFacts` / `ExecutionFailureEvidence`
+separate from explicitly labeled LLM inferences. The validated customer question
+is propagated as distinct untrusted user input in the neutral generation request;
+it cannot alter authorization, the application-selected operation, or the
+controlled OPS evidence. Controlled OPS failures and LLM failures return no
+fabricated operational answer. Unit, opt-in real
+PostgreSQL with mocked LLM, and opt-in real PostgreSQL plus DeepSeek validation
+passed against synthetic OPS records. The next reviewed implementation scope is
+Phase 9.6 Router Agent, now completed below.
+
+Phase 9.6 Router Agent is complete. It produces immutable, application-only
+capability decisions for Knowledge, Customer Support, cooperative Knowledge plus
+Customer Support, future web fallback, Human Escalation, security block, and
+controlled ambiguity. Security-sensitive requests are blocked before normal
+routing. The Router does not execute agents, OPS tools, repositories, web search,
+human handoff, or LLM calls. Its deterministic routing matrix covers all fourteen
+approved challenge scenarios. The next reviewed implementation scope is Phase 9.7
+LangGraph orchestration.
+
+Phase 9.7 LangGraph orchestration is complete. An acyclic graph invokes the
+approved Router once, then coordinates the existing Knowledge and Customer
+Support capabilities without duplicating their behavior. Cooperative requests
+retain both typed results, Knowledge citations, and Customer Support
+FACT/INFERENCE separation. Security-block and ambiguous routes terminate without
+downstream capability calls; web and human routes preserve explicit deferred
+markers for Phases 9.8 and 9.9. Real PostgreSQL integrations and an opt-in real
+DeepSeek smoke for Knowledge-only, Customer-Support-only, and cooperative paths
+passed without database mutation. Phase 9.8 adds bounded Tavily public web
+fallback through injected typed contracts while preserving the acyclic graph,
+security terminals, OPS privacy, and non-persistence. The next reviewed
+implementation scope is Phase 9.11 End-to-End Validation. Phase 9.9 adds only the typed,
+non-persistent human-handoff state machine: explicit offer, confirmation,
+`WAITING_HUMAN`, authorized operator acceptance, human ownership, and explicit
+return/resolution. It does not implement Django, a physical queue, polling,
+ticket automation, or persistence. Phase 9.10 replaces the FastAPI placeholder
+with an authenticated, typed adapter over `LangGraphOrchestrator`. Internal
+Bearer service authentication runs before orchestration; body `user_id` alone
+grants no trust. Responses and errors are allowlisted for a future Django
+consumer without exposing graph, provider, repository, RAG, or database
+internals. No Django, conversation persistence, queue, or database schema is
+introduced.
 
 ## Documentation Maintenance Rules
 

@@ -1,13 +1,45 @@
-"""pgvector semantic search abstraction without database queries."""
+"""pgvector semantic search retrieval boundary."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Protocol
+
+from pgvector import Vector
+
+from ..embeddings.fastembed import FastEmbedAdapter
 from ..models import SearchCandidate
 
 
+class _SemanticRepository(Protocol):
+    async def search_semantic_candidates(
+        self, embedding: Sequence[float], limit: int
+    ) -> Sequence[SearchCandidate]: ...
+
+
 class SemanticRetriever:
-    """Retrieve semantic candidates through future pgvector search."""
+    """Embed a query once and delegate cosine retrieval to RAGRepository."""
 
-    def search(self, query: str, limit: int) -> list[SearchCandidate]:
-        """Return semantic candidates in a future implementation."""
+    def __init__(
+        self,
+        repository: _SemanticRepository,
+        embed_adapter: FastEmbedAdapter,
+    ) -> None:
+        self._repository = repository
+        self._embed_adapter = embed_adapter
 
-        raise NotImplementedError("Semantic retrieval is not implemented yet.")
+    @property
+    def embed_adapter(self) -> FastEmbedAdapter:
+        """Expose the approved adapter for a repository-bound snapshot run."""
 
+        return self._embed_adapter
+
+    async def search(self, query: str, limit: int) -> Sequence[SearchCandidate]:
+        if not query.strip():
+            raise ValueError("Semantic query cannot be blank")
+        if not 1 <= limit <= 10:
+            raise ValueError("Semantic candidate limit must be between 1 and 10")
+        embedding = self._embed_adapter.embed_query(query)
+        if len(embedding) != 384:
+            raise ValueError("Semantic query embedding must have 384 dimensions")
+        return await self._repository.search_semantic_candidates(Vector(embedding), limit)

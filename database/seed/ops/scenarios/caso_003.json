@@ -1,0 +1,180 @@
+{
+  "scenario_id": "caso_003_erro_upload_r1",
+  "protocol_number": "POC-OPS-0003",
+  "email": {
+    "received_at": "2026-09-05T09:01:00-04:00",
+    "processed_at": "2026-09-05T09:04:00-04:00",
+    "sender": "fernanda@cliente-exemplo.com",
+    "recipient": "atendimento@getnet.com",
+    "subject": "Solicitação de cancelamento de estabelecimento",
+    "attachment_count": 1,
+    "sender_status": "VALID",
+    "processing_status": "PROCESSED"
+  },
+  "attachment": {
+    "file_name": "solicitacao_cancelamento_fernanda.xlsx",
+    "file_type": "XLSX",
+    "received_at": "2026-09-05T09:03:00-04:00",
+    "validation_status": "VALID",
+    "validation_message": "Arquivo validado para processamento.",
+    "establishment_count": 1,
+    "processing_status": "PROCESSED"
+  },
+  "establishment": {
+    "establishment_number": "3234567890",
+    "generated_file_name": "cancelamento_estabelecimento_3234567890.txt",
+    "r1_state_at": "2026-09-05T09:12:00-04:00",
+    "r1_processing_status": "ERROR",
+    "r1_upload_status": "ERROR",
+    "r1_upload_at": null,
+    "r1_download_status": "NOT_AVAILABLE",
+    "available_at": null,
+    "available_processing_status": null,
+    "available_download_status": null,
+    "final_at": "2026-09-05T09:14:00-04:00",
+    "final_processing_status": "ERROR",
+    "final_upload_status": "ERROR",
+    "final_download_status": "NOT_AVAILABLE",
+    "download_at": null,
+    "return_email_at": "2026-09-05T09:14:00-04:00",
+    "result_message": "Processamento interrompido devido à falha no upload do arquivo ao portal."
+  },
+  "request": {
+    "initial_updated_at": "2026-09-05T09:06:00-04:00",
+    "r1_updated_at": "2026-09-05T09:12:00-04:00",
+    "r1_status": "FAILED",
+    "final_updated_at": "2026-09-05T09:14:00-04:00",
+    "final_status": "FAILED",
+    "result": null,
+    "failure_reason": "Falha no upload do arquivo de cancelamento ao portal.",
+    "completed_at": null,
+    "return_email_at": "2026-09-05T09:14:00-04:00"
+  },
+  "r1": {
+    "started_at": "2026-09-05T09:00:00-04:00",
+    "finished_at": "2026-09-05T09:15:00-04:00",
+    "status": "ERROR",
+    "result_message": "Processamento R1 encerrado com erro devido à falha no upload do arquivo ao portal.",
+    "events": [
+      {
+        "timestamp": "2026-09-05T09:01:00-04:00",
+        "event": "EMAIL_RECEBIDO",
+        "status": "SUCCESS",
+        "message": "E-mail recebido para processamento.",
+        "references": [
+          "email"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:02:00-04:00",
+        "event": "REMETENTE_VALIDADO",
+        "status": "SUCCESS",
+        "message": "Remetente validado com sucesso.",
+        "references": [
+          "email"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:03:00-04:00",
+        "event": "ANEXO_RECEBIDO",
+        "status": "SUCCESS",
+        "message": "Arquivo solicitacao_cancelamento_fernanda.xlsx recebido.",
+        "references": [
+          "email",
+          "attachment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:04:00-04:00",
+        "event": "ANEXO_VALIDADO",
+        "status": "SUCCESS",
+        "message": "Arquivo solicitacao_cancelamento_fernanda.xlsx validado com sucesso.",
+        "references": [
+          "email",
+          "attachment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:06:00-04:00",
+        "event": "PROTOCOLO_CRIADO",
+        "status": "SUCCESS",
+        "message": "Protocolo POC-OPS-0003 criado com sucesso.",
+        "references": [
+          "email",
+          "attachment",
+          "request"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:08:00-04:00",
+        "event": "ESTABELECIMENTO_IDENTIFICADO",
+        "status": "SUCCESS",
+        "message": "Estabelecimento 3234567890 identificado para processamento.",
+        "references": [
+          "email",
+          "attachment",
+          "request",
+          "establishment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:10:00-04:00",
+        "event": "ARQUIVO_GERADO",
+        "status": "SUCCESS",
+        "message": "Arquivo cancelamento_estabelecimento_3234567890.txt gerado com sucesso.",
+        "references": [
+          "email",
+          "attachment",
+          "request",
+          "establishment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:12:00-04:00",
+        "event": "UPLOAD_ARQUIVO_FALHOU",
+        "status": "ERROR",
+        "message": "Falha ao realizar o upload do arquivo cancelamento_estabelecimento_3234567890.txt ao portal.",
+        "references": [
+          "email",
+          "attachment",
+          "request",
+          "establishment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:13:00-04:00",
+        "event": "EMAIL_AREA_FALHA_ENVIADO",
+        "status": "SUCCESS",
+        "message": "E-mail enviado para a área responsável informando a falha no upload do protocolo POC-OPS-0003 e solicitando tratamento manual.",
+        "references": [
+          "request",
+          "establishment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:14:00-04:00",
+        "event": "EMAIL_CLIENTE_FALHA_ENVIADO",
+        "status": "SUCCESS",
+        "message": "E-mail enviado ao cliente informando que não foi possível concluir o processamento automático e orientando o contato com a área responsável.",
+        "references": [
+          "email",
+          "request",
+          "establishment"
+        ]
+      },
+      {
+        "timestamp": "2026-09-05T09:15:00-04:00",
+        "event": "PROCESSAMENTO_R1_FALHOU",
+        "status": "ERROR",
+        "message": "Processamento do R1 encerrado devido à falha no upload do arquivo ao portal.",
+        "references": [
+          "email",
+          "attachment",
+          "request",
+          "establishment"
+        ]
+      }
+    ]
+  },
+  "r2": null
+}

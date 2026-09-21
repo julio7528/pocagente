@@ -1,0 +1,27 @@
+{
+  "scenario_id": "caso_002_erro_download_r2",
+  "protocol_number": "POC-OPS-0002",
+  "email": {"received_at":"2026-09-03T09:01:00-04:00","processed_at":"2026-09-03T09:04:00-04:00","sender":"cliente002@exemplo.com","recipient":"atendimento@getnet.com","subject":"Solicitação de cancelamento de estabelecimento - cenário de erro","attachment_count":1,"sender_status":"VALID","processing_status":"PROCESSED"},
+  "attachment": {"file_name":"solicitacao_cancelamento_002.xlsx","file_type":"XLSX","received_at":"2026-09-03T09:03:00-04:00","validation_status":"VALID","validation_message":"Arquivo validado para processamento.","establishment_count":1,"processing_status":"PROCESSED"},
+  "establishment": {"establishment_number":"2234567890","generated_file_name":"cancelamento_estabelecimento_2234567890.txt","r1_state_at":"2026-09-03T09:12:00-04:00","r1_processing_status":"WAITING_RESULT","r1_upload_status":"SUCCESS","r1_upload_at":"2026-09-03T09:12:00-04:00","r1_download_status":"NOT_AVAILABLE","available_at":"2026-09-04T09:04:00-04:00","available_processing_status":"RESULT_AVAILABLE","available_download_status":"AVAILABLE","final_at":"2026-09-04T09:06:00-04:00","final_processing_status":"ERROR","final_upload_status":"SUCCESS","final_download_status":"ERROR","result_message":"Falha no download do arquivo de resultado pelo R2."},
+  "request": {"initial_updated_at":"2026-09-03T09:06:00-04:00","r1_updated_at":"2026-09-03T09:13:00-04:00","r1_status":"WAITING_RESULT","final_updated_at":"2026-09-04T09:06:00-04:00","final_status":"FAILED","failure_reason":"Falha no download do arquivo de resultado pelo R2."},
+  "r1": {"started_at":"2026-09-03T09:00:00-04:00","finished_at":"2026-09-03T09:15:00-04:00","status":"SUCCESS","result_message":"Processamento R1 concluído com sucesso.","events":[
+    {"timestamp":"2026-09-03T09:01:00-04:00","event":"EMAIL_RECEBIDO","status":"SUCCESS","message":"E-mail recebido para processamento.","references":["email"]},
+    {"timestamp":"2026-09-03T09:02:00-04:00","event":"REMETENTE_VALIDADO","status":"SUCCESS","message":"Remetente validado com sucesso.","references":["email"]},
+    {"timestamp":"2026-09-03T09:03:00-04:00","event":"ANEXO_RECEBIDO","status":"SUCCESS","message":"Arquivo solicitacao_cancelamento_002.xlsx recebido.","references":["email","attachment"]},
+    {"timestamp":"2026-09-03T09:04:00-04:00","event":"ANEXO_VALIDADO","status":"SUCCESS","message":"Arquivo solicitacao_cancelamento_002.xlsx validado com sucesso.","references":["email","attachment"]},
+    {"timestamp":"2026-09-03T09:06:00-04:00","event":"PROTOCOLO_CRIADO","status":"SUCCESS","message":"Protocolo POC-OPS-0002 criado com sucesso.","references":["email","attachment","request"]},
+    {"timestamp":"2026-09-03T09:08:00-04:00","event":"ESTABELECIMENTO_IDENTIFICADO","status":"SUCCESS","message":"Estabelecimento 2234567890 identificado para processamento.","references":["email","attachment","request","establishment"]},
+    {"timestamp":"2026-09-03T09:10:00-04:00","event":"ARQUIVO_GERADO","status":"SUCCESS","message":"Arquivo cancelamento_estabelecimento_2234567890.txt gerado com sucesso.","references":["email","attachment","request","establishment"]},
+    {"timestamp":"2026-09-03T09:12:00-04:00","event":"ARQUIVO_ENVIADO","status":"SUCCESS","message":"Arquivo enviado ao portal com sucesso.","references":["email","attachment","request","establishment"]},
+    {"timestamp":"2026-09-03T09:13:00-04:00","event":"AGUARDANDO_RESULTADO","status":"SUCCESS","message":"Protocolo aguardando disponibilização do resultado.","references":["email","attachment","request","establishment"]},
+    {"timestamp":"2026-09-03T09:15:00-04:00","event":"PROCESSAMENTO_R1_CONCLUIDO","status":"SUCCESS","message":"Processamento do R1 concluído com sucesso.","references":["email","attachment","request","establishment"]}
+  ]},
+  "r2": {"started_at":"2026-09-04T09:00:00-04:00","finished_at":"2026-09-04T09:08:00-04:00","status":"ERROR","result_message":"Processamento do R2 encerrado devido à falha no download do arquivo de resultado.","events":[
+    {"timestamp":"2026-09-04T09:01:00-04:00","event":"PROCESSAMENTO_R2_INICIADO","status":"SUCCESS","message":"Monitoramento do protocolo iniciado pelo R2.","references":["request","establishment"]},
+    {"timestamp":"2026-09-04T09:03:00-04:00","event":"RESULTADO_CONSULTADO","status":"SUCCESS","message":"Disponibilidade do resultado consultada com sucesso.","references":["request","establishment"]},
+    {"timestamp":"2026-09-04T09:04:00-04:00","event":"RESULTADO_DISPONIVEL","status":"SUCCESS","message":"Resultado disponível para download.","references":["request","establishment"]},
+    {"timestamp":"2026-09-04T09:06:00-04:00","event":"DOWNLOAD_ARQUIVO_FALHOU","status":"ERROR","message":"Falha ao realizar o download do arquivo de resultado.","references":["request","establishment"]},
+    {"timestamp":"2026-09-04T09:08:00-04:00","event":"PROCESSAMENTO_R2_FALHOU","status":"ERROR","message":"Processamento do R2 encerrado devido à falha no download do arquivo de resultado.","references":["request","establishment"]}
+  ]}
+}
