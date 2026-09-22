@@ -11,7 +11,7 @@ from apps.agent_api.app.rag.config import RAGConfig
 from apps.agent_api.app.rag.models import PersistedChunk, RetrievalProvenance, SearchCandidate
 from apps.agent_api.app.rag.ranking.rrf import RRFRanker
 from apps.agent_api.app.rag.retrieval.hybrid import HybridRetriever
-from apps.agent_api.app.rag.retrieval.lexical import LexicalRetriever
+from apps.agent_api.app.rag.retrieval.lexical import LexicalRetriever, normalize_lexical_query
 from apps.agent_api.app.rag.retrieval.semantic import SemanticRetriever
 
 
@@ -78,6 +78,18 @@ def test_channel_retrievers_validate_and_delegate() -> None:
     repository.search_lexical_candidates.assert_awaited_once_with("query", 10)
     assert repository.search_semantic_candidates.await_args.args[1] == 10
     assert len(repository.search_semantic_candidates.await_args.args[0].to_list()) == 384
+
+
+def test_lexical_query_normalization_preserves_domain_terms_and_uses_or_recall() -> None:
+    normalized = normalize_lexical_query(
+        "Quais condições tornam um arquivo de cancelamento inválido antes do upload?"
+    )
+
+    assert normalized == (
+        "condições OR tornam OR arquivo OR cancelamento OR inválido OR upload"
+    )
+    assert "quais" not in normalized
+    assert "antes" not in normalized
 
 
 def test_hybrid_public_api_fuses_two_channels_and_uses_config_limits() -> None:

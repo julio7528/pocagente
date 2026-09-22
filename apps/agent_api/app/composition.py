@@ -15,6 +15,7 @@ from apps.agent_api.app.chat import ChatApplicationService
 from apps.agent_api.app.database.config import load_database_config
 from apps.agent_api.app.database.connection import PostgresDatabase
 from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts
+from apps.agent_api.app.security.audit import PostgresSecurityAuditSink, SecurityAuditService
 from apps.agent_api.app.database.repositories.operational import OperationalRepository
 from apps.agent_api.app.llm.errors import LLMConfigurationError, LLMProviderError
 from apps.agent_api.app.llm.factory import create_deepseek_provider
@@ -111,6 +112,7 @@ async def compose_runtime() -> RuntimeComposition:
             support,
             web_knowledge,
             HumanEscalationAgent(),
+            SecurityAuditService(PostgresSecurityAuditSink(database)),
         )
         return RuntimeComposition(ChatApplicationService(orchestrator), database)
     except Exception:

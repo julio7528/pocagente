@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 from typing import Protocol
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -27,6 +28,7 @@ from apps.agent_api.app.agents.orchestration import (
     OrchestrationStatus,
 )
 from apps.agent_api.app.auth import AuthenticatedPrincipal, PrincipalRole
+from apps.agent_api.app.security.models import SecurityAuditContext
 from apps.agent_api.app.tools.ops import OpsAccessContext
 
 
@@ -207,6 +209,13 @@ class ChatUnavailableError(Exception):
     pass
 
 
+_SECURITY_BLOCK_RESPONSE = (
+    "I can't provide or help access protected credentials, secrets, or restricted "
+    "system information. I can help with permitted functional or high-level "
+    "technical questions instead."
+)
+
+
 _UNSAFE_OUTPUT = re.compile(
     r"sk-proj-[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|"
     r"\bbearer\s+[A-Za-z0-9_.-]+|postgres(?:ql)?://|\btraceback\b|"
@@ -252,9 +261,16 @@ class ChatApplicationService:
                 ),
                 customer_support_context=operational,
                 human_escalation_request=human,
+                security_audit_context=SecurityAuditContext(
+                    user_identifier=principal.user_id,
+                    request_reference=f"chat-{uuid4().hex}",
+                ),
             )
         )
-        if result.status is OrchestrationStatus.ORCHESTRATION_ERROR:
+        if result.status in {
+            OrchestrationStatus.ORCHESTRATION_ERROR,
+            OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
+        }:
             raise ChatUnavailableError()
         return self._response(result)
 
@@ -336,6 +352,13 @@ class ChatApplicationService:
 
     @staticmethod
     def _response(result: OrchestrationResult) -> ChatResponse:
+        if result.status is OrchestrationStatus.SECURITY_BLOCKED:
+            return ChatResponse(
+                status=result.status.value,
+                route=result.route.value,
+                answer=_SECURITY_BLOCK_RESPONSE,
+                reason="SECURITY_REQUEST_BLOCKED",
+            )
         knowledge = None
         if result.knowledge_result is not None:
             knowledge = ChatKnowledgePayload(

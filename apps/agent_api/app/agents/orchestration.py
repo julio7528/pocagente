@@ -30,6 +30,12 @@ from apps.agent_api.app.agents.router import (
     WebSearchPolicy,
 )
 from apps.agent_api.app.tools.ops import OpsAccessContext
+from apps.agent_api.app.security.models import (
+    SecurityAuditContext,
+    SecurityAuditResult,
+    SecurityAuditStatus,
+    SecurityClassification,
+)
 
 
 class KnowledgeCapability(Protocol):
@@ -60,6 +66,18 @@ class HumanEscalationCapability(Protocol):
         """Perform one explicit, non-persistent approved transition."""
 
 
+class SecurityAuditCapability(Protocol):
+    """Approved application audit boundary invoked only after router blocking."""
+
+    async def record_router_security_block(
+        self,
+        *,
+        message: str,
+        context: SecurityAuditContext,
+        security_semantics: tuple[SecurityClassification, ...],
+    ) -> SecurityAuditResult: ...
+
+
 class CustomerSupportContext(BaseModel):
     """Trusted application context needed before Customer Support can run."""
 
@@ -80,6 +98,7 @@ class OrchestrationRequest(BaseModel):
     has_authorized_protocol_context: bool = False
     customer_support_context: CustomerSupportContext | None = None
     human_escalation_request: HumanEscalationRequest | None = None
+    security_audit_context: SecurityAuditContext | None = None
 
 
 class OrchestrationStatus(StrEnum):
@@ -88,6 +107,7 @@ class OrchestrationStatus(StrEnum):
     COMPLETED = "COMPLETED"
     PARTIAL = "PARTIAL"
     SECURITY_BLOCKED = "SECURITY_BLOCKED"
+    SECURITY_AUDIT_UNAVAILABLE = "SECURITY_AUDIT_UNAVAILABLE"
     AMBIGUOUS = "AMBIGUOUS"
     WEB_FALLBACK_PENDING = "WEB_FALLBACK_PENDING"
     HUMAN_ESCALATION_REQUIRED = "HUMAN_ESCALATION_REQUIRED"
@@ -142,12 +162,14 @@ class LangGraphOrchestrator:
         customer_support_agent: CustomerSupportCapability,
         web_knowledge_agent: WebKnowledgeCapability | None = None,
         human_escalation_agent: HumanEscalationCapability | None = None,
+        security_audit_service: SecurityAuditCapability | None = None,
     ) -> None:
         self._router = router
         self._knowledge_agent = knowledge_agent
         self._customer_support_agent = customer_support_agent
         self._web_knowledge_agent = web_knowledge_agent
         self._human_escalation_agent = human_escalation_agent
+        self._security_audit_service = security_audit_service
         self._graph = self._build_graph()
 
     async def execute(self, request: OrchestrationRequest) -> OrchestrationResult:
@@ -334,8 +356,25 @@ class LangGraphOrchestrator:
             )
         return {"customer_support_result": result}
 
-    @staticmethod
-    def _security_terminal(_: OrchestrationState) -> dict[str, OrchestrationStatus | str]:
+    async def _security_terminal(
+        self, state: OrchestrationState
+    ) -> dict[str, OrchestrationStatus | str]:
+        context = state["request"].security_audit_context
+        if self._security_audit_service is None or context is None:
+            return {
+                "status": OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
+                "reason": "SECURITY_AUDIT_UNAVAILABLE",
+            }
+        result = await self._security_audit_service.record_router_security_block(
+            message=state["request"].message,
+            context=context,
+            security_semantics=state["routing_decision"].security_semantics,
+        )
+        if result.status is not SecurityAuditStatus.RECORDED:
+            return {
+                "status": OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
+                "reason": "SECURITY_AUDIT_UNAVAILABLE",
+            }
         return {"status": OrchestrationStatus.SECURITY_BLOCKED, "reason": "SECURITY_POLICY_ROUTE"}
 
     @staticmethod

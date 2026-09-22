@@ -2,7 +2,8 @@
 
 Status: Phase 9.7 LangGraph orchestration, Phase 9.8 controlled Tavily
 web-search integration, and Phase 9.9 Human Escalation coordination are
-implemented and validated. Phase 9.10 `/chat` remains next.
+implemented and validated. Phase 9.10 `/chat` and Phase 9.11 end-to-end
+validation are complete. Phase 10 Security / Audit Runtime is next.
 
 ## Provisional state contract
 

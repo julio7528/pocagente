@@ -627,7 +627,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-9. MULTI-AGENT + RAG + TOOLS + TAVILY                 ← AGORA
+9. MULTI-AGENT + RAG + TOOLS + TAVILY                 ✅ CONCLUÍDO
 
    9.1 SDD Foundation, 9.2 LLM Provider / DeepSeek, 9.3 Knowledge Agent,
    9.4 OPS Tools, 9.5 Customer Support Agent, 9.6 Router Agent, and 9.7 LangGraph
@@ -647,8 +647,13 @@ MAPA ATUAL — GETNET SUPPORT POC
    is non-persistent and has no Django or ticket implementation. Phase 9.10
    `/chat` is complete: strict authenticated FastAPI transport maps through a
    narrow application adapter to orchestration and returns only allowlisted,
-   provider-neutral responses. The next reviewed scope is 9.11 end-to-end
-   validation.
+   provider-neutral responses. Phase 9.11 completed authenticated end-to-end
+   validation of all fourteen approved challenge scenarios. The protected-route
+   integration now records one sanitized security event through the approved
+   `SecurityAuditService -> PostgresSecurityAuditSink -> AuditRepository`
+   boundary; failure stays blocked and controlled. Phase 9 is complete. The
+   next reviewed scope is Phase 10 SECURITY / AUDIT RUNTIME; that broader phase
+   is not completed by the minimum Phase 9 audit integration.
    Phase 9.4 provides read-only, authorization-gated
    `lookup_protocol_status` and `inspect_execution_failure` application tools
    over the approved `OperationalRepository`; they return observed typed facts
@@ -691,7 +696,7 @@ MAPA ATUAL — GETNET SUPPORT POC
    └─ coordenação multiagente quando necessária
 
 
-10. SECURITY / AUDIT RUNTIME                           ⏳
+10. SECURITY / AUDIT RUNTIME                           CONCLUÍDO
 
 
     detectar solicitação sensível
@@ -707,11 +712,23 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-11. EVALUATION RUNNER                                  ⏳
+11. EVALUATION RUNNER                                  CONCLUÍDO
 
 
-    executar evaluation/rag/dataset-v1.yaml
-    ├─ 25 casos de RAG/grounding/security
+    11.1 SDD FOUNDATION                              CONCLUÍDO
+        corrective contract review                   CONCLUÍDO
+        mandatory local RAG and source manifest      CONCLUÍDO
+    11.2 dataset contracts and versioned adapters    CONCLUÍDO (6/6 retrieval source mappings; security-only source excluded)
+    11.3 RAG evaluation runner                       CONCLUÍDO (typed boundary; v1.1 27-case closure run)
+    11.4 challenge evaluation runner                 CONCLUÍDO (14 deterministic authenticated observations; DEC-181 implementation reconciled)
+    11.5 metrics and reporting                       CONCLUÍDO (v1.1 deterministic JSON; overall PASS)
+    11.6 validation and closure                      CONCLUÍDO (REVALIDATED)
+    Phase 11 closure                                  CLOSED / CONCLUÍDO
+    next reviewed phase                               12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL
+
+
+    executar evaluation/rag/dataset-v1.1.yaml
+    ├─ 27 casos de RAG/grounding/security/insufficient-evidence
     └─ medir:
        - Top-5 source rate
        - provenance
@@ -728,7 +745,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL               ⏳
+12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL               PRÓXIMO (NÃO INICIADO)
 
 
     Django

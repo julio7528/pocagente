@@ -8,11 +8,28 @@ evidence without relying on chat history.
 
 ## Current Phase
 
-**Current major phase:** Phase 9 MULTI-AGENT + RAG + TOOLS + TAVILY
+**Current major phase:** Phase 11 EVALUATION RUNNER
 
-**Current task:** Phase 9 MULTI-AGENT + RAG + TOOLS + TAVILY
+**Current task:** Phase 11 EVALUATION RUNNER — closure remediation and Phase
+11.6 revalidation complete
 
-**Current subtask:** Phase 9.10 `/chat` complete; Phase 9.11 End-to-End Validation next
+**Current subtask:** Phase 11 is CLOSED. Dataset v1.1 preserves the historical
+v1.0 blocked evidence while adding reviewed deterministic claim support, one
+explicit insufficient-evidence case, and one synthetic supplied-secret
+security case. The source manifest remains 6/6. The production Router now
+recognizes the missing Portuguese protected-request semantics through the
+existing Phase 10 owner, and PostgreSQL lexical retrieval uses bounded
+natural-language OR normalization rather than an all-term query.
+
+Fresh official evidence processed 27 RAG cases (22 `RETRIEVAL`, 1
+`RULE_VS_OBSERVED`, 3 `SECURITY`, 1 `INSUFFICIENT_EVIDENCE`) with 24 retrieval
+executions. Top-5 is 21/23 PASS, provenance 23/23 PASS, unsupported facts 0/3
+PASS, insufficient evidence 1/1 PASS, security block and AUDIT 3/3 PASS,
+redaction 1/1 PASS, and Challenge 14/14 PASS. Overall is `PASS`; the two
+remaining expected-source misses (`rag-021`, `rag-023`) remain visible as
+authentic per-case findings. The Phase 11.6 matrix records 57 SATISFIED, zero
+FAILED, and zero BLOCKED_NOT_MEASURABLE requirements. No blocker was waived.
+Phase 12 is next but has not started.
 
 **Conceptual schema architecture status:**
 
@@ -415,8 +432,11 @@ evidence without relying on chat history.
 
 ### Multi-agent responsibilities
 
-The Phase 9 runtime agents and orchestration are implemented. Phase 9.11 final
-end-to-end validation remains pending.
+The Phase 9 runtime agents, orchestration, authenticated `/chat` boundary, and
+final end-to-end validation are complete. The minimum security-audit integration
+required by `REQ-P9-SEC-004` records a sanitized protected-request event through
+`SecurityAuditService`, `PostgresSecurityAuditSink`, and `AuditRepository`.
+Broader audit/runtime work remains Phase 10 scope.
 
 #### Router Agent
 
@@ -1920,17 +1940,21 @@ Authoritative policy: `knowledge/internal/security/security-policy.md`.
 
 ## Evaluation State
 
-The project maintains two separate evaluation suites:
+The project maintains two separate evaluation suites and preserves the prior
+RAG version as historical evidence:
 
-- `evaluation/rag/dataset-v1.yaml` contains 25 cases for RAG retrieval,
-  grounding, provenance, insufficient-evidence, and security quality.
+- `evaluation/rag/dataset-v1.yaml` contains the historical 25-case v1.0 suite.
+- `evaluation/rag/dataset-v1.1.yaml` is current with 27 cases for RAG
+  retrieval, grounding, provenance, structured claim support, explicit
+  insufficient-evidence behavior, security, and supplied-secret redaction.
 - `evaluation/challenge/scenarios-v1.yaml` contains 14 end-to-end architectural
   scenarios for routing, agent and capability selection, RAG versus Web Search,
   controlled Customer Support tools, multi-agent cooperation, and security
   behavior.
 
-The challenge suite does not replace or merge into the RAG dataset. Neither
-suite has an executable evaluation runner yet.
+The challenge suite does not replace or merge into the RAG dataset. Both have
+implemented typed runners; official RAG quality uses LOCAL_RAG and Challenge
+uses the deterministic authenticated application composition.
 
 Important security cases:
 
@@ -1957,6 +1981,8 @@ here.
 - `knowledge/internal/security/security-policy.md`
 - `knowledge/internal/cancellation-process/public/sources.yaml`
 - `evaluation/rag/dataset-v1.yaml`
+- `evaluation/rag/dataset-v1.1.yaml`
+- `evaluation/reports/phase11-evaluation-v1.1.json`
 - `evaluation/challenge/scenarios-v1.yaml`
 - `reference/automation-anywhere/cancelamento-vendas/`
 - `apps/agent_api/app/`
@@ -1965,9 +1991,8 @@ here.
 
 ## Current Pending Decisions
 
-- Router, Knowledge, and Customer Support Agent runtime.
-- Controlled Customer Support and OPS tools.
-- Evaluation runner.
+- Phase 12 Django/frontend/final-integration scope has not started and requires
+  its own reviewed authorization.
 - Django integration.
 
 ## Immediate Next Step
@@ -2189,8 +2214,8 @@ markers for Phases 9.8 and 9.9. Real PostgreSQL integrations and an opt-in real
 DeepSeek smoke for Knowledge-only, Customer-Support-only, and cooperative paths
 passed without database mutation. Phase 9.8 adds bounded Tavily public web
 fallback through injected typed contracts while preserving the acyclic graph,
-security terminals, OPS privacy, and non-persistence. The next reviewed
-implementation scope is Phase 9.11 End-to-End Validation. Phase 9.9 adds only the typed,
+security terminals, OPS privacy, and non-persistence. Phase 9.11 completed
+end-to-end validation. Phase 9.9 adds only the typed,
 non-persistent human-handoff state machine: explicit offer, confirmation,
 `WAITING_HUMAN`, authorized operator acceptance, human ownership, and explicit
 return/resolution. It does not implement Django, a physical queue, polling,
@@ -2199,8 +2224,11 @@ with an authenticated, typed adapter over `LangGraphOrchestrator`. Internal
 Bearer service authentication runs before orchestration; body `user_id` alone
 grants no trust. Responses and errors are allowlisted for a future Django
 consumer without exposing graph, provider, repository, RAG, or database
-internals. No Django, conversation persistence, queue, or database schema is
-introduced.
+internals. Protected requests now remain Router-blocked while their sanitized
+event is persisted only through `SecurityAuditService`,
+`PostgresSecurityAuditSink`, and `AuditRepository`; audit failure fails closed.
+Phase 9 is complete. No Django, conversation persistence, queue, or database
+schema is introduced; broader Security / Audit Runtime work is Phase 10 scope.
 
 ## Documentation Maintenance Rules
 

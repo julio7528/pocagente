@@ -3240,7 +3240,8 @@ explicitly. No external SDD framework dependency is introduced.
 9.2 through 9.10 are implemented under this baseline. Phase 9.8 uses typed,
 non-persistent live-web grounding before generation; its approved Getnet source
 priority is derived from the existing public registry. Phase 9.9 implements
-Human Escalation, Phase 9.10 implements `/chat`, and Phase 9.11 is next.
+Human Escalation, Phase 9.10 implements `/chat`, and Phase 9.11 completes the
+final Phase 9 validation.
 
 ---
 
@@ -3259,4 +3260,557 @@ sessions, while FastAPI owns internal agent execution—without allowing an
 arbitrary request body to fabricate OPS access or human-operator authority.
 
 **Status:** Approved and implemented in Phase 9.10. Phase 9.11 end-to-end
-validation remains next.
+validation is complete.
+
+---
+
+## DEC-166 â€” Phase 9 protected-request audit integration and closure
+
+**Decision:** When the approved Router returns `SECURITY_BLOCK`, the Phase 9
+orchestration boundary invokes the typed `SecurityAuditService`. The service
+sanitizes the protected request before its injected
+`PostgresSecurityAuditSink` opens the approved transaction and delegates the
+write exclusively to `AuditRepository.write_sanitized_security_event(...)`.
+The event uses approved AUDIT values, correlation from the authenticated chat
+boundary, and no raw request, authentication header, credential, provider
+secret, SQL, graph state, OPS row, or RAG content. A persistence failure remains
+blocked and returns a controlled unavailable result; it never enables another
+capability.
+
+**Rationale:** Satisfy the already-approved policy requirement that every
+protected request generates an auditable, sanitized event without introducing a
+second security classifier, a new schema, a generic security platform, or any
+broader Phase 10 feature.
+
+**Validation:** Deterministic authenticated `/chat` challenge-013 E2E verifies
+one redacted event and zero Knowledge, Web, OPS, or LLM calls. Opt-in real
+PostgreSQL `/chat` validation verifies the committed `audit.security_events`
+record through `AuditRepository` and removes its uniquely correlated test row.
+The full normal suite passed with 404 tests, 29 opt-in skips, and two known
+warnings.
+
+**Status:** Approved; Phase 9.11 closure is complete and Phase 9 is complete.
+Phase 10 Security / Audit Runtime is current for broader future work.
+
+---
+
+## DEC-167 â€” Phase 10 Security / Audit Runtime SDD Foundation
+
+**Decision:** Establish the lightweight, project-specific Phase 10 SDD baseline
+under `docs/specs/phase-10/`. It defines immutable `REQ-P10-*` requirements for
+deterministic security detection/classification semantics, sanitization and
+redaction, typed AUDIT runtime behavior, safe policy responses, and
+requirement-traceable validation. The baseline consumes and extends the approved
+Phase 9 `SECURITY_BLOCK -> SecurityAuditService -> PostgresSecurityAuditSink ->
+AuditRepository` integration; it does not replace the Router, create another
+security classifier, repository, transaction boundary, schema, or audit table.
+
+**Rationale:** Phase 9 closed the minimum protected-request audit integration
+required by `REQ-P9-SEC-004`. Broader Security / Audit Runtime work needs a
+traceable contract that preserves the internal security policy, existing
+physical AUDIT model, repository ownership, fail-closed behavior, and
+secret-safe validation discipline before implementation begins.
+
+**Status:** Approved as a specification-first baseline. No Phase 10 runtime
+implementation, schema/migration, test, dependency, or configuration change is
+introduced by this decision. Future Phase 10 work must conform to the reviewed
+specifications; the existing Phase 9 security/audit path remains intact.
+
+---
+
+## DEC-168 — Phase 10.2 deterministic security classification mapping
+
+**Decision:** Approve semantic specificity as the deterministic Phase 10.2
+classification rule. Specific credential requests use `CREDENTIAL_REQUEST`;
+database credentials use `DATABASE_CREDENTIAL`; secret locations use
+`SENSITIVE_INFRASTRUCTURE_REQUEST` with `SECRET_LOCATION`; direct protected
+database-access instructions use `DATABASE_ACCESS_REQUEST`; and explicit
+prompt-injection or authorization-bypass behavior is represented independently
+as `PROMPT_INJECTION` or `AUTHORIZATION_BYPASS_ATTEMPT`. `SECRET_REQUEST` and
+`SECURITY_POLICY_PROBE` remain reserved for cases not better represented by a
+more specific approved semantic.
+
+One semantic act does not produce duplicate generic labels. Independent
+protected acts may produce multiple typed semantics sharing request correlation.
+The canonical order is a technical deterministic order only and does not
+represent severity, risk, maliciousness, priority, or intent. The Router
+remains the only protected-request decision authority; no LLM classifier is
+introduced.
+
+**Rationale:** Resolve the previously identified event-type and resource-category
+precedence ambiguity while preserving the approved `audit.security_events`
+vocabulary, neutral terminology, and 0..N cardinality without changing the
+Phase 9 persistence boundary.
+
+**Status:** Approved and implemented in Phase 10.2. Sanitization, broader audit
+runtime persistence, policy-response expansion, and final Phase 10 validation
+remain later stages.
+
+---
+
+## DEC-169 — Phase 10 Security / Audit Runtime closure
+
+**Decision:** Approve closure of Phase 10 under the Phase 10 SDD after final
+validation. All 32 Phase 10 requirements passed with traceable evidence across
+classification, sanitization, typed atomic AUDIT persistence, safe policy
+response, and validation. Real opt-in PostgreSQL validation covered typed
+single-event and multi-event persistence, rollback, repository review/read
+contracts, and cleanup with zero synthetic residue. The authenticated
+challenge-013 security path completed with zero downstream capability/provider
+continuation. Phase 9 regression, static checks, dependency checks, and
+secret-safety review passed; no schema or migration change was introduced.
+
+**Status:** Approved and implemented. Phase 11 Evaluation Runner is the next
+reviewed stage; Phase 11 implementation has not started.
+
+---
+
+## DEC-170 — Phase 11 Evaluation Runner SDD Foundation
+
+**Decision:** Establish a specification-first Phase 11 baseline for a
+dataset-driven Evaluation Runner over the authoritative
+`evaluation/rag/dataset-v1.yaml` and `evaluation/challenge/scenarios-v1.yaml`
+inputs. The runner will consume existing Phase 7–10 application boundaries,
+provide explicit dataset adapters, typed per-case observations, applicable
+metrics, reproducible reporting, and deterministic network-free validation by
+default. Dataset/runtime semantic differences are handled through explicit
+mapping and versioning; completed runtime contracts are not weakened to match
+legacy dataset wording.
+
+**Status:** Approved as a specification-only foundation. No Evaluation Runner
+runtime, package, CLI, dependency, schema, migration, or external integration
+was implemented by this decision. The next reviewed step is the first runtime
+implementation stage in the Phase 11 dependency map.
+
+---
+
+## DEC-171 — Phase 11 Evaluation Runner SDD execution-mode and measurability corrections
+
+**Decision:** Correct the Phase 11 SDD before 11.2 implementation. Runner
+Contract Mode may use typed doubles for loader, adapter, orchestration, metric,
+aggregation, and reporting tests, but official expected-source Top-5 and
+provenance metrics require Local RAG Evaluation Mode over the real local
+FastEmbed, PostgreSQL FTS, pgvector, RRF, Top-5, provenance, and ContextBuilder
+pipeline. DeepSeek and Tavily are not required for those retrieval metrics.
+
+Challenge-014 is evaluated as `BOT -> WAITING_CONFIRMATION` on offer,
+`WAITING_CONFIRMATION -> WAITING_HUMAN` after explicit client confirmation,
+then `WAITING_HUMAN -> HUMAN` only after authorized SUPPORT_AGENT acceptance;
+only HUMAN has operator ownership and suspended automation.
+
+The unsupported-fact acceptance objective remains `0.0`, but the current
+Knowledge Agent exposes no deterministic typed claim-support contract, so the
+metric is NOT_MEASURABLE until that contract is separately reviewed and
+implemented. Expected-source matching uses the exact versioned curated-path to
+runtime-provenance manifest adapter, not fuzzy or response-text matching.
+Phase 11 validation must use the approved project `.venv`.
+
+**Status:** Approved corrective specification review. No Evaluation Runner
+runtime, test, dataset, dependency, schema, migration, or governance change was
+implemented by this decision.
+
+---
+
+## DEC-172 — Phase 11 local evaluation infrastructure and source-manifest clarification
+
+**Decision:** Local PostgreSQL/pgvector is mandatory project-local evaluation
+infrastructure for official Phase 11 expected-source Top-5 and provenance
+metrics. It is distinct from Runner Contract Mode doubles, external-provider
+validation, and production. Runner Contract Mode may use doubles for mechanics
+but cannot establish retrieval-quality metrics; DeepSeek, Tavily, and external
+HTTP providers remain separately opt-in.
+
+Dataset-v1 expected-source matching requires a complete versioned Evaluation
+Source Manifest. Runtime publication/ingestion registries are authoritative
+inputs but are not presumed to cover the full dataset. Every expected-source
+identity needs one reviewed, exact mapping to stable runtime provenance before
+official Local RAG evaluation; unresolved, missing, or ambiguous mappings fail
+Phase 11.2 dataset-contract validation rather than being guessed.
+
+**Status:** Approved corrective specification clarification. No Evaluation
+Runner runtime, test, dataset, publication registry, dependency, schema,
+migration, or governance change was implemented by this decision.
+
+---
+
+## DEC-173 — Phase 11.2 dataset-contract implementation and manifest coverage blocker
+
+**Decision:** Approve the implemented Phase 11.2 evaluation adapter boundary:
+safe YAML loaders, immutable v1 contracts, version validation, explicit
+challenge/security adapters, exact path normalization, and strict Evaluation
+Source Manifest/provenance matching. The package consumes runtime contracts
+one-way and does not alter production policy.
+
+The current dataset has 7 unique expected-source paths. Current authoritative
+publication configuration and real curated-retrieval evidence establish exact
+`document_key` plus `source_reference` mappings for only the 3 R1 documents.
+The three R2 documents and security-policy path lack equivalent authoritative
+published identities. The implemented manifest contains only proven entries;
+its coverage validator fails fast at 3/7 and prohibits official Local RAG
+Evaluation until reviewed evidence resolves all 7 mappings.
+
+**Status:** Phase 11.2 implementation is blocked, not complete. No Phase 11.3
+runner, dataset mutation, publication change, dependency, schema, migration,
+or external-provider call was implemented.
+
+---
+
+## DEC-174 — Phase 11.2 applicability and strict contract corrections
+
+**Decision:** Correct Phase 11.2 evaluation-contract semantics before further
+runner work. RAG cases are classified only from declared dataset behavior:
+retrieval and rule-versus-observed cases contribute retrieval-source
+requirements, while security cases terminate before RAG and are evaluated for
+blocking, typed AUDIT, redaction, and terminal behavior. Therefore dataset v1
+has 7 declared source paths but 6 retrieval-applicable paths; the security
+policy path is excluded from retrieval-manifest coverage.
+
+Challenge adapters now expose explicit typed route, capability, Web Search,
+and Human Escalation expectations, including the challenge-014 sequence
+`WAITING_CONFIRMATION -> WAITING_HUMAN -> HUMAN` with authorized operator
+acceptance required for ownership and automation suspension. Dataset defaults,
+acceptance fields, and controlled vocabularies are strict and immutable, and
+loader I/O failures are bounded contract errors.
+
+The three proven R1 identities remain the only manifest entries. The three R2
+retrieval identities remain unresolved; coverage is therefore 3/6 and Phase
+11.2 remains blocked. No identity was fabricated and no production runtime,
+publication registry, dataset, dependency, schema, migration, or Phase 11.3
+runner was changed.
+
+**Status:** Approved corrective implementation record. Phase 11.2 remains
+blocked pending authoritative R2 publication identities.
+
+---
+
+## DEC-175 — Phase 11.2 semantic-field adapter and manifest-version correction
+
+**Decision:** Require Phase 11.2 challenge adaptation to derive runtime route,
+capability, Web Search, security, and Human Escalation expectations strictly
+from declared typed dataset fields. Scenario IDs are traceability only; message
+parsing and a second Router are prohibited. Security-block expectations map to
+the non-empty runtime `SECURITY_GUARDRAIL` capability, and contradictory
+freshness, RAG, security, fallback, or handoff combinations fail before the
+manifest gate. Challenge-014 remains
+`WAITING_CONFIRMATION -> WAITING_HUMAN -> HUMAN` only after authorized operator
+acceptance.
+
+The Evaluation Source Manifest remains version `1.0` and the retrieval
+applicability split remains 7 declared paths, 6 retrieval-applicable paths,
+and 3 proven R1 mappings out of 6. The three R2 publication identities remain
+unresolved; no mapping is fabricated and Phase 11.2 remains blocked.
+
+**Status:** Approved semantic-adapter correction. No Phase 11.3 runner,
+publication change, dataset mutation, dependency, schema, migration, or
+external-provider call was implemented.
+
+---
+
+## DEC-176 — Phase 11.2 R2 curated publication and provenance completion
+
+**Decision:** Publish the separate Robot 02 / R2 curated corpus through the
+existing loader, preparation, FastEmbed, publication, and PostgreSQL service
+boundary. Preserve the R1 corpus and its `publish_curated_corpus()` behavior;
+R2 uses a separate source reference, source identity configuration, and
+`publish_r2_curated_corpus()` entry point. The three stable document keys are
+`robot_02_r2/pdd-cancelamento`, `robot_02_r2/sdd-cancelamento`, and
+`robot_02_r2/technical-overview`, with source reference
+`knowledge/internal/cancellation-process/robot_02_r2`.
+
+Local PostgreSQL validation confirmed the ACTIVE source and three ACTIVE
+documents, 384-dimensional embeddings, populated FTS vectors, exact typed
+provenance, lexical and semantic smoke retrieval, and idempotent second-run
+`SKIPPED_UNCHANGED` behavior. The Phase 11 dataset-v1 Evaluation Source
+Manifest now has 6/6 retrieval-applicable mappings; the security-policy path
+remains excluded as security-only.
+
+No schema, migration, R1 mutation, external-provider call, Phase 11.3 runner,
+or production access was introduced. Phase 11.2 is complete and Phase 11.3
+RAG Evaluation Runner is next.
+
+**Status:** Approved and validated.
+
+---
+
+## DEC-177 — Phase 11.3 typed RAG evaluation boundary
+
+**Decision:** Implement the Phase 11.3 typed RAG evaluation boundary as an
+evaluation-only consumer of the existing dataset contracts, exact source
+manifest, HybridRetriever, ContextBuilder, Router, and SecurityAuditService.
+Runner Contract Mode uses deterministic typed doubles and is not retrieval
+quality evidence. Local RAG Evaluation Mode uses the real approved local
+FastEmbed/PostgreSQL/pgvector/RRF/Top-5 pipeline and performs no LLM or
+external-provider generation. Results are frozen, secret-safe per-case
+observations with explicit PASS/FAIL/NOT_APPLICABLE/NOT_MEASURABLE states.
+
+The opt-in local run processed all 25 dataset-v1 cases and recorded authentic
+findings (20 PASS, 5 FAIL); security cases were excluded from retrieval
+execution. The current Router did not produce SECURITY_BLOCK for the two
+Portuguese security-case questions, so those findings remain FAIL rather than
+being hidden or reclassified. No second classifier, RAG tuning, dataset
+mutation, database schema change, or aggregate metrics/reporting engine was
+introduced. Unsupported-fact and insufficient-evidence statuses remain
+NOT_MEASURABLE under the existing approved boundary.
+
+**Status:** Phase 11.3 boundary implementation recorded; Challenge Runner,
+metrics/reporting, and Phase 11 closure remain pending. No commit or push was
+performed.
+
+---
+
+## DEC-178 — Phase 11.3 evaluation observation-integrity correction
+
+**Decision:** Correct the Phase 11.3 observation contract without changing the
+evaluated production system. Forbidden capability counts now come from actual
+invocation observers attached to the existing LangGraph security terminal and
+injected capability boundaries. Retrieval observations preserve exact typed
+`document_key` plus `source_reference`; `RULE_VS_OBSERVED` cannot receive full
+`PASS` while its semantic conclusion remains unmeasured; and redaction
+distinguishes explicit synthetic-secret removal from `NOT_APPLICABLE`.
+
+`LOCAL_RAG` now fails fast unless it receives a loaded v1 dataset with the
+existing complete Evaluation Source Manifest validation. The corrected local
+run derived 22 retrieval, 1 rule-versus-observed, and 2 security cases,
+invoked retrieval 23 times, and recorded 19 PASS, 5 FAIL, and 1
+NOT_MEASURABLE. The existing two Portuguese Router security failures remain
+authentic findings and were not hidden or remediated by evaluation code.
+
+No Challenge Runner, Phase 11.5 aggregation/reporting, production runtime
+change, dataset change, schema/migration, external-provider call, commit, or
+push was introduced.
+
+**Status:** Approved observation-integrity correction; Phase 11.4 remains the
+next reviewed stage.
+
+---
+
+## DEC-179 — Phase 11.3 per-case invocation and direct AUDIT observation correction
+
+**Decision:** Correct the remaining Phase 11.3 evaluator observation defects.
+Security forbidden-call evidence now uses per-case before/after invocation
+deltas, while the observer may retain cumulative lifetime instrumentation for
+aggregate diagnostics. Actual audit-action evidence is taken directly from
+recorded `SanitizedSecurityEvent.action_taken` values; orchestration status is
+not a substitute for typed AUDIT evidence, and no recorded event yields no
+event/action evidence.
+
+The corrected dedicated tests prove sequential-case isolation and direct
+non-default action observation through a controlled fixture. The real local
+25-case run remains unchanged at 22 RETRIEVAL, 1 RULE_VS_OBSERVED, and 2
+SECURITY, with 19 PASS, 5 FAIL, and 1 NOT_MEASURABLE. The two Portuguese
+Router security findings remain authentic. No production Router/RAG/security
+behavior, dataset, schema, migration, Challenge Runner, or Phase 11.5
+aggregation/reporting was changed.
+
+**Status:** Approved final Phase 11.3 observation correction; Phase 11.4 is
+next and has not started.
+
+---
+
+## DEC-180 — Phase 11.4 Challenge Evaluation Runner
+
+**Decision:** Implement the dataset-driven Phase 11.4 Challenge Evaluation
+Runner as an evaluation-only consumer of the loaded v1 scenario suite and its
+versioned semantic adapter. It executes all 14 scenarios through authenticated
+`/chat` with the production Router, LangGraph, Customer Support,
+OperationalTools, Human Escalation, SecurityAuditService, and transport/auth
+boundaries. Typed deterministic doubles replace only unstable knowledge, Web,
+OPS persistence, interpretation-provider, and AUDIT persistence seams.
+
+The runner returns immutable per-scenario and per-turn observations. Capability
+and tool evidence is measured as non-negative per-scenario deltas, not inferred
+from expected YAML values. It validates required current-Web behavior, the
+conditional RAG/Web fallback branch, controlled OPS authorization, FACT versus
+INFERENCE structure, challenge-013 direct typed sanitized AUDIT evidence and
+terminal safety, and challenge-014's full
+`WAITING_CONFIRMATION -> WAITING_HUMAN -> HUMAN` operator sequence including
+automation suspension and owner authorization. Scenario IDs are traceability
+only; no exact-answer grading, external provider, automatic ticket, ITSM, or
+aggregate metrics/reporting is introduced.
+
+**Status:** Phase 11.4 implementation approved and validated. Phase 11.5
+metrics and reporting is next; Phase 11 remains open. No production runtime,
+schema, migration, dataset, external-provider call, commit, or push was made.
+
+---
+
+## DEC-181 — Phase 11.4 Challenge observation-integrity correction
+
+**Decision:** Correct the Challenge evaluator's observation contract without
+changing the evaluated application. Conditional RAG/Web evidence is now derived
+from actual primary/fallback deltas and a capability-name sequence proving
+Knowledge-before-Web. The deterministic composition exposes no persistent RAG
+publication boundary, so that absence is recorded architecturally rather than
+as a fabricated write observation.
+
+Authorization is measured through authorized and denied journeys; expected OPS
+tools and applicable FACT/INFERENCE separation gate scenario status. Security
+requires direct recorded `SanitizedSecurityEvent` evidence with
+`SecurityAction.BLOCK`, sanitization, public-response safety, and measured zero
+forbidden continuation. Every v1 forbidden-capability term is explicitly
+measured or recorded as an architectural prohibition. Challenge-014 verifies
+that a wrong operator rejection preserves HUMAN state, assigned owner, and
+automation suspension.
+
+**Status:** Phase 11.4 observation integrity validated. Authentic runtime
+findings remain visible; Phase 11.5 has not started. No production behavior,
+dataset, schema, migration, external-provider call, commit, or push changed.
+
+---
+
+## DEC-182 — Phase 11.4 implementation reconciled with DEC-181 observation contract
+
+**Decision:** Verify and reconcile the implemented Challenge evaluator with the
+approved DEC-181 observation contract. The runner now gates conditional
+fallback on measured primary Knowledge/no-Web evidence and a measured
+Knowledge-before-Web fallback sequence. Its security gate independently
+requires non-empty direct typed AUDIT actions and verifies every action is
+`SecurityAction.BLOCK`; it does not merely trust a derived status flag.
+
+The existing frozen authorization, tool, FACT/INFERENCE, forbidden-capability,
+and challenge-014 ownership observations were inspected and validated through
+the deterministic authenticated suite. The v1 suite produced 14 ordered PASS
+results. This reconciliation does not alter production Router, LangGraph,
+agents, tools, Human Escalation, security, datasets, database schema, or
+external-provider boundaries.
+
+**Status:** Phase 11.4 implementation now has verified source and test evidence
+matching DEC-181. Phase 11.5 metrics and reporting remains next and has not
+started. No commit or push was made.
+
+---
+
+## DEC-183 — Phase 11.5 metrics and structured evaluation reporting
+
+**Decision:** Implement deterministic aggregation over the existing typed
+Phase 11.3 LOCAL_RAG and Phase 11.4 Challenge results. Official Top-5 and
+provenance metrics require LOCAL_RAG evidence and use only retrieval-applicable
+cases; security, redaction, and insufficient-evidence denominators are explicit
+and empty denominators remain `NOT_MEASURABLE`. Unsupported-fact acceptance
+remains 0.0 and is `NOT_MEASURABLE` until a reviewed deterministic
+claim-support contract exists.
+
+The Phase 11.5 report is an immutable, secret-safe, deterministic JSON artifact
+at `evaluation/reports/phase11-evaluation-v1.json`. Current evidence records
+Top-5 20/23 and provenance 20/23, security block 0/2, security AUDIT 0/2,
+Challenge 14/14, unsupported facts `NOT_MEASURABLE`, insufficient evidence
+`NOT_MEASURABLE`, supplied-secret redaction `NOT_MEASURABLE`, and overall
+evaluation outcome `FAIL`. These are authentic evaluation findings; no RAG,
+Router, security, Challenge, corpus, or production behavior was modified.
+
+Phase 11.5 implementation is complete, but Phase 11 remains open. Phase 11.6
+validation and closure is next; no closure waiver, commit, or push is implied.
+
+---
+
+## DEC-184 — Phase 11.5 provenance-dimension and metric-integrity correction
+
+**Decision:** Correct the Phase 11.3 provenance observation so provenance
+completeness is independent of expected-source relevance. A non-empty result
+set with complete typed `document_key` and `source_reference` now passes the
+provenance dimension even when no result matches the case's expected source;
+empty retrieval explicitly fails provenance. Expected-source Top-5 remains a
+separate exact manifest-match dimension, and overall structural case status
+continues to require both where applicable.
+
+Phase 11.5 security-AUDIT aggregation no longer swallows adapter/contract
+errors as evaluated-system failures. Valid typed expectations with mismatching
+events remain measured metric failures; invalid evaluator contracts fail fast.
+The regenerated official LOCAL_RAG report records Top-5 20/23 FAIL,
+provenance 23/23 PASS, security block 0/2 FAIL, security AUDIT 0/2 FAIL,
+redaction `NOT_MEASURABLE`, Challenge 14/14 PASS, and overall `FAIL`.
+
+No production RAG, Router, security, corpus, dataset, schema, migration, or
+external-provider behavior was changed. Phase 11.6 has not started.
+
+---
+
+## DEC-185 — Phase 11.6 final validation and closure disposition
+
+**Decision:** Execute the Phase 11.6 closure audit against all 57 approved
+`REQ-P11-*` requirements using the approved project `.venv`, fresh local
+PostgreSQL/FastEmbed LOCAL_RAG evidence, deterministic Challenge evidence,
+regression/static gates, canonical-report reproducibility, and secret-safety
+review. The audit found 48 requirements SATISFIED, 4 FAILED acceptance
+requirements, 5 BLOCKED_NOT_MEASURABLE requirements, and 0
+NOT_APPLICABLE requirements.
+
+Fresh evidence reproduced 25 RAG cases (22 RETRIEVAL, 1 RULE_VS_OBSERVED,
+2 SECURITY), 23 retrieval executions, expected-source Top-5 20/23 FAIL,
+provenance 23/23 PASS, security block 0/2 FAIL, security AUDIT 0/2 FAIL,
+unsupported facts NOT_MEASURABLE, insufficient-evidence behavior
+NOT_MEASURABLE, redaction NOT_MEASURABLE, Challenge 14/14 PASS, and overall
+FAIL. The canonical report was reproducible and secret-safe. The exact closure
+blockers are retrieval quality (`rag-002`, `rag-021`, `rag-023`), security
+routing (`rag-019`, `rag-025`), missing deterministic claim-support evidence,
+missing applicable insufficient-evidence coverage, and absent authoritative
+supplied-secret dataset coverage.
+
+**Disposition:** `PHASE 11 CLOSURE: BLOCKED`. No blocker was waived. No Router,
+RAG, security, dataset, corpus, database schema, migration, production, or
+external-provider behavior was modified. Phase 11.6 validation activity is
+complete; Phase 12 is not started. Next reviewed work is disposition or
+remediation of the listed Phase 11 closure blockers.
+
+---
+
+## DEC-186 — Phase 11 security and retrieval closure remediation
+
+**Decision:** Resolve the measured security-routing and retrieval-quality
+blockers in their existing production semantic owners, without evaluator case
+overrides or acceptance changes. The Router's centralized Phase 10 security
+classification now normalizes Portuguese accents and recognizes reviewed
+Portuguese credential, database-access, secret, and protected-infrastructure
+semantics before ordinary Knowledge/Ambiguous routing. The closure security
+cases now reach the existing LangGraph security terminal and
+`SecurityAuditService`, emit sanitized typed BLOCK events, and execute no
+forbidden downstream capability.
+
+PostgreSQL lexical retrieval now normalizes natural-language questions to a
+bounded, deduplicated OR query after removing question boilerplate. The prior
+full-question `websearch_to_tsquery` behavior overconstrained Portuguese FTS to
+all terms and produced no lexical candidates for the three historical misses.
+The correction changes neither candidate limits, RRF, Top-5, corpus, source
+manifest, nor expected sources. Fresh v1.1 evidence reaches 21/23 Top-5; the
+remaining `rag-021` and `rag-023` misses remain visible.
+
+---
+
+## DEC-187 — Phase 11 deterministic claim support and RAG dataset v1.1
+
+**Decision:** Preserve RAG dataset v1.0 and its blocked report as historical
+evidence, and introduce one coherent reviewed v1.1 dataset. V1.1 contains 27
+cases and adds: an explicit deterministic material-claim contract, one
+realistic insufficient-evidence case, and one obviously synthetic supplied-
+secret security/redaction case. Claim support is exact typed source identity
+plus exact section and controlled value; no free-form answer parsing, embedding
+judge, regex guess, or LLM judge is permitted.
+
+The v1.1 source manifest remains the same complete 6/6 R1/R2 mapping because
+the new no-evidence and security cases are not retrieval-manifest applicable.
+Fresh evidence records unsupported facts 0/3, insufficient evidence 1/1, and
+redaction 1/1. The synthetic fragment is absent from sanitized events,
+evaluation results, and the serialized report.
+
+---
+
+## DEC-188 — Phase 11 closure revalidation
+
+**Decision:** Re-run the complete official Phase 11 evidence with RAG dataset
+v1.1, Challenge suite v1.0, the approved local FastEmbed/PostgreSQL/pgvector
+pipeline, and deterministic authenticated Challenge composition. The run
+processed 27 RAG cases (22 RETRIEVAL, 1 RULE_VS_OBSERVED, 3 SECURITY, 1
+INSUFFICIENT_EVIDENCE), invoked retrieval 24 times, and retained two authentic
+per-case expected-source misses plus one non-scored semantic-inference result.
+
+The canonical v1.1 report records Top-5 21/23 PASS, provenance 23/23 PASS,
+unsupported facts 0/3 PASS, insufficient evidence 1/1 PASS, security block
+3/3 PASS, security AUDIT 3/3 PASS, redaction 1/1 PASS, Challenge 14/14 PASS,
+and overall PASS. All five DEC-185 blockers are RESOLVED by measured evidence;
+none is waived. The 57-requirement matrix records 57 SATISFIED, 0 FAILED, 0
+BLOCKED_NOT_MEASURABLE, and 0 NOT_APPLICABLE requirements.
+
+**Disposition:** `PHASE 11 CLOSURE: CLOSED`. The v1.0 canonical report and
+DEC-185 remain unchanged historical evidence. No production/customer access,
+real secret, external provider, database schema/migration, Harness change,
+commit, or push occurred. Phase 12 is next and has not started.

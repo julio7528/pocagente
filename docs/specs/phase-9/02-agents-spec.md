@@ -8,7 +8,8 @@ after insufficient persistent RAG evidence; live evidence is not persisted.
 Phase 9.9 implements and validates the explicit, non-persistent Human
 Escalation state machine. It remains compatible with future Django ownership
 without implementing Django, a queue, or conversation persistence. Phase 9.10
-`/chat` remains next.
+`/chat` and Phase 9.11 end-to-end validation are complete. Phase 10 Security /
+Audit Runtime is next.
 
 ## Router Agent
 

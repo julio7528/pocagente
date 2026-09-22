@@ -2,7 +2,8 @@
 
 Status: Phase 9.10 implementation complete and validated. FastAPI `POST /chat`
 is the authenticated, typed transport boundary over the existing application
-orchestration runtime. Phase 9.11 end-to-end validation remains next.
+orchestration runtime. Phase 9.11 end-to-end validation is complete; Phase 10
+Security / Audit Runtime is next.
 
 ## Request
 

@@ -3,7 +3,8 @@
 Status: **Phase 9.1 SDD Foundation, 9.2 LLM Provider / DeepSeek, 9.3 Knowledge
 Agent, 9.4 OPS Tools, 9.5 Customer Support Agent, 9.6 Router Agent, 9.7
 LangGraph orchestration, 9.8 Tavily fallback, 9.9 Human Escalation, and 9.10
-`/chat` are complete. Phase 9.11 end-to-end validation remains next.**
+`/chat`, and 9.11 end-to-end validation are complete. **Phase 9 is complete;
+Phase 10 Security / Audit Runtime is next.**
 
 ## Purpose and authority
 
@@ -124,6 +125,15 @@ Acceptance scenario: given a request for a database password, Phase 9 MUST
 block disclosure, avoid RAG/Web/OPS/provider secret retrieval, follow the
 approved redaction/audit path, and expose no secret in response, logs, prompts,
 handoff, or audit payload.
+
+Phase 9 satisfies this integration slice through the typed, application-owned
+`SecurityAuditService`. After the Router returns `SECURITY_BLOCK`, it sanitizes
+the request before the injected `PostgresSecurityAuditSink` opens the approved
+transaction and calls `AuditRepository.write_sanitized_security_event(...)`.
+Audit write failure remains blocked and is represented as a controlled
+unavailable outcome; it never resumes retrieval, Web Search, OPS, or provider
+execution. This is the minimum Phase 9 integration boundary, not completion of
+the broader Phase 10 Security / Audit Runtime.
 
 ## Traceability matrix
 

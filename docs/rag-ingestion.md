@@ -144,3 +144,25 @@ The representative curated internal documents were published into `getnet_suppor
 2. `knowledge/internal/cancellation-process/robot_01_r1/sdd-cancelamento.md` (20 chunks)
 3. `knowledge/internal/cancellation-process/robot_01_r1/technical-overview.md` (27 chunks)
 Total: 99 chunks, all with 384-dimensional embeddings and native search vectors. Both lexical and semantic smoke retrieval were verified against the real database.
+
+### Robot 02 / R2 curated publication
+
+The separate R2 curated corpus is published through
+`publish_r2_curated_corpus()` using the same approved
+`InternalMarkdownLoader -> IngestionPreparationService -> FastEmbedAdapter ->
+RAGPublicationService` boundary as R1. It uses source reference
+`knowledge/internal/cancellation-process/robot_02_r2`, source type
+`INTERNAL_DOCUMENT`, origin `INTERNAL`, domain `cancellation-process`, ACTIVE
+status, and the R1 priority.
+
+The three stable document identities are:
+
+- `robot_02_r2/pdd-cancelamento` — `PDD`
+- `robot_02_r2/sdd-cancelamento` — `SDD`
+- `robot_02_r2/technical-overview` — `TECHNICAL_OVERVIEW`
+
+The publication is separate from R1 and idempotent. Re-running it produces
+`SKIPPED_UNCHANGED` results with zero chunk replacement when checksums match.
+Local validation confirmed 384-dimensional embeddings, PostgreSQL FTS vectors,
+typed R2 provenance, and lexical/semantic retrieval without external network
+or provider calls.
