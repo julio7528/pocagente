@@ -9,19 +9,42 @@ from typing import Protocol
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from apps.agent_api.app.llm.errors import LLMProviderError
-from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMMessage, LLMProvider
+from apps.agent_api.app.llm.models import LLMProvider
+from apps.agent_api.app.agents.grounded_generation import (
+    GroundedGenerationError,
+    GroundedGenerationStatus,
+    generate_grounded_outcome,
+)
 from apps.agent_api.app.rag.grounding.context_builder import (
     Citation,
     EvidenceStatus,
     GroundedContext,
 )
 from apps.agent_api.app.rag.models import RetrievedChunk
+from apps.agent_api.app.rag.scope import KnowledgeScope
+
+
+class KnowledgeRequest(BaseModel):
+    """Trusted persistent Knowledge request; scope is never user-selected."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    question: str = Field(min_length=1)
+    knowledge_scope: KnowledgeScope
+
+    @model_validator(mode="after")
+    def require_persistent_scope(self) -> KnowledgeRequest:
+        if not self.question.strip():
+            raise ValueError("question must not be blank")
+        if self.knowledge_scope not in {KnowledgeScope.INTERNAL, KnowledgeScope.PUBLIC_GETNET}:
+            raise ValueError("persistent Knowledge requires an explicit retrieval scope")
+        return self
 
 
 class RetrievalBoundary(Protocol):
     """Existing Phase 7 retrieval boundary consumed by the Knowledge Agent."""
 
-    async def search(self, query: str) -> Sequence[RetrievedChunk]:
+    async def search(self, query: str, knowledge_scope: KnowledgeScope) -> Sequence[RetrievedChunk]:
         """Return approved ranked retrieval results."""
 
 
@@ -77,13 +100,12 @@ class KnowledgeAgent:
         self._context_builder = context_builder
         self._llm_provider = llm_provider
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, request: KnowledgeRequest) -> KnowledgeResult:
         """Answer only from structurally sufficient approved grounded context."""
 
-        if not isinstance(question, str) or not question.strip():
-            raise ValueError("knowledge question cannot be blank")
+        question = request.question
 
-        retrieved_chunks = await self._retrieval.search(question)
+        retrieved_chunks = await self._retrieval.search(question, request.knowledge_scope)
         context = self._context_builder.build(question, retrieved_chunks)
         if context.evidence_status is EvidenceStatus.INSUFFICIENT_EVIDENCE:
             return KnowledgeResult(
@@ -93,49 +115,35 @@ class KnowledgeAgent:
                 reason=context.reason,
             )
 
-        request = self._build_generation_request(context)
         try:
-            generated = await self._llm_provider.generate(request)
-        except LLMProviderError as error:
+            generated = await generate_grounded_outcome(
+                self._llm_provider,
+                question=context.query,
+                grounding_instructions=context.instructions,
+                evidence_blocks=tuple(
+                    f"[{item.citation_id}] Priority tier {item.priority_tier}\nEvidence data:\n{item.content}"
+                    for item in context.evidence
+                ),
+                available_citation_ids=tuple(item.citation_id for item in context.evidence),
+            )
+        except (LLMProviderError, GroundedGenerationError) as error:
             return KnowledgeResult(
                 question=question,
                 status=KnowledgeResultStatus.PROVIDER_ERROR,
-                citations=context.citations,
-                reason=error.error_code,
+                reason=getattr(error, "error_code", "invalid_grounded_generation"),
             )
-
+        if generated.status is GroundedGenerationStatus.INSUFFICIENT_EVIDENCE:
+            return KnowledgeResult(
+                question=question,
+                status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
+                citations=(),
+                reason="GENERATION_INSUFFICIENT_EVIDENCE",
+            )
+        citations_by_id = {citation.id: citation for citation in context.citations}
         return KnowledgeResult(
             question=question,
             status=KnowledgeResultStatus.ANSWERED,
-            answer=generated.content,
-            citations=context.citations,
+            answer=generated.answer,
+            citations=tuple(citations_by_id[item] for item in generated.citation_ids),
             reason="GROUNDED_ANSWER_AVAILABLE",
-        )
-
-    @staticmethod
-    def _build_generation_request(context: GroundedContext) -> LLMGenerationRequest:
-        """Provide only safe evidence data, citations, and fixed grounding instructions."""
-
-        system_instruction = "\n".join(
-            (
-                "Answer only from the supplied evidence.",
-                *context.instructions,
-                "Use only supplied citation IDs such as [C1] for supported factual claims.",
-                "Do not invent citations, facts, authorization, routing, or tool permissions.",
-                "Do not disclose internal identifiers, paths, checksums, or storage details.",
-            )
-        )
-        evidence_blocks = "\n\n".join(
-            (
-                f"[{item.citation_id}] Priority tier {item.priority_tier}\n"
-                f"Evidence data:\n{item.content}"
-                for item in context.evidence
-            )
-        )
-        user_content = f"Question:\n{context.query}\n\nGrounded evidence:\n{evidence_blocks}"
-        return LLMGenerationRequest(
-            messages=(
-                LLMMessage(role="system", content=system_instruction),
-                LLMMessage(role="user", content=user_content),
-            )
         )

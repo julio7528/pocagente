@@ -422,6 +422,8 @@ class ChatApplicationService:
             direct_answer, citations = knowledge.answer, knowledge.citations
         elif support is not None and knowledge is None:
             direct_answer = support.answer
+        elif result.conversational_result is not None and knowledge is None and support is None:
+            direct_answer = _safe_text(result.conversational_result.answer)
         return ChatResponse(
             status=result.status.value,
             route=result.route.value,

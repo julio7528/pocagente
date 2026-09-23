@@ -24,6 +24,7 @@ from apps.agent_api.app.rag.grounding.context_builder import ContextBuilder
 from apps.agent_api.app.rag.retrieval.hybrid import HybridRetriever
 from apps.agent_api.app.rag.retrieval.lexical import LexicalRetriever, normalize_lexical_query
 from apps.agent_api.app.rag.retrieval.semantic import SemanticRetriever
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from tests.integration.support import run_async
 
 
@@ -64,7 +65,7 @@ def test_real_local_rag_boundary_processes_all_cases_without_generation(
                 retriever=retriever,
                 context_builder=ContextBuilder(),
                 security_boundary=RouterSecurityEvaluationBoundary(
-                    router=RouterAgent(), audit_sink=sink
+                    audit_sink=sink
                 ),
             )
             results = await runner.run()
@@ -112,12 +113,12 @@ def test_real_local_rag_boundary_processes_all_cases_without_generation(
                     repository = RAGRepository(connection)
                     await repository.begin_read_only_repeatable_read()
                     lexical = await repository.search_lexical_candidates(
-                        normalize_lexical_query(case.question), 10
+                        normalize_lexical_query(case.question), 10, KnowledgeScope.INTERNAL
                     )
                     semantic = await repository.search_semantic_candidates(
-                        embed_adapter.embed_query(case.question), 10
+                        embed_adapter.embed_query(case.question), 10, KnowledgeScope.INTERNAL
                     )
-                final = await retriever.search(case.question)
+                final = await retriever.search(case.question, KnowledgeScope.INTERNAL)
                 print(
                     "Phase 11.3 retrieval diagnostic:",
                     {

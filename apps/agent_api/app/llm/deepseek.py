@@ -39,6 +39,10 @@ class DeepSeekProvider:
             payload["max_tokens"] = request.max_output_tokens
         if request.temperature is not None:
             payload["temperature"] = request.temperature
+        if request.response_format is not None:
+            payload["response_format"] = {"type": request.response_format}
+        if request.reasoning_enabled is not None:
+            payload["thinking"] = {"type": "enabled" if request.reasoning_enabled else "disabled"}
 
         headers = {
             "Authorization": f"Bearer {self._config.api_key.get_secret_value()}",

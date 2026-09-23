@@ -6,13 +6,23 @@ import re
 import unicodedata
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+from apps.agent_api.app.llm.errors import LLMProviderError
 
 from apps.agent_api.app.security.models import (
     SecurityClassification,
     SecurityEventType,
     SecurityResourceCategory,
 )
+from apps.agent_api.app.agents.semantic_routing import (
+    SemanticClassification,
+    SemanticClassifierError,
+    SemanticIntentClassifier,
+    SemanticIntentMapper,
+    SemanticRoutingContext,
+)
+from apps.agent_api.app.rag.scope import KnowledgeScope
 
 
 class RouterCapability(StrEnum):
@@ -23,6 +33,7 @@ class RouterCapability(StrEnum):
     HUMAN_ESCALATION = "HUMAN_ESCALATION"
     WEB_FALLBACK = "WEB_FALLBACK"
     SECURITY_GUARDRAIL = "SECURITY_GUARDRAIL"
+    CONVERSATIONAL = "CONVERSATIONAL"
 
 
 class RouterRoute(StrEnum):
@@ -35,6 +46,7 @@ class RouterRoute(StrEnum):
     HUMAN_ESCALATION = "HUMAN_ESCALATION"
     SECURITY_BLOCK = "SECURITY_BLOCK"
     AMBIGUOUS = "AMBIGUOUS"
+    CONVERSATIONAL = "CONVERSATIONAL"
 
 
 class RouterStatus(StrEnum):
@@ -71,6 +83,7 @@ class RouterDecision(BaseModel):
     route: RouterRoute
     capabilities: tuple[RouterCapability, ...] = ()
     web_search_policy: WebSearchPolicy = WebSearchPolicy.NONE
+    knowledge_scope: KnowledgeScope = KnowledgeScope.NONE
     reason: str = Field(min_length=1)
     security_semantics: tuple[SecurityClassification, ...] = ()
 
@@ -96,18 +109,43 @@ class RouterDecision(BaseModel):
                 (RouterCapability.SECURITY_GUARDRAIL,),
             ),
             RouterRoute.AMBIGUOUS: (RouterStatus.AMBIGUOUS, ()),
+            RouterRoute.CONVERSATIONAL: (RouterStatus.ROUTED, (RouterCapability.CONVERSATIONAL,)),
         }
         status, capabilities = expected[self.route]
         if self.status is not status or self.capabilities != capabilities:
             raise ValueError("router decision fields do not match the approved route")
-        if self.route is RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK and self.web_search_policy is not WebSearchPolicy.REQUIRED:
-            raise ValueError("current-information route requires live web search")
-        if self.route is not RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK and self.web_search_policy is WebSearchPolicy.REQUIRED:
+        if self.route is RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK:
+            if self.web_search_policy is not WebSearchPolicy.REQUIRED:
+                raise ValueError("current-information route requires live web search")
+            if self.knowledge_scope is not KnowledgeScope.NONE:
+                raise ValueError("current-information route cannot carry a retrieval scope")
+        elif self.web_search_policy is WebSearchPolicy.REQUIRED:
             raise ValueError("only the approved current-information route requires live web search")
         if self.route is RouterRoute.SECURITY_BLOCK and not self.security_semantics:
             raise ValueError("security blocks require typed security semantics")
         if self.route is not RouterRoute.SECURITY_BLOCK and self.security_semantics:
             raise ValueError("only security blocks may carry security semantics")
+        knowledge_routes = {
+            RouterRoute.KNOWLEDGE,
+            RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT,
+        }
+        if self.route is RouterRoute.KNOWLEDGE:
+            expected_scope = (
+                KnowledgeScope.PUBLIC_GETNET
+                if self.web_search_policy is WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT
+                else KnowledgeScope.INTERNAL
+                if self.web_search_policy is WebSearchPolicy.NONE
+                else None
+            )
+            if expected_scope is None or self.knowledge_scope is not expected_scope:
+                raise ValueError("knowledge route policy and scope are incompatible")
+        elif self.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT:
+            if self.web_search_policy is not WebSearchPolicy.NONE or self.knowledge_scope is not KnowledgeScope.INTERNAL:
+                raise ValueError("cooperative knowledge policy requires internal scope and no Web")
+        elif self.route not in knowledge_routes and self.knowledge_scope is not KnowledgeScope.NONE:
+            raise ValueError("non-knowledge routes cannot carry a retrieval scope")
+        if self.route not in {RouterRoute.KNOWLEDGE, RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK} and self.web_search_policy is not WebSearchPolicy.NONE:
+            raise ValueError("this route cannot carry a Web policy")
         semantic_keys = tuple((item.event_type, item.resource_category) for item in self.security_semantics)
         if len(set(semantic_keys)) != len(semantic_keys):
             raise ValueError("security semantics must be deduplicated")
@@ -117,13 +155,19 @@ class RouterDecision(BaseModel):
 class RouterAgent:
     """Classify only approved capabilities; never execute agents, tools, or SQL."""
 
-    _PROMPT_INJECTION_PATTERN = re.compile(
-        r"ignore (?:all )?(?:the )?(?:previous |prior |system |your )?(?:instructions|rules|security rules|policy)|"
-        r"do not follow (?:the )?(?:security )?(?:rules|policy|instructions)|"
-        r"forget (?:the )?(?:restriction|security policy)|"
-        r"supersede (?:the )?(?:system )?instructions|"
-        r"ignore (?:todas? )?(?:as )?(?:instrucoes|regras|politicas?)(?: de seguranca)?",
-        re.IGNORECASE,
+    _OVERRIDE_ACTIONS = frozenset(
+        {
+            "ignore", "disregard", "desconsidere", "forget", "esqueça", "esqueca",
+            "override", "supersede", "bypass", "circumvent", "contorne", "burlar",
+        }
+    )
+    _INSTRUCTION_TARGETS = frozenset(
+        {
+            "instruction", "instructions", "instrução", "instrucoes", "instruções",
+            "rule", "rules", "regra", "regras", "policy", "policies", "politica",
+            "politicas", "política", "políticas", "system", "prompt", "previous", "prior",
+            "security", "seguranca", "segurança",
+        }
     )
     _AUTHORIZATION_BYPASS_PATTERN = re.compile(
         r"bypass (?:authentication|authorization|the authorization check|security controls?)|"
@@ -210,6 +254,9 @@ class RouterAgent:
         re.IGNORECASE,
     )
 
+    def __init__(self, semantic_classifier: SemanticIntentClassifier | None = None) -> None:
+        self._semantic_classifier = semantic_classifier
+
     def route(self, request: RouterRequest) -> RouterDecision:
         """Return a controlled decision without running the selected capability."""
 
@@ -223,6 +270,11 @@ class RouterAgent:
                 "SECURITY_POLICY_ROUTE",
                 security_semantics=security_semantics,
             )
+        return self._route_legacy_after_security(request, message)
+
+    def _route_legacy_after_security(self, request: RouterRequest, message: str) -> RouterDecision:
+        """Legacy ordinary routing path; caller has already run security preflight."""
+
         if self._HUMAN_PATTERN.search(message):
             return self._decision(RouterRoute.HUMAN_ESCALATION, "EXPLICIT_HUMAN_REQUEST")
         expected_vs_observed = re.search(
@@ -257,6 +309,38 @@ class RouterAgent:
             return self._decision(RouterRoute.KNOWLEDGE, "DOCUMENTED_OR_PRODUCT_KNOWLEDGE", policy)
         return self._decision(RouterRoute.AMBIGUOUS, "ROUTER_ROUTE_UNDETERMINED")
 
+    async def route_async(self, request: RouterRequest) -> RouterDecision:
+        """Run security first, then await the configured semantic classifier.
+
+        Production composition injects the provider-backed classifier. An absent
+        classifier is a compatibility seam for bounded tests/evaluation only and
+        safely degrades without selecting a capability.
+        """
+
+        message = request.message.strip()
+        if not message:
+            return self._decision(RouterRoute.AMBIGUOUS, "ROUTER_MESSAGE_BLANK")
+        security_semantics = self._classify_security_semantics(message)
+        if security_semantics:
+            return self._decision(
+                RouterRoute.SECURITY_BLOCK,
+                "SECURITY_POLICY_ROUTE",
+                security_semantics=security_semantics,
+            )
+        if self._semantic_classifier is None:
+            return SemanticIntentMapper.safe_failure("SEMANTIC_CLASSIFIER_UNAVAILABLE")
+        try:
+            classification = await self._semantic_classifier.classify(message)
+            classification = SemanticClassification.model_validate(classification)
+        except (TimeoutError, LLMProviderError, SemanticClassifierError, ValidationError, TypeError):
+            return SemanticIntentMapper.safe_failure()
+        return SemanticIntentMapper.map(
+            classification,
+            SemanticRoutingContext(
+                has_authorized_protocol_context=request.has_authorized_protocol_context
+            )
+        )
+
     @staticmethod
     def _decision(
         route: RouterRoute,
@@ -284,15 +368,27 @@ class RouterAgent:
                 (RouterCapability.SECURITY_GUARDRAIL,),
             ),
             RouterRoute.AMBIGUOUS: (RouterStatus.AMBIGUOUS, ()),
+            RouterRoute.CONVERSATIONAL: (RouterStatus.ROUTED, (RouterCapability.CONVERSATIONAL,)),
         }
         status, capabilities = routes[route]
         if route is RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK:
             web_search_policy = WebSearchPolicy.REQUIRED
+        if route is RouterRoute.KNOWLEDGE:
+            knowledge_scope = (
+                KnowledgeScope.PUBLIC_GETNET
+                if web_search_policy is WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT
+                else KnowledgeScope.INTERNAL
+            )
+        elif route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT:
+            knowledge_scope = KnowledgeScope.INTERNAL
+        else:
+            knowledge_scope = KnowledgeScope.NONE
         return RouterDecision(
             status=status,
             route=route,
             capabilities=capabilities,
             web_search_policy=web_search_policy,
+            knowledge_scope=knowledge_scope,
             reason=reason,
             security_semantics=security_semantics,
         )
@@ -301,11 +397,9 @@ class RouterAgent:
     def _classify_security_semantics(cls, message: str) -> tuple[SecurityClassification, ...]:
         """Return Router-owned, specific, deduplicated security semantics."""
 
-        message = "".join(
-            character
-            for character in unicodedata.normalize("NFKD", message.casefold())
-            if not unicodedata.combining(character)
-        )
+        original_message = message
+        message = cls._normalize_security_text(message)
+        tokens = frozenset(re.findall(r"[a-z0-9]+", message))
 
         semantics: list[SecurityClassification] = []
 
@@ -314,7 +408,7 @@ class RouterAgent:
             if semantic not in semantics:
                 semantics.append(semantic)
 
-        if cls._PROMPT_INJECTION_PATTERN.search(message):
+        if cls._has_composed_prompt_injection_robust(original_message, tokens):
             add(SecurityEventType.PROMPT_INJECTION)
         if cls._AUTHORIZATION_BYPASS_PATTERN.search(message):
             add(SecurityEventType.AUTHORIZATION_BYPASS_ATTEMPT, SecurityResourceCategory.AUTHENTICATION_CONTROL)
@@ -351,7 +445,7 @@ class RouterAgent:
         if cls._DATABASE_ACCESS_PATTERN.search(message):
             add(SecurityEventType.DATABASE_ACCESS_REQUEST, SecurityResourceCategory.INTERNAL_INFRASTRUCTURE)
 
-        if cls._SECURITY_PROBE_PATTERN.search(message) and not cls._PROMPT_INJECTION_PATTERN.search(message) and not cls._AUTHORIZATION_BYPASS_PATTERN.search(message):
+        if cls._SECURITY_PROBE_PATTERN.search(message) and not cls._has_composed_prompt_injection(message, tokens) and not cls._AUTHORIZATION_BYPASS_PATTERN.search(message):
             add(SecurityEventType.SECURITY_POLICY_PROBE)
 
         canonical_order = {
@@ -364,3 +458,88 @@ class RouterAgent:
             SecurityEventType.SECURITY_POLICY_PROBE: 6,
         }
         return tuple(sorted(semantics, key=lambda item: canonical_order[item.event_type]))
+
+    @staticmethod
+    def _normalize_security_text(message: str) -> str:
+        """Normalize only the classification view; retain the original for AUDIT."""
+
+        # Some clients may present UTF-8 bytes decoded once as Latin-1. Repair
+        # that representation only when it round-trips cleanly; normal Unicode
+        # input continues through the same deterministic path below.
+        try:
+            repaired = message.encode("latin-1").decode("utf-8")
+            message = repaired
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+        decomposed = unicodedata.normalize("NFKD", message.casefold())
+        without_diacritics = "".join(
+            character for character in decomposed if not unicodedata.combining(character)
+        )
+        separated = "".join(
+            character if character.isalnum() else " " for character in without_diacritics
+        )
+        return " ".join(separated.split())
+
+    @classmethod
+    def _has_composed_prompt_injection_robust(cls, message: str, tokens: frozenset[str]) -> bool:
+        """Apply compositional override detection without encoding-sensitive literals."""
+
+        normalized = cls._normalize_security_text(message)
+        normalized_tokens = frozenset(re.findall(r"[a-z0-9]+", normalized))
+        actions = normalized_tokens & {
+            "ignore", "disregard", "desconsidere", "forget", "esqueca",
+            "override", "supersede", "bypass", "circumvent", "contorne", "burlar",
+        }
+        target = bool(
+            re.search(
+                r"\b(?:instruction(?:s)?|instrucoes|instrua\s+a\s+ces|rule(?:s)?|regra(?:s)?|policy|policies|politica(?:s)?|security|seguranca|system|prompt)\b",
+                normalized,
+                re.IGNORECASE,
+            )
+            or re.search(
+                r"\b(?:instruction(?:s)?|instru\u00e7\u00f5es|rule(?:s)?|regra(?:s)?|policy|policies|pol\u00edtica(?:s)?|seguran\u00e7a|system|prompt)\b",
+                message,
+                re.IGNORECASE,
+            )
+        )
+        phrase = bool(
+            re.search(r"\b(?:do not|dont) follow\b", normalized)
+            or re.search(r"\bnao siga\b", normalized)
+            or re.search(r"\bna\s+o siga\b", normalized)
+            or re.search(r"\b(?:nao|n\u00e3o|na\s+o) siga\b", message, re.IGNORECASE)
+            or re.search(r"\b(?:leave aside|deixe de lado)\b", normalized)
+        )
+        return target and (bool(actions) or phrase)
+
+    @classmethod
+    def _has_composed_prompt_injection(cls, message: str, tokens: frozenset[str]) -> bool:
+        """Recognize override action + instruction/policy target composition."""
+
+        has_action = bool(tokens & {item.casefold() for item in cls._OVERRIDE_ACTIONS})
+        target_tokens = {item.casefold() for item in cls._INSTRUCTION_TARGETS} - {"previous", "prior"}
+        has_target = bool(tokens & target_tokens) or bool(
+            re.search(
+                r"\b(?:instruction(?:s)?|instrucoes|rule(?:s)?|regra(?:s)?|policy|policies|politica(?:s)?|security|seguranca|system|prompt)\b",
+                message,
+            )
+        )
+        phrase_action = bool(
+            re.search(r"\b(?:do not|dont) follow\b", message)
+            or re.search(r"\b(?:nao|não) siga\b", message, re.IGNORECASE)
+            or re.search(r"\b(?:leave aside|deixe de lado)\b", message)
+        )
+        explicit_target = bool(
+            re.search(
+                r"\b(?:instruction(?:s)?|instrucoes|instruções|rule(?:s)?|regra(?:s)?|policy|policies|politica(?:s)?|política(?:s)?|security|seguranca|segurança|system|prompt)\b",
+                message,
+                re.IGNORECASE,
+            )
+        )
+        original_target = bool(
+            re.search(
+                r"\b(?:instruction(?:s)?|instrucoes|instruções|rule(?:s)?|regra(?:s)?|policy|policies|politica(?:s)?|política(?:s)?|security|seguranca|segurança|system|prompt)\b",
+                message,
+                re.IGNORECASE,
+            )
+        )
+        return (has_action and (has_target or original_target)) or (phrase_action and original_target)

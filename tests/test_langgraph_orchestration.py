@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from apps.agent_api.app.agents.customer_support import (
     CustomerSupportOperation,
     CustomerSupportResult,
@@ -11,7 +13,7 @@ from apps.agent_api.app.agents.customer_support import (
     ObservedOperationalFact,
     OperationalInference,
 )
-from apps.agent_api.app.agents.knowledge import KnowledgeResult, KnowledgeResultStatus
+from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.human_escalation import (
     ConversationReference,
     HumanEscalationAction,
@@ -37,6 +39,7 @@ from apps.agent_api.app.agents.router import (
     RouterStatus,
     WebSearchPolicy,
 )
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.security.models import (
     SecurityAuditContext,
     SecurityAuditResult,
@@ -74,6 +77,11 @@ def decision(route: RouterRoute) -> RouterDecision:
         capabilities=capabilities,
         web_search_policy=(WebSearchPolicy.REQUIRED if route is RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK else WebSearchPolicy.NONE),
         reason="TEST_ROUTE",
+        knowledge_scope=(
+            KnowledgeScope.INTERNAL
+            if route in {RouterRoute.KNOWLEDGE, RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT}
+            else KnowledgeScope.NONE
+        ),
         security_semantics=(
             (SecurityClassification(event_type=SecurityEventType.SECURITY_POLICY_PROBE),)
             if route is RouterRoute.SECURITY_BLOCK
@@ -98,12 +106,14 @@ class RecordingKnowledge:
             question="unused", status=KnowledgeResultStatus.ANSWERED, answer="Grounded answer.", reason="OK"
         )
         self.questions: list[str] = []
+        self.requests: list[KnowledgeRequest] = []
 
-    async def answer(self, question: str) -> KnowledgeResult:
-        self.questions.append(question)
+    async def answer(self, request: KnowledgeRequest) -> KnowledgeResult:
+        self.requests.append(request)
+        self.questions.append(request.question)
         if isinstance(self.result, Exception):
             raise self.result
-        return self.result.model_copy(update={"question": question})
+        return self.result.model_copy(update={"question": request.question})
 
 
 class RecordingSupport:
@@ -123,7 +133,11 @@ class RecordingSupport:
 
 
 class RecordingWebKnowledge(RecordingKnowledge):
-    pass
+    async def answer(self, question: str) -> KnowledgeResult:
+        self.questions.append(question)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result.model_copy(update={"question": question})
 
 
 class RecordingSecurityAudit:
@@ -192,6 +206,7 @@ def test_knowledge_route_calls_only_knowledge_and_preserves_typed_result() -> No
     assert result.knowledge_result is not None
     assert result.customer_support_result is None
     assert knowledge.questions == ["What is the approved process?"]
+    assert knowledge.requests[0].knowledge_scope is KnowledgeScope.INTERNAL
     assert support.requests == []
 
 
@@ -222,6 +237,7 @@ def test_cooperative_route_runs_knowledge_before_support_and_retains_both_result
     assert result.knowledge_result is not None
     assert result.customer_support_result is not None
     assert knowledge.questions == [request.message]
+    assert knowledge.requests[0].knowledge_scope is KnowledgeScope.INTERNAL
     assert len(support.requests) == 1
     assert result.knowledge_result.citations == ()
     assert result.customer_support_result.facts == ()
@@ -421,6 +437,7 @@ def test_conditional_web_fallback_uses_persistent_knowledge_first_and_only_after
                 route=RouterRoute.KNOWLEDGE,
                 capabilities=(RouterCapability.KNOWLEDGE,),
                 web_search_policy=WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT,
+                knowledge_scope=KnowledgeScope.PUBLIC_GETNET,
                 reason="RAG_FIRST_CONDITIONAL_WEB_FALLBACK",
             )
     rag = RecordingKnowledge(KnowledgeResult(question="unused", status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE, reason="NO_USABLE_EVIDENCE"))
@@ -434,17 +451,107 @@ def test_conditional_web_fallback_uses_persistent_knowledge_first_and_only_after
     assert result.web_knowledge_result is not None
     assert result.live_web_evidence_used is True
     assert rag.questions == ["Can I use Payment Link on WhatsApp?"]
+    assert rag.requests[0].knowledge_scope is KnowledgeScope.PUBLIC_GETNET
     assert web.questions == ["Can I use Payment Link on WhatsApp?"]
 
 
 def test_conditional_web_fallback_does_not_run_when_persistent_rag_is_sufficient() -> None:
     class ConditionalRouter:
         def route(self, _: RouterRequest) -> RouterDecision:
-            return RouterDecision(status=RouterStatus.ROUTED, route=RouterRoute.KNOWLEDGE, capabilities=(RouterCapability.KNOWLEDGE,), web_search_policy=WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT, reason="RAG_FIRST_CONDITIONAL_WEB_FALLBACK")
+            return RouterDecision(status=RouterStatus.ROUTED, route=RouterRoute.KNOWLEDGE, capabilities=(RouterCapability.KNOWLEDGE,), web_search_policy=WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT, knowledge_scope=KnowledgeScope.PUBLIC_GETNET, reason="RAG_FIRST_CONDITIONAL_WEB_FALLBACK")
     rag, web, support = RecordingKnowledge(), RecordingWebKnowledge(), RecordingSupport()
     result = asyncio.run(LangGraphOrchestrator(ConditionalRouter(), rag, support, web).execute(OrchestrationRequest(message="Payment Link WhatsApp")))  # type: ignore[arg-type]
     assert result.status is OrchestrationStatus.COMPLETED
     assert result.web_knowledge_result is None
+    assert web.questions == []
+
+
+def test_public_persistent_provider_error_does_not_activate_web_fallback() -> None:
+    class PublicRouter:
+        def route(self, _: RouterRequest) -> RouterDecision:
+            return RouterDecision(
+                status=RouterStatus.ROUTED, route=RouterRoute.KNOWLEDGE,
+                capabilities=(RouterCapability.KNOWLEDGE,),
+                web_search_policy=WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT,
+                knowledge_scope=KnowledgeScope.PUBLIC_GETNET, reason="PUBLIC_RAG_FIRST",
+            )
+    rag = RecordingKnowledge(KnowledgeResult(
+        question="unused", status=KnowledgeResultStatus.PROVIDER_ERROR, reason="llm_provider_timeout"
+    ))
+    web = RecordingWebKnowledge()
+    result = asyncio.run(LangGraphOrchestrator(PublicRouter(), rag, RecordingSupport(), web).execute(
+        OrchestrationRequest(message="Public product question")
+    ))
+    assert result.status is OrchestrationStatus.PARTIAL
+    assert result.persistent_knowledge_result is not None
+    assert result.persistent_knowledge_result.status is KnowledgeResultStatus.PROVIDER_ERROR
+    assert result.web_knowledge_result is None and web.questions == []
+
+
+def test_public_persistent_answered_never_calls_web() -> None:
+    class PublicRouter:
+        def route(self, _: RouterRequest) -> RouterDecision:
+            return RouterDecision(
+                status=RouterStatus.ROUTED, route=RouterRoute.KNOWLEDGE,
+                capabilities=(RouterCapability.KNOWLEDGE,),
+                web_search_policy=WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT,
+                knowledge_scope=KnowledgeScope.PUBLIC_GETNET, reason="PUBLIC_RAG_FIRST",
+            )
+    rag = RecordingKnowledge(KnowledgeResult(
+        question="unused", status=KnowledgeResultStatus.ANSWERED,
+        answer="Grounded public answer [C1].", reason="GROUNDED_ANSWER_AVAILABLE",
+    ))
+    web = RecordingWebKnowledge()
+    result = asyncio.run(LangGraphOrchestrator(PublicRouter(), rag, RecordingSupport(), web).execute(
+        OrchestrationRequest(message="Public product question")
+    ))
+    assert result.status is OrchestrationStatus.COMPLETED
+    assert result.web_knowledge_result is None and web.questions == []
+
+
+@pytest.mark.parametrize("web_status", [
+    KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
+    KnowledgeResultStatus.PROVIDER_ERROR,
+])
+def test_public_web_non_answered_outcomes_remain_partial(web_status: KnowledgeResultStatus) -> None:
+    class PublicRouter:
+        def route(self, _: RouterRequest) -> RouterDecision:
+            return RouterDecision(
+                status=RouterStatus.ROUTED, route=RouterRoute.KNOWLEDGE,
+                capabilities=(RouterCapability.KNOWLEDGE,),
+                web_search_policy=WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT,
+                knowledge_scope=KnowledgeScope.PUBLIC_GETNET, reason="PUBLIC_RAG_FIRST",
+            )
+    rag = RecordingKnowledge(KnowledgeResult(
+        question="unused", status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
+        reason="GENERATION_INSUFFICIENT_EVIDENCE",
+    ))
+    web = RecordingWebKnowledge(KnowledgeResult(question="unused", status=web_status, reason="CONTROLLED"))
+    result = asyncio.run(LangGraphOrchestrator(PublicRouter(), rag, RecordingSupport(), web).execute(
+        OrchestrationRequest(message="Public product question")
+    ))
+    assert len(web.questions) == 1
+    assert result.status is OrchestrationStatus.PARTIAL
+    assert result.persistent_knowledge_result is not None
+    assert result.persistent_knowledge_result.status is KnowledgeResultStatus.INSUFFICIENT_EVIDENCE
+    assert result.web_knowledge_result is not None and result.web_knowledge_result.status is web_status
+    assert result.knowledge_result is not None and result.knowledge_result.status is web_status
+    assert result.live_web_evidence_used is False
+
+
+def test_internal_insufficiency_never_calls_web() -> None:
+    rag = RecordingKnowledge(KnowledgeResult(
+        question="unused", status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE, reason="NO_USABLE_EVIDENCE"
+    ))
+    web = RecordingWebKnowledge()
+    result, _, _ = execute(
+        RouterRoute.KNOWLEDGE,
+        knowledge=rag,
+        web=web,
+    )
+    assert result.status is OrchestrationStatus.PARTIAL
+    assert result.knowledge_result is not None
+    assert result.knowledge_result.status is KnowledgeResultStatus.INSUFFICIENT_EVIDENCE
     assert web.questions == []
 
 

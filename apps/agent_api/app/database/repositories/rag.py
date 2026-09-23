@@ -27,6 +27,7 @@ from apps.agent_api.app.database.repositories.contracts import (
     RepositoryRecord,
 )
 from apps.agent_api.app.rag.models import SearchCandidate
+from apps.agent_api.app.rag.scope import KnowledgeScope, require_persistent_knowledge_scope
 
 
 _SOURCE_COLUMNS = (
@@ -377,10 +378,12 @@ class RAGRepository(BaseRepository):
         self,
         query: str,
         limit: int,
+        knowledge_scope: KnowledgeScope,
     ) -> Sequence[SearchCandidate]:
         if not query.strip():
             raise ValueError("Lexical query cannot be blank")
         _validate_retrieval_limit(limit)
+        require_persistent_knowledge_scope(knowledge_scope)
         statement = """
             WITH search_query AS (
                 SELECT websearch_to_tsquery('portuguese', %s)
@@ -400,6 +403,11 @@ class RAGRepository(BaseRepository):
                 WHERE c.search_vector @@ q.value
                   AND d.status = 'ACTIVE'
                   AND s.status = 'ACTIVE'
+                  AND (
+                      (%s = %s AND s.origin = %s AND s.source_type IN (%s, %s))
+                      OR
+                      (%s = %s AND s.origin = %s AND s.source_type = %s)
+                  )
             )
             SELECT ranked.*, 'lexical' AS retrieval_channel,
                    row_number() OVER (
@@ -410,7 +418,17 @@ class RAGRepository(BaseRepository):
             LIMIT %s
         """
         async with self._cursor(row_factory=dict_row) as cursor:
-            await cursor.execute(statement, (query, query, limit))
+            scope = knowledge_scope.value
+            await cursor.execute(
+                statement,
+                (
+                    query, query,
+                    scope, KnowledgeScope.INTERNAL.value, "INTERNAL",
+                    "INTERNAL_DOCUMENT", "INTERNAL_POLICY",
+                    scope, KnowledgeScope.PUBLIC_GETNET.value, "PUBLIC",
+                    "PUBLIC_OFFICIAL", limit,
+                ),
+            )
             rows = await cursor.fetchall()
         return tuple(map_search_candidate(row) for row in rows)
 
@@ -418,6 +436,7 @@ class RAGRepository(BaseRepository):
         self,
         embedding: Sequence[float],
         limit: int,
+        knowledge_scope: KnowledgeScope,
     ) -> Sequence[SearchCandidate]:
         embedding_values = (
             embedding.to_list() if isinstance(embedding, Vector) else list(embedding)
@@ -425,6 +444,7 @@ class RAGRepository(BaseRepository):
         if len(embedding_values) != 384:
             raise ValueError("Semantic query embedding must have 384 dimensions")
         _validate_retrieval_limit(limit)
+        require_persistent_knowledge_scope(knowledge_scope)
         statement = """
             WITH ranked AS (
                 SELECT c.chunk_id, c.document_id, c.content, c.chunk_order,
@@ -439,6 +459,11 @@ class RAGRepository(BaseRepository):
                 JOIN rag.sources AS s ON s.source_id = d.source_id
                 WHERE d.status = 'ACTIVE'
                   AND s.status = 'ACTIVE'
+                  AND (
+                      (%s = %s AND s.origin = %s AND s.source_type IN (%s, %s))
+                      OR
+                      (%s = %s AND s.origin = %s AND s.source_type = %s)
+                  )
             )
             SELECT ranked.*, 'semantic' AS retrieval_channel,
                    row_number() OVER (
@@ -449,6 +474,16 @@ class RAGRepository(BaseRepository):
             LIMIT %s
         """
         async with self._cursor(row_factory=dict_row) as cursor:
-            await cursor.execute(statement, (Vector(embedding_values), limit))
+            scope = knowledge_scope.value
+            await cursor.execute(
+                statement,
+                (
+                    Vector(embedding_values),
+                    scope, KnowledgeScope.INTERNAL.value, "INTERNAL",
+                    "INTERNAL_DOCUMENT", "INTERNAL_POLICY",
+                    scope, KnowledgeScope.PUBLIC_GETNET.value, "PUBLIC",
+                    "PUBLIC_OFFICIAL", limit,
+                ),
+            )
             rows = await cursor.fetchall()
         return tuple(map_search_candidate(row) for row in rows)

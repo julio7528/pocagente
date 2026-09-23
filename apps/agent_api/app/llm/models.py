@@ -31,6 +31,8 @@ class LLMGenerationRequest(BaseModel):
     messages: tuple[LLMMessage, ...] = Field(min_length=1)
     max_output_tokens: int | None = Field(default=None, ge=1)
     temperature: float | None = Field(default=None, ge=0, le=2)
+    response_format: Literal["json_object"] | None = None
+    reasoning_enabled: bool | None = None
 
 
 class LLMGenerationResult(BaseModel):

@@ -11,12 +11,14 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol
 
 from apps.agent_api.app.agents.router import RouterAgent, RouterRoute
+from apps.agent_api.app.evaluation.router_adapter import DeterministicEvaluationRouter
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator, OrchestrationRequest
 from apps.agent_api.app.agents.knowledge import KnowledgeAgent
 from apps.agent_api.app.llm.errors import LLMProviderError
 from apps.agent_api.app.llm.models import LLMGenerationRequest
 from apps.agent_api.app.rag.grounding.context_builder import ContextBuilder, EvidenceStatus
 from apps.agent_api.app.rag.models import RetrievedChunk
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.security.audit import SecurityAuditService
 from apps.agent_api.app.security.models import SecurityAuditContext, SanitizedSecurityEvent
 
@@ -54,7 +56,7 @@ from .rag_results import (
 
 
 class RetrievalBoundary(Protocol):
-    async def search(self, query: str) -> Sequence[RetrievedChunk]: ...
+    async def search(self, query: str, knowledge_scope: KnowledgeScope) -> Sequence[RetrievedChunk]: ...
 
 
 class SecurityEvaluationBoundary(Protocol):
@@ -96,7 +98,8 @@ class _RetrievalInvocationSpy:
     def __init__(self, observer: InvocationObserver) -> None:
         self._observer = observer
 
-    async def search(self, query: str):
+    async def search(self, query: str, knowledge_scope: KnowledgeScope):
+        del knowledge_scope
         self._observer.increment("retrieval")
         return ()
 
@@ -165,7 +168,7 @@ class RouterSecurityEvaluationBoundary:
         secret_fragments_by_case: Mapping[str, tuple[str, ...]] | None = None,
         user_identifier: str = "phase11_evaluation_user",
     ) -> None:
-        self._router = router or RouterAgent()
+        self._router = router or DeterministicEvaluationRouter()
         self._audit_sink = audit_sink or RecordingAuditSink()
         self._audit_service = audit_service or SecurityAuditService(self._audit_sink)
         self._invocation_observer = invocation_observer or InvocationObserver()
@@ -327,7 +330,7 @@ class RAGEvaluationRunner:
             if self._retriever is None:
                 raise EvaluationDatasetContractError("Retrieval boundary is unavailable")
             self._retrieval_invocations += 1
-            chunks = tuple(await self._retriever.search(case.question))
+            chunks = tuple(await self._retriever.search(case.question, KnowledgeScope.INTERNAL))
             context = self._context_builder.build(
                 case.question,
                 () if case_class is RAGEvaluationClass.INSUFFICIENT_EVIDENCE else chunks,

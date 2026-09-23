@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Protocol, TypedDict
 
 from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from apps.agent_api.app.agents.customer_support import (
     CustomerSupportOperation,
@@ -14,7 +14,8 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportResult,
     CustomerSupportStatus,
 )
-from apps.agent_api.app.agents.knowledge import KnowledgeResult, KnowledgeResultStatus
+from apps.agent_api.app.agents.conversational import ConversationalResult, bounded_conversational_response
+from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.human_escalation import (
     HumanEscalationAction,
     HumanEscalationAgent,
@@ -29,6 +30,7 @@ from apps.agent_api.app.agents.router import (
     RouterRoute,
     WebSearchPolicy,
 )
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.tools.ops import OpsAccessContext
 from apps.agent_api.app.security.models import (
     SecurityAuditContext,
@@ -41,7 +43,7 @@ from apps.agent_api.app.security.models import (
 class KnowledgeCapability(Protocol):
     """Approved Knowledge boundary consumed by the graph."""
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, request: KnowledgeRequest) -> KnowledgeResult:
         """Return the existing typed Knowledge result."""
 
 
@@ -124,6 +126,8 @@ class OrchestrationResult(BaseModel):
 
     status: OrchestrationStatus
     route: RouterRoute
+    knowledge_scope: KnowledgeScope = KnowledgeScope.NONE
+    conversational_result: ConversationalResult | None = None
     knowledge_result: KnowledgeResult | None = None
     persistent_knowledge_result: KnowledgeResult | None = None
     web_knowledge_result: KnowledgeResult | None = None
@@ -134,12 +138,36 @@ class OrchestrationResult(BaseModel):
     human_escalation_result: HumanEscalationResult | None = None
     reason: str = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def conversational_result_is_exclusive(self) -> OrchestrationResult:
+        if self.conversational_result is not None:
+            if self.route is not RouterRoute.CONVERSATIONAL or self.status is not OrchestrationStatus.COMPLETED:
+                raise ValueError("conversational result requires a completed conversational route")
+            if any((
+                self.knowledge_result,
+                self.persistent_knowledge_result,
+                self.web_knowledge_result,
+                self.customer_support_result,
+                self.human_escalation_result,
+            )):
+                raise ValueError("conversational result cannot include other capability results")
+            if (
+                self.knowledge_scope is not KnowledgeScope.NONE
+                or self.human_escalation_required
+                or self.web_fallback_required
+                or self.live_web_evidence_used
+            ):
+                raise ValueError("conversational result cannot carry capability authority")
+        return self
+
 
 class OrchestrationState(TypedDict, total=False):
     """Only request, decision, typed results, and controlled graph outcome state."""
 
     request: OrchestrationRequest
     routing_decision: RouterDecision
+    knowledge_scope: KnowledgeScope
+    conversational_result: ConversationalResult
     knowledge_result: KnowledgeResult
     persistent_knowledge_result: KnowledgeResult
     web_knowledge_result: KnowledgeResult
@@ -186,6 +214,8 @@ class LangGraphOrchestrator:
         return OrchestrationResult(
             status=state["status"],
             route=state["routing_decision"].route,
+            knowledge_scope=state["knowledge_scope"],
+            conversational_result=state.get("conversational_result"),
             knowledge_result=state.get("knowledge_result"),
             persistent_knowledge_result=state.get("persistent_knowledge_result"),
             web_knowledge_result=state.get("web_knowledge_result"),
@@ -200,6 +230,7 @@ class LangGraphOrchestrator:
     def _build_graph(self):
         graph = StateGraph(OrchestrationState)
         graph.add_node("router", self._router_node)
+        graph.add_node("conversational", self._conversational_node)
         graph.add_node("knowledge", self._knowledge_node)
         graph.add_node("customer_support", self._customer_support_node)
         graph.add_node("web_knowledge", self._web_knowledge_node)
@@ -214,6 +245,7 @@ class LangGraphOrchestrator:
             self._route_after_router,
             {
                 "knowledge": "knowledge",
+                "conversational": "conversational",
                 "customer_support": "customer_support",
                 "cooperative": "knowledge",
                 "web_fallback": "web_knowledge",
@@ -237,21 +269,27 @@ class LangGraphOrchestrator:
             {"human": "human_escalation", "assembly": "assembly"},
         )
         graph.add_edge("web_knowledge", "assembly")
+        graph.add_edge("conversational", "assembly")
         graph.add_edge("security_terminal", "assembly")
         graph.add_edge("ambiguous_terminal", "assembly")
         graph.add_edge("human_escalation", "assembly")
         graph.add_edge("assembly", END)
         return graph.compile()
 
-    def _router_node(self, state: OrchestrationState) -> dict[str, RouterDecision]:
+    async def _router_node(self, state: OrchestrationState) -> dict[str, RouterDecision | KnowledgeScope]:
         request = state["request"]
-        decision = self._router.route(
-            RouterRequest(
-                message=request.message,
-                has_authorized_protocol_context=request.has_authorized_protocol_context,
-            )
+        router_request = RouterRequest(
+            message=request.message,
+            has_authorized_protocol_context=request.has_authorized_protocol_context,
         )
-        return {"routing_decision": decision}
+        route_async = getattr(self._router, "route_async", None)
+        if route_async is None:
+            # Compatibility for narrow deterministic test doubles.  The real
+            # RouterAgent always exposes the native async seam.
+            decision = self._router.route(router_request)
+        else:
+            decision = await route_async(router_request)
+        return {"routing_decision": decision, "knowledge_scope": decision.knowledge_scope}
 
     @staticmethod
     def _route_after_router(state: OrchestrationState) -> str:
@@ -267,6 +305,7 @@ class LangGraphOrchestrator:
         route = state["routing_decision"].route
         return {
             RouterRoute.KNOWLEDGE: "knowledge",
+            RouterRoute.CONVERSATIONAL: "conversational",
             RouterRoute.CUSTOMER_SUPPORT: "customer_support",
             RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT: "cooperative",
             RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK: "web_fallback",
@@ -294,7 +333,12 @@ class LangGraphOrchestrator:
 
     async def _knowledge_node(self, state: OrchestrationState) -> dict[str, KnowledgeResult]:
         try:
-            result = await self._knowledge_agent.answer(state["request"].message)
+            result = await self._knowledge_agent.answer(
+                KnowledgeRequest(
+                    question=state["request"].message,
+                    knowledge_scope=state["knowledge_scope"],
+                )
+            )
         except Exception:
             result = KnowledgeResult(
                 question=state["request"].message,
@@ -302,6 +346,11 @@ class LangGraphOrchestrator:
                 reason="KNOWLEDGE_CAPABILITY_UNAVAILABLE",
             )
         return {"knowledge_result": result, "persistent_knowledge_result": result}
+
+    @staticmethod
+    def _conversational_node(state: OrchestrationState) -> dict[str, ConversationalResult]:
+        del state
+        return {"conversational_result": bounded_conversational_response()}
 
     async def _web_knowledge_node(
         self, state: OrchestrationState
@@ -421,6 +470,9 @@ class LangGraphOrchestrator:
             return {}
         knowledge = state.get("knowledge_result")
         customer_support = state.get("customer_support_result")
+        conversational = state.get("conversational_result")
+        if conversational is not None:
+            return {"status": OrchestrationStatus.COMPLETED, "reason": conversational.reason}
         knowledge_ok = knowledge is None or knowledge.status is KnowledgeResultStatus.ANSWERED
         support_ok = customer_support is None or customer_support.status is CustomerSupportStatus.ANSWERED
         if knowledge_ok and support_ok:

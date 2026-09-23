@@ -59,9 +59,7 @@ def test_phase11_metrics_report_aggregates_real_local_rag_and_challenge(
                 mode=EvaluationExecutionMode.LOCAL_RAG,
                 retriever=retriever,
                 context_builder=ContextBuilder(),
-                security_boundary=RouterSecurityEvaluationBoundary(
-                    router=RouterAgent(), audit_sink=RecordingAuditSink()
-                ),
+                security_boundary=RouterSecurityEvaluationBoundary(audit_sink=RecordingAuditSink()),
             )
             rag_results = await rag_runner.run()
             challenge_results = ChallengeEvaluationRunner(validated.challenge).run()

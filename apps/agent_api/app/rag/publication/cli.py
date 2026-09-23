@@ -248,8 +248,10 @@ async def run_smoke_retrieval(
 
     async with database.connection() as connection:
         repo = RAGRepository(connection)
-        lex_candidates = await repo.search_lexical_candidates(query, limit)
-        sem_candidates = await repo.search_semantic_candidates(emb_array, limit)
+        from apps.agent_api.app.rag.scope import KnowledgeScope
+
+        lex_candidates = await repo.search_lexical_candidates(query, limit, KnowledgeScope.INTERNAL)
+        sem_candidates = await repo.search_semantic_candidates(emb_array, limit, KnowledgeScope.INTERNAL)
 
     return {
         "lexical": [

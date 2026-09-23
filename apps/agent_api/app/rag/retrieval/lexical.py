@@ -7,11 +7,12 @@ import re
 from typing import Protocol
 
 from ..models import SearchCandidate
+from ..scope import KnowledgeScope, require_persistent_knowledge_scope
 
 
 class _LexicalRepository(Protocol):
     async def search_lexical_candidates(
-        self, query: str, limit: int
+        self, query: str, limit: int, knowledge_scope: KnowledgeScope
     ) -> Sequence[SearchCandidate]: ...
 
 
@@ -21,13 +22,14 @@ class LexicalRetriever:
     def __init__(self, repository: _LexicalRepository) -> None:
         self._repository = repository
 
-    async def search(self, query: str, limit: int) -> Sequence[SearchCandidate]:
+    async def search(self, query: str, limit: int, knowledge_scope: KnowledgeScope) -> Sequence[SearchCandidate]:
         if not query.strip():
             raise ValueError("Lexical query cannot be blank")
         if not 1 <= limit <= 10:
             raise ValueError("Lexical candidate limit must be between 1 and 10")
+        require_persistent_knowledge_scope(knowledge_scope)
         return await self._repository.search_lexical_candidates(
-            normalize_lexical_query(query), limit
+            normalize_lexical_query(query), limit, knowledge_scope
         )
 
 

@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from apps.agent_api.app.agents.knowledge import KnowledgeAgent, KnowledgeResultStatus
+from apps.agent_api.app.agents.knowledge import KnowledgeAgent, KnowledgeRequest, KnowledgeResultStatus
 from apps.agent_api.app.database.config import DatabaseConfig
 from apps.agent_api.app.database.connection import PostgresDatabase
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult
@@ -15,6 +15,7 @@ from apps.agent_api.app.rag.grounding.context_builder import ContextBuilder
 from apps.agent_api.app.rag.retrieval.hybrid import HybridRetriever
 from apps.agent_api.app.rag.retrieval.lexical import LexicalRetriever
 from apps.agent_api.app.rag.retrieval.semantic import SemanticRetriever
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from tests.integration.support import run_async
 
 
@@ -30,7 +31,10 @@ class MockKnowledgeProvider:
 
     async def generate(self, request: LLMGenerationRequest) -> LLMGenerationResult:
         self.requests.append(request)
-        return LLMGenerationResult(content="Resposta simulada fundamentada [C1].")
+        return LLMGenerationResult(content=(
+            '{"schema_version":"1.0","status":"ANSWERED",'
+            '"answer":"Resposta simulada fundamentada [C1].","citation_ids":["C1"]}'
+        ))
 
 
 def test_real_retrieval_and_grounding_produce_safe_mocked_knowledge_result(
@@ -49,7 +53,12 @@ def test_real_retrieval_and_grounding_produce_safe_mocked_knowledge_result(
             provider = MockKnowledgeProvider()
             agent = KnowledgeAgent(retrieval, ContextBuilder(), provider)
 
-            result = await agent.answer("Como funciona o cancelamento de venda?")
+            result = await agent.answer(
+                KnowledgeRequest(
+                    question="Como funciona o cancelamento de venda?",
+                    knowledge_scope=KnowledgeScope.INTERNAL,
+                )
+            )
 
             assert result.status is KnowledgeResultStatus.ANSWERED
             assert result.answer

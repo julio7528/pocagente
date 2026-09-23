@@ -18,6 +18,7 @@ from apps.agent_api.app.agents.orchestration import (
     OrchestrationStatus,
 )
 from apps.agent_api.app.agents.router import RouterAgent
+from apps.agent_api.app.agents.semantic_routing import SemanticClassification, SemanticIntent
 from apps.agent_api.app.database.config import DatabaseConfig
 from apps.agent_api.app.database.connection import PostgresDatabase
 from apps.agent_api.app.database.repositories.operational import OperationalRepository
@@ -49,7 +50,25 @@ class MockedProvider:
                     '"inferences":[{"statement":"A evidência pode indicar falha no download."}]}'
                 )
             )
-        return LLMGenerationResult(content="Resposta fundamentada [C1].")
+        return LLMGenerationResult(content=(
+            '{"schema_version":"1.0","status":"ANSWERED",'
+            '"answer":"Resposta fundamentada [C1].","citation_ids":["C1"]}'
+        ))
+
+
+class SemanticIntentSequence:
+    """Deterministic classification double for this local DB graph integration."""
+
+    def __init__(self) -> None:
+        self._intents = iter((
+            SemanticIntent.INTERNAL_KNOWLEDGE,
+            SemanticIntent.CUSTOMER_SUPPORT,
+            SemanticIntent.EXPECTED_VS_OBSERVED,
+        ))
+
+    async def classify(self, message: str) -> SemanticClassification:
+        del message
+        return SemanticClassification(schema_version="1.0", intent=next(self._intents))
 
 
 AUTHORIZED = OpsAccessContext(principal_id="orchestration-integration", can_read_operational_facts=True)
@@ -70,7 +89,7 @@ def test_real_langgraph_coordinates_knowledge_support_and_cooperative_paths_with
                     database=database,
                 )
                 graph = LangGraphOrchestrator(
-                    RouterAgent(),
+                    RouterAgent(SemanticIntentSequence()),
                     KnowledgeAgent(retrieval, ContextBuilder(), provider),
                     CustomerSupportAgent(
                         OperationalTools(OperationalRepository(connection)),

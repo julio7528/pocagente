@@ -2230,6 +2230,13 @@ event is persisted only through `SecurityAuditService`,
 Phase 9 is complete. No Django, conversation persistence, queue, or database
 schema is introduced; broader Security / Audit Runtime work is Phase 10 scope.
 
+A lightweight manual terminal agent test entry point (`scripts/chat_cli.py`) is available
+for manual observation of the multi-agent system before Phase 12 (Django). It exercises
+the real production FastAPI `/chat` boundary (in-process via `TestClient` or remotely via
+`--url`), enforcing Bearer service authentication, trusted principal roles, Router decisions,
+LangGraph orchestration, RAG grounding, OPS tools, and security audit without mocking
+agent internals. Command to execute: `python scripts/chat_cli.py` (or `-m "<message>"`).
+
 ## Documentation Maintenance Rules
 
 - `project-roadmap.md` tracks execution status, phases, and sequencing.

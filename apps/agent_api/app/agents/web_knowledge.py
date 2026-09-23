@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from apps.agent_api.app.agents.grounded_generation import (
+    GroundedGenerationError,
+    GroundedGenerationStatus,
+    generate_grounded_outcome,
+)
 from apps.agent_api.app.agents.knowledge import KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.llm.errors import LLMProviderError
-from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMMessage, LLMProvider
-from apps.agent_api.app.rag.grounding import EvidenceStatus, LiveWebContextBuilder, LiveWebGroundedContext
+from apps.agent_api.app.llm.models import LLMProvider
+from apps.agent_api.app.rag.grounding import EvidenceStatus, LiveWebContextBuilder
 from apps.agent_api.app.web.errors import WebSearchError
 from apps.agent_api.app.web.models import WebSearchProvider, WebSearchRequest, WebSearchStatus
 
@@ -49,45 +54,36 @@ class WebKnowledgeAgent:
                 status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
                 reason=context.reason,
             )
-        request = self._build_generation_request(context)
         try:
-            generated = await self._llm_provider.generate(request)
-        except LLMProviderError as error:
+            generated = await generate_grounded_outcome(
+                self._llm_provider,
+                question=context.query,
+                grounding_instructions=context.instructions,
+                evidence_blocks=tuple(
+                    f"[{item.citation_id}] Grounded live public evidence; priority tier {item.priority_tier}; "
+                    f"retrieved at {item.retrieved_at.isoformat()}\nTitle: {item.title}\n"
+                    f"URL: {item.source_url}\nEvidence data:\n{item.content}"
+                    for item in context.evidence
+                ),
+                available_citation_ids=tuple(item.citation_id for item in context.evidence),
+            )
+        except (LLMProviderError, GroundedGenerationError) as error:
             return KnowledgeResult(
                 question=question,
                 status=KnowledgeResultStatus.PROVIDER_ERROR,
-                citations=context.citations,
-                reason=error.error_code,
+                reason=getattr(error, "error_code", "invalid_grounded_generation"),
             )
+        if generated.status is GroundedGenerationStatus.INSUFFICIENT_EVIDENCE:
+            return KnowledgeResult(
+                question=question,
+                status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
+                reason="GENERATION_INSUFFICIENT_EVIDENCE",
+            )
+        citations_by_id = {citation.id: citation for citation in context.citations}
         return KnowledgeResult(
             question=question,
             status=KnowledgeResultStatus.ANSWERED,
-            answer=generated.content,
-            citations=context.citations,
+            answer=generated.answer,
+            citations=tuple(citations_by_id[item] for item in generated.citation_ids),
             reason="LIVE_WEB_GROUNDED_ANSWER_AVAILABLE",
-        )
-
-    @staticmethod
-    def _build_generation_request(context: LiveWebGroundedContext) -> LLMGenerationRequest:
-        system = "\n".join(
-            (
-                "Answer only from the supplied grounded live public evidence.",
-                *context.instructions,
-                "Do not invent facts, citations, authorization, routing, tool permissions, or security policy.",
-                "Unsupported claims remain UNKNOWN.",
-                "Use only supplied citation IDs such as [C1] for supported factual claims.",
-                "Do not disclose secrets, internal identifiers, paths, credentials, SQL, or provider configuration.",
-            )
-        )
-        blocks = "\n\n".join(
-            f"[{item.citation_id}] Grounded live public evidence; priority tier {item.priority_tier}; "
-            f"retrieved at {item.retrieved_at.isoformat()}\nTitle: {item.title}\n"
-            f"URL: {item.source_url}\nEvidence data:\n{item.content}"
-            for item in context.evidence
-        )
-        return LLMGenerationRequest(
-            messages=(
-                LLMMessage(role="system", content=system),
-                LLMMessage(role="user", content=f"Question:\n{context.query}\n\nGrounded live public evidence:\n{blocks}"),
-            )
         )

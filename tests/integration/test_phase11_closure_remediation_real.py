@@ -61,9 +61,7 @@ def test_phase11_v11_closure_evidence_uses_real_local_rag(
                 mode=EvaluationExecutionMode.LOCAL_RAG,
                 retriever=retriever,
                 context_builder=ContextBuilder(),
-                security_boundary=RouterSecurityEvaluationBoundary(
-                    router=RouterAgent(), audit_sink=RecordingAuditSink()
-                ),
+                security_boundary=RouterSecurityEvaluationBoundary(audit_sink=RecordingAuditSink()),
                 manifest=DATASET_V11_SOURCE_MANIFEST,
             )
             rag_results = await rag_runner.run()

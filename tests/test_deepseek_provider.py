@@ -56,6 +56,22 @@ def test_deepseek_provider_returns_neutral_generation_result() -> None:
     assert set(result.model_dump()) == {"content", "finish_reason"}
 
 
+def test_deepseek_provider_maps_neutral_json_mode_to_provider_request() -> None:
+    async def handler(http_request: httpx.Request) -> httpx.Response:
+        payload = json.loads(http_request.content)
+        assert payload["response_format"] == {"type": "json_object"}
+        assert payload["thinking"] == {"type": "disabled"}
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]})
+
+    request_with_json = LLMGenerationRequest(
+        messages=(LLMMessage(role="user", content="Return JSON."),),
+        response_format="json_object",
+        reasoning_enabled=False,
+    )
+    result = asyncio.run(provider(handler).generate(request_with_json))
+    assert result.content == "{}"
+
+
 def test_timeout_uses_controlled_error_without_key_leakage() -> None:
     async def handler(_: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("unit-test-key")

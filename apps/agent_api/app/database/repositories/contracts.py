@@ -19,6 +19,7 @@ from apps.agent_api.app.database.models import (
     ServiceRequestRecord,
 )
 from apps.agent_api.app.rag.models import SearchCandidate
+from apps.agent_api.app.rag.scope import KnowledgeScope
 
 RepositoryRecord: TypeAlias = Mapping[str, object]
 IngestionOperation: TypeAlias = Literal["INGEST", "REINGEST", "SKIPPED_UNCHANGED"]
@@ -101,12 +102,14 @@ class RAGRepositoryContract(Protocol):
         self,
         query: str,
         limit: int,
+        knowledge_scope: KnowledgeScope,
     ) -> Sequence[SearchCandidate]: ...
 
     async def search_semantic_candidates(
         self,
         embedding: Sequence[float],
         limit: int,
+        knowledge_scope: KnowledgeScope,
     ) -> Sequence[SearchCandidate]: ...
 
 

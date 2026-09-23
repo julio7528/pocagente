@@ -9,6 +9,7 @@ and Human Escalation state machine are the production implementations.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 
 import pytest
@@ -17,13 +18,15 @@ from fastapi.testclient import TestClient
 
 from apps.agent_api.app.agents.customer_support import CustomerSupportAgent
 from apps.agent_api.app.agents.human_escalation import HumanEscalationAgent
-from apps.agent_api.app.agents.knowledge import KnowledgeResult, KnowledgeResultStatus
+from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator
 from apps.agent_api.app.agents.router import RouterAgent
+from apps.agent_api.app.agents.semantic_classifier import ProviderSemanticIntentClassifier
 from apps.agent_api.app.auth import ServiceAuthConfig
 from apps.agent_api.app.chat import ChatApplicationService
 from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.main import create_app
 from apps.agent_api.app.rag.grounding.context_builder import Citation
 from apps.agent_api.app.security.audit import SecurityAuditService
@@ -50,9 +53,12 @@ class GroundedKnowledge:
     def __init__(self, *, payment_link_is_insufficient: bool = False) -> None:
         self.payment_link_is_insufficient = payment_link_is_insufficient
         self.questions: list[str] = []
+        self.scopes: list[KnowledgeScope] = []
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, request: KnowledgeRequest) -> KnowledgeResult:
+        question = request.question
         self.questions.append(question)
+        self.scopes.append(request.knowledge_scope)
         if self.payment_link_is_insufficient and "Payment Link" in question:
             return KnowledgeResult(
                 question=question,
@@ -146,6 +152,19 @@ class SupportInterpretationProvider:
         )
 
 
+class FixedSemanticIntentProvider:
+    """Provider double returning a test-selected closed semantic intent."""
+
+    def __init__(self, intent: str) -> None:
+        self.intent = intent
+
+    async def generate(self, request: LLMGenerationRequest) -> LLMGenerationResult:
+        assert "Classify the user's whole message" in request.messages[0].content
+        return LLMGenerationResult(
+            content=json.dumps({"schema_version": "1.0", "intent": self.intent})
+        )
+
+
 class RecordingSecurityAuditSink:
     """Deterministic sink proving the real graph invokes the audit boundary."""
 
@@ -171,6 +190,7 @@ class Phase9Runtime:
         payment_link_is_insufficient: bool = False,
         web_unavailable: bool = False,
         audit_unavailable: bool = False,
+        semantic_intent: str = "AMBIGUOUS",
     ) -> None:
         self.knowledge = GroundedKnowledge(payment_link_is_insufficient=payment_link_is_insufficient)
         self.web = LiveWebKnowledge(unavailable=web_unavailable)
@@ -178,7 +198,7 @@ class Phase9Runtime:
         self.audit_sink = RecordingSecurityAuditSink(unavailable=audit_unavailable)
         self.support = CustomerSupportAgent(OperationalTools(self.repository), SupportInterpretationProvider())
         self.orchestrator = LangGraphOrchestrator(
-            RouterAgent(),
+            RouterAgent(ProviderSemanticIntentClassifier(FixedSemanticIntentProvider(semantic_intent))),
             self.knowledge,
             self.support,
             self.web,
@@ -205,21 +225,21 @@ def _support_context(operation: str = "PROTOCOL_STATUS") -> dict[str, object]:
 
 
 @pytest.mark.parametrize(
-    ("scenario_id", "expected_route", "uses_web", "uses_ops"),
+    ("scenario_id", "expected_route", "uses_web", "uses_ops", "semantic_intent"),
     (
-        ("challenge-001", "KNOWLEDGE", False, False),
-        ("challenge-002", "KNOWLEDGE_WITH_WEB_FALLBACK", True, False),
-        ("challenge-003", "KNOWLEDGE_AND_CUSTOMER_SUPPORT", False, False),
-        ("challenge-004", "KNOWLEDGE", False, False),
-        ("challenge-005", "KNOWLEDGE_AND_CUSTOMER_SUPPORT", False, False),
-        ("challenge-006", "KNOWLEDGE", False, False),
-        ("challenge-007", "KNOWLEDGE_WITH_WEB_FALLBACK", True, False),
-        ("challenge-008", "KNOWLEDGE_AND_CUSTOMER_SUPPORT", False, False),
-        ("challenge-009", "KNOWLEDGE", False, False),
-        ("challenge-010", "KNOWLEDGE", False, False),
-        ("challenge-011", "CUSTOMER_SUPPORT", False, True),
-        ("challenge-012", "KNOWLEDGE_AND_CUSTOMER_SUPPORT", False, True),
-        ("challenge-013", "SECURITY_BLOCK", False, False),
+        ("challenge-001", "KNOWLEDGE", False, False, "PUBLIC_GETNET_KNOWLEDGE"),
+        ("challenge-002", "KNOWLEDGE_WITH_WEB_FALLBACK", True, False, "CURRENT_PUBLIC_INFORMATION"),
+        ("challenge-003", "CUSTOMER_SUPPORT", False, False, "CUSTOMER_SUPPORT"),
+        ("challenge-004", "KNOWLEDGE", False, False, "PUBLIC_GETNET_KNOWLEDGE"),
+        ("challenge-005", "KNOWLEDGE", False, False, "PUBLIC_GETNET_KNOWLEDGE"),
+        ("challenge-006", "KNOWLEDGE", False, False, "PUBLIC_GETNET_KNOWLEDGE"),
+        ("challenge-007", "KNOWLEDGE_WITH_WEB_FALLBACK", True, False, "CURRENT_PUBLIC_INFORMATION"),
+        ("challenge-008", "CUSTOMER_SUPPORT", False, False, "CUSTOMER_SUPPORT"),
+        ("challenge-009", "KNOWLEDGE", False, False, "PUBLIC_GETNET_KNOWLEDGE"),
+        ("challenge-010", "KNOWLEDGE", False, False, "PUBLIC_GETNET_KNOWLEDGE"),
+        ("challenge-011", "CUSTOMER_SUPPORT", False, True, "CUSTOMER_SUPPORT"),
+        ("challenge-012", "KNOWLEDGE_AND_CUSTOMER_SUPPORT", False, True, "EXPECTED_VS_OBSERVED"),
+        ("challenge-013", "SECURITY_BLOCK", False, False, "AMBIGUOUS"),
     ),
 )
 def test_phase9_yaml_scenarios_execute_through_authenticated_chat(
@@ -227,8 +247,9 @@ def test_phase9_yaml_scenarios_execute_through_authenticated_chat(
     expected_route: str,
     uses_web: bool,
     uses_ops: bool,
+    semantic_intent: str,
 ) -> None:
-    runtime = Phase9Runtime()
+    runtime = Phase9Runtime(semantic_intent=semantic_intent)
     body: dict[str, object] = {"message": SCENARIOS[scenario_id], "user_id": "cliente1988"}
     if scenario_id == "challenge-011":
         body["operational_context"] = _support_context()
@@ -243,6 +264,10 @@ def test_phase9_yaml_scenarios_execute_through_authenticated_chat(
     assert payload["route"] == expected_route
     assert bool(runtime.web.questions) is uses_web
     assert bool(runtime.repository.protocol_calls) is uses_ops
+    if semantic_intent == "PUBLIC_GETNET_KNOWLEDGE":
+        assert runtime.knowledge.scopes == [KnowledgeScope.PUBLIC_GETNET]
+    elif semantic_intent == "CURRENT_PUBLIC_INFORMATION":
+        assert runtime.knowledge.scopes == []
     assert "provenance" not in str(payload).lower()
     assert "postgresql" not in str(payload).lower()
     assert "tavily" not in str(payload).lower()
@@ -253,6 +278,8 @@ def test_phase9_yaml_scenarios_execute_through_authenticated_chat(
         assert payload["knowledge"]["answer"] == "Grounded persistent knowledge [C1]."
         assert payload["customer_support"]["facts"]
         assert payload["customer_support"]["inferences"]
+    if scenario_id in {"challenge-003", "challenge-008"}:
+        assert payload["status"] == "MISSING_OPERATIONAL_CONTEXT"
     if scenario_id == "challenge-013":
         assert payload["status"] == "SECURITY_BLOCKED"
         assert runtime.knowledge.questions == []
@@ -357,7 +384,7 @@ def test_high_level_database_architecture_question_is_not_blocked_by_response_la
 
 
 def test_payment_link_falls_back_to_live_web_only_after_persistent_insufficiency() -> None:
-    runtime = Phase9Runtime(payment_link_is_insufficient=True)
+    runtime = Phase9Runtime(payment_link_is_insufficient=True, semantic_intent="PUBLIC_GETNET_KNOWLEDGE")
     with TestClient(runtime.app) as http:
         response = http.post(
             "/chat",
@@ -367,12 +394,13 @@ def test_payment_link_falls_back_to_live_web_only_after_persistent_insufficiency
     assert response.status_code == 200
     assert response.json()["route"] == "KNOWLEDGE"
     assert runtime.knowledge.questions == [SCENARIOS["challenge-010"]]
+    assert runtime.knowledge.scopes == [KnowledgeScope.PUBLIC_GETNET]
     assert runtime.web.questions == [SCENARIOS["challenge-010"]]
     assert runtime.repository.protocol_calls == []
 
 
 def test_live_web_failure_and_insufficient_persistent_knowledge_remain_controlled() -> None:
-    runtime = Phase9Runtime(web_unavailable=True)
+    runtime = Phase9Runtime(web_unavailable=True, semantic_intent="CURRENT_PUBLIC_INFORMATION")
     with TestClient(runtime.app) as http:
         response = http.post(
             "/chat",
@@ -387,7 +415,7 @@ def test_live_web_failure_and_insufficient_persistent_knowledge_remain_controlle
 
 
 def test_challenge_014_full_http_handoff_keeps_same_conversation_and_suspends_automation() -> None:
-    runtime = Phase9Runtime()
+    runtime = Phase9Runtime(semantic_intent="CUSTOMER_SUPPORT")
     conversation_id = "challenge-014-conversation"
     turn_one = {
         "message": SCENARIOS["challenge-014"],
@@ -522,6 +550,26 @@ def test_authentication_rejects_before_real_router_or_graph_execution() -> None:
             "/chat", json={"message": SCENARIOS["challenge-001"], "user_id": "cliente1988"}
         )
     assert response.status_code == 401
+    assert runtime.knowledge.questions == []
+    assert runtime.web.questions == []
+    assert runtime.repository.protocol_calls == []
+
+
+def test_authenticated_chat_greeting_uses_conversational_route_without_capabilities() -> None:
+    runtime = Phase9Runtime(semantic_intent="CONVERSATIONAL")
+    with TestClient(runtime.app) as http:
+        response = http.post(
+            "/chat", headers=_headers(), json={"message": "oi", "user_id": "cliente1988"}
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "CONVERSATIONAL"
+    assert body["status"] == "COMPLETED"
+    assert body["answer"] and "Getnet" in body["answer"]
+    assert body["citations"] == []
+    assert body["knowledge"] is None
+    assert body["customer_support"] is None
+    assert body["human"] is None
     assert runtime.knowledge.questions == []
     assert runtime.web.questions == []
     assert runtime.repository.protocol_calls == []

@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from apps.agent_api.app.agents.customer_support import CustomerSupportAgent
 from apps.agent_api.app.agents.human_escalation import HumanEscalationAgent, HumanEscalationState
-from apps.agent_api.app.agents.knowledge import KnowledgeResult, KnowledgeResultStatus
+from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator
 from apps.agent_api.app.agents.router import RouterAgent, RouterCapability, RouterRoute, WebSearchPolicy
 from apps.agent_api.app.auth import ServiceAuthConfig
@@ -44,6 +44,7 @@ from .challenge_results import (
     ChallengeToolObservation,
     ConditionalFallbackObservation,
 )
+from .router_adapter import DeterministicEvaluationRouter
 
 
 _TOKEN = "phase11-challenge-evaluation-service-token"
@@ -91,8 +92,9 @@ class _GroundedKnowledgeDouble:
         self._observer = observer
         self.insufficient = False
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, request: KnowledgeRequest) -> KnowledgeResult:
         self._observer.increment("knowledge")
+        question = request.question
         if self.insufficient:
             return KnowledgeResult(question=question, status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE, reason="NO_PERSISTENT_EVIDENCE")
         return KnowledgeResult(
@@ -200,7 +202,7 @@ class DeterministicChallengeRuntime:
         self.audit_sink = RecordingChallengeAuditSink()
         support = CustomerSupportAgent(OperationalTools(self.repository), _InterpretationDouble(self.observer))
         self.orchestrator = LangGraphOrchestrator(
-            RouterAgent(), self.knowledge, _ObservedCustomerSupport(support, self.observer), self.web,
+            DeterministicEvaluationRouter(), self.knowledge, _ObservedCustomerSupport(support, self.observer), self.web,
             _ObservedHumanEscalation(HumanEscalationAgent(), self.observer),
             SecurityAuditService(self.audit_sink),
         )

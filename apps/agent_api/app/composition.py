@@ -10,6 +10,7 @@ from apps.agent_api.app.agents.human_escalation import HumanEscalationAgent
 from apps.agent_api.app.agents.knowledge import KnowledgeAgent
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator
 from apps.agent_api.app.agents.router import RouterAgent
+from apps.agent_api.app.agents.semantic_classifier import ProviderSemanticIntentClassifier
 from apps.agent_api.app.agents.web_knowledge import WebKnowledgeAgent
 from apps.agent_api.app.chat import ChatApplicationService
 from apps.agent_api.app.database.config import load_database_config
@@ -39,12 +40,12 @@ class _UnavailableLLMProvider:
 class _UnusedRetrievalRepository:
     """Constructor-only placeholder; HybridRetriever replaces it inside its DB snapshot."""
 
-    async def search_lexical_candidates(self, query: str, limit: int) -> Sequence[Any]:
-        del query, limit
+    async def search_lexical_candidates(self, query: str, limit: int, knowledge_scope: Any) -> Sequence[Any]:
+        del query, limit, knowledge_scope
         raise RuntimeError("repository-bound hybrid retrieval required")
 
-    async def search_semantic_candidates(self, embedding: Sequence[float], limit: int) -> Sequence[Any]:
-        del embedding, limit
+    async def search_semantic_candidates(self, embedding: Sequence[float], limit: int, knowledge_scope: Any) -> Sequence[Any]:
+        del embedding, limit, knowledge_scope
         raise RuntimeError("repository-bound hybrid retrieval required")
 
 
@@ -107,7 +108,7 @@ async def compose_runtime() -> RuntimeComposition:
             pass
 
         orchestrator = LangGraphOrchestrator(
-            RouterAgent(),
+            RouterAgent(ProviderSemanticIntentClassifier(llm_provider)),
             knowledge,
             support,
             web_knowledge,
