@@ -61,6 +61,8 @@ class CLISessionState:
     ops_authorized: bool = True
     protocol_number: str | None = None
     operation: str | None = None
+    analytics_grain_context: str | None = None
+    protocol_context_transient: bool = False
 
 
 def build_headers(token: str, state: CLISessionState) -> dict[str, str]:
@@ -84,7 +86,11 @@ def build_payload(message: str, state: CLISessionState) -> dict[str, Any]:
         context = {"protocol_number": state.protocol_number}
         if state.operation:
             context["operation"] = state.operation
+        if state.protocol_context_transient:
+            context["transient"] = True
         payload["operational_context"] = context
+    if state.analytics_grain_context:
+        payload["analytics_grain_context"] = state.analytics_grain_context
     return payload
 
 
@@ -293,7 +299,6 @@ EXEMPLOS DE PERGUNTAS PARA TESTAR AS ROTAS:
 
   4. Bloqueio de Segurança:
      - Qual é a senha do banco de dados postgresql?
-     - SELECT * FROM audit.security_events
 ======================================================================
 """
     )
@@ -373,6 +378,7 @@ class ConsoleTraceSink:
 
     _LLM_LABELS = {
         "conversational_response": "LLM resposta",
+        "ops_synthesis_retry": "LLM sintese (nova tentativa)",
         "ops_planning": "LLM planejamento OPS",
         "ops_synthesis": "LLM síntese",
         "cooperative_synthesis": "Síntese cooperativa",
@@ -446,7 +452,28 @@ class ConsoleTraceSink:
             label = "Autorização OPS"
             detail = "YES" if event.value == "ALLOWED" else "NO"
         elif kind is RuntimeEventKind.OPS_PLAN:
-            if event.name == "evidence_need":
+            if event.name == "analytics_grain":
+                label, detail = "Grain", event.value or ""
+            elif event.name == "analytics_metric":
+                label, detail = "Métrica", event.value or ""
+            elif event.name == "analytics_ordering":
+                label, detail = "Ordenacao analitica", event.value or ""
+            elif event.name == "analytics_group_by":
+                label, detail = "Agregacao", event.value or ""
+            elif event.name == "analytics_window":
+                label, detail = "Janela temporal", event.value or ""
+            elif event.name == "analytics_interval":
+                label = "Intervalo resolvido"
+                start = event.start_date.isoformat() if event.start_date else "início aberto"
+                end = event.end_date.isoformat() if event.end_date else "fim aberto"
+                detail = f"{start} .. {end}"
+            elif event.name == "analytics_robot":
+                label, detail = "Filtro robot", event.value or ""
+            elif event.name == "analytics_outcome":
+                label, detail = "Filtro resultado", event.value or ""
+            elif event.name == "analytics_status":
+                label, detail = "Filtro status", event.value or ""
+            elif event.name == "evidence_need":
                 label = "Evidência solicitada OPS"
                 detail = event.value or ""
             elif event.name == "discovery_order":
@@ -568,13 +595,31 @@ def dispatch_message(
     """Send one message through the /chat boundary and print the result."""
     headers = build_headers(token, state)
     payload = build_payload(message, state)
+    used_transient_protocol = state.protocol_context_transient
     try:
         status_code, data = client.send_chat(headers, payload)
     except Exception as exc:
         print("\n[ERRO] Falha ao comunicar com o runtime. Detalhes omitidos.\n")
         return
+    if used_transient_protocol:
+        state.protocol_number = None
+        state.operation = None
+        state.protocol_context_transient = False
 
     if status_code == 200:
+        support = data.get("customer_support")
+        plan = support.get("operational_plan") if isinstance(support, dict) else None
+        analytics = plan.get("analytics") if isinstance(plan, dict) else None
+        grain = analytics.get("grain") if isinstance(analytics, dict) else None
+        if grain in {"PROTOCOL", "EXECUTION", "EVENT"}:
+            state.analytics_grain_context = grain
+        selected_protocol = support.get("selected_protocol_number") if isinstance(support, dict) else None
+        if state.ops_authorized and isinstance(selected_protocol, str) and re.fullmatch(
+            r"POC-OPS-\d{4}", selected_protocol, flags=re.IGNORECASE,
+        ):
+            state.protocol_number = selected_protocol.upper()
+            state.operation = None
+            state.protocol_context_transient = True
         print(_safe_console_text(format_chat_response(data)))
     else:
         error_info = data.get("error", {}) if isinstance(data, dict) else {}
@@ -631,6 +676,7 @@ def interactive_loop(
         if len(explicit_protocols) == 1 and state.ops_authorized:
             state.protocol_number = explicit_protocols[0]
             state.operation = None
+            state.protocol_context_transient = False
 
         normalized = user_input.lower()
         if normalized in {"exit", "quit", "sair", "/exit", "/quit", "/sair"}:

@@ -14,6 +14,7 @@ from apps.agent_api.app.database.models import (
     AutomationRunRecord, EmailAttachmentRecord, EstablishmentRecord, ExecutionFailureEvidence,
     ExecutionLogRecord, IncomingEmailRecord, ProtocolCaseFacts, ProtocolStatusFacts,
     RecentExecutedProtocolRecord, ServiceRequestRecord,
+    OperationalAnalyticsQuery, OperationalAnalyticsResult,
 )
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
@@ -42,6 +43,7 @@ class OperationalFactsRepository(Protocol):
     async def list_automation_runs_for_request(self, request_id: int) -> Sequence[AutomationRunRecord]: ...
     async def list_establishments_for_request(self, request_id: int) -> Sequence[EstablishmentRecord]: ...
     async def list_execution_timeline_for_request(self, request_id: int, limit: int) -> Sequence[ExecutionLogRecord]: ...
+    async def query_operational_analytics(self, query: OperationalAnalyticsQuery) -> OperationalAnalyticsResult: ...
 
 
 class ProtocolCaseToolResult(BaseModel):
@@ -166,6 +168,32 @@ class OperationalTools:
 
     def __init__(self, repository: OperationalFactsRepository) -> None:
         self._repository = repository
+
+    async def query_analytics(
+        self, query: OperationalAnalyticsQuery, authorization: OpsAccessContext
+    ) -> tuple[OpsToolStatus, OperationalAnalyticsResult | None, str]:
+        """Execute one validated, bounded analytics query after trusted authorization."""
+        if not authorization.can_read_operational_facts:
+            emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="query_analytics", value="DENIED")
+            return OpsToolStatus.UNAUTHORIZED, None, "OPERATIONAL_ACCESS_DENIED"
+        started = perf_counter()
+        emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="query_analytics", value="STARTED")
+        try:
+            result = await self._repository.query_operational_analytics(query)
+        except Exception:
+            emit_runtime_event(
+                RuntimeEventKind.REPOSITORY, name="query_operational_analytics",
+                value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - started) * 1000),
+            )
+            emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="query_analytics", value="CONTROLLED_ERROR")
+            return OpsToolStatus.REPOSITORY_ERROR, None, "OPERATIONAL_ANALYTICS_UNAVAILABLE"
+        emit_runtime_event(
+            RuntimeEventKind.REPOSITORY, name="query_operational_analytics",
+            value="COMPLETED", count=len(result.groups) or len(result.rows),
+            elapsed_ms=int((perf_counter() - started) * 1000),
+        )
+        emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="query_analytics", value="SUCCESS", count=result.total_count)
+        return OpsToolStatus.SUCCESS, result, "OPERATIONAL_ANALYTICS_COMPLETED"
 
     async def investigate_protocol(
         self,

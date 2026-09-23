@@ -1,5 +1,6 @@
 """Unit tests for the connection-bound OperationalRepository."""
 
+import asyncio
 import inspect
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
@@ -13,10 +14,74 @@ from apps.agent_api.app.database.models import (
     ExecutionLogRecord,
     ProtocolStatusFacts,
     ServiceRequestRecord,
+    OperationalAnalyticsQuery,
 )
 from apps.agent_api.app.database.repositories import operational as operational_module
 from apps.agent_api.app.database.repositories.operational import OperationalRepository
 from tests.repository_fakes import FakeConnection, normalized_sql
+
+
+def test_operational_analytics_uses_parameterized_db_side_grouping():
+    connection = FakeConnection([
+        {"outcome": "SUCCESS", "count": 4},
+        {"outcome": "FAILURE", "count": 2},
+    ])
+    repository = OperationalRepository(connection)
+    query = OperationalAnalyticsQuery(
+        grain="EXECUTION", metric="SUMMARY",
+        start_at=datetime(2026, 9, 14, tzinfo=UTC),
+        end_at=datetime(2026, 9, 21, tzinfo=UTC),
+        time_basis="EXECUTION_STARTED", robot_filter="R2",
+        group_by=("OUTCOME",), limit=5,
+    )
+    result = asyncio.run(repository.query_operational_analytics(query))
+    statement = normalized_sql(connection.statements[0])
+    assert "FROM ops.automation_runs" in statement
+    assert "GROUP BY outcome" in statement
+    assert "COUNT(*)::bigint" in statement
+    assert "2026-09-14" not in statement
+    assert connection.statements[0].parameters == (
+        datetime(2026, 9, 14, tzinfo=UTC), datetime(2026, 9, 21, tzinfo=UTC), "R2",
+    )
+    assert result.exists and result.total_count == 6
+    assert [group.count for group in result.groups] == [4, 2]
+
+
+def test_event_exact_status_filter_does_not_expand_to_normalized_failure():
+    connection = FakeConnection([{"count": 3}])
+    repository = OperationalRepository(connection)
+    query = OperationalAnalyticsQuery(
+        grain="EVENT", metric="COUNT", time_basis="EVENT_OCCURRED",
+        status_filter="ERROR",
+    )
+    asyncio.run(repository.query_operational_analytics(query))
+    statement = normalized_sql(connection.statements[0])
+    assert "status = %s" in statement
+    assert "status IN ('ERROR', 'EXCEPTION')" in statement  # normalization remains output-only
+    assert connection.statements[0].parameters == ("ERROR",)
+
+
+def test_protocol_analytics_orders_by_actual_first_run_timestamp():
+    connection = FakeConnection([
+        {
+            "protocol_number": "POC-OPS-0004", "run_id": None, "robot": None,
+            "status": "COMPLETED", "outcome": "SUCCESS",
+            "occurred_at": datetime(2025, 8, 1, tzinfo=UTC),
+            "finished_at": None, "event": None, "matched_count": 7,
+        }
+    ])
+    repository = OperationalRepository(connection)
+    query = OperationalAnalyticsQuery(
+        grain="PROTOCOL", metric="FIRST", time_basis="FIRST_EXECUTION",
+        ordering="EARLIEST", limit=1,
+    )
+    result = asyncio.run(repository.query_operational_analytics(query))
+    statement = normalized_sql(connection.statements[0])
+    assert "MIN(ar.started_at) AS first_execution_at" in statement
+    assert "service_requests" in statement
+    assert "created_at DESC" not in statement
+    assert result.rows[0].protocol_number == "POC-OPS-0004"
+    assert result.total_count == 7
 
 
 def _run_row(run_id: int) -> dict[str, object]:

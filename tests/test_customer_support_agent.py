@@ -313,6 +313,12 @@ def test_operational_plan_is_closed_and_validates_selector_and_limits() -> None:
     assert plan.intent.value == "RECENT_PROTOCOLS"
     assert plan.limit == 3
 
+    analytics = OperationalQueryPlan.model_validate_json(
+        '{"intent":"ANALYTICS","limit":50,"analytics":{"grain":"EXECUTION","metric":"COUNT","time":{"kind":"TODAY"}}}'
+    )
+    assert analytics.limit is None
+    assert analytics.analytics is not None and analytics.analytics.limit == 5
+
     for invalid in (
         '{"intent":"LATEST_PROTOCOL","sql":"SELECT 1"}',
         '{"intent":"PROTOCOL_STATUS"}',
@@ -558,6 +564,21 @@ def test_provider_cannot_promote_unsupported_root_cause_to_fact() -> None:
     assert result.status is CustomerSupportStatus.PROVIDER_ERROR
     assert result.reason == "INVALID_SUPPORT_PROVIDER_RESPONSE"
     assert result.facts == ()
+
+
+def test_invalid_synthesis_schema_gets_one_bounded_retry_without_reusing_bad_output() -> None:
+    provider = RecordingProvider([
+        LLMGenerationResult(content="not-json or usable synthesis"),
+        generated(),
+    ])
+    result = asyncio.run(CustomerSupportAgent(
+        FakeTools(lookup=lookup_success()), provider,
+    ).answer(request()))
+    assert result.status is CustomerSupportStatus.ANSWERED
+    assert len(provider.requests) == 2
+    retry_system = provider.requests[1].messages[0].content
+    assert "previous response did not satisfy the output schema" in retry_system
+    assert "not-json or usable synthesis" not in retry_system
 
 
 @pytest.mark.parametrize(

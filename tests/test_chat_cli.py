@@ -97,6 +97,25 @@ def test_ops_follow_up_selector_can_be_sent_without_forcing_a_fixed_operation() 
     }
 
 
+def test_analytics_grain_context_is_bounded_and_transient() -> None:
+    state = CLISessionState(analytics_grain_context="EXECUTION")
+    assert build_payload("quantas falharam em agosto?", state) == {
+        "message": "quantas falharam em agosto?",
+        "user_id": "test-client",
+        "analytics_grain_context": "EXECUTION",
+    }
+
+
+def test_inferred_protocol_selector_is_marked_transient_in_chat_payload() -> None:
+    state = CLISessionState(
+        role="SUPPORT_AGENT", ops_authorized=True, protocol_number="POC-OPS-0001",
+        protocol_context_transient=True,
+    )
+    assert build_payload("o que aconteceu nele?", state)["operational_context"] == {
+        "protocol_number": "POC-OPS-0001", "transient": True,
+    }
+
+
 @pytest.mark.parametrize(
     ("argv", "expected_role", "expected_ops"),
     [
@@ -301,6 +320,34 @@ def test_dispatch_message_success(capsys: pytest.CaptureFixture[str]) -> None:
     assert client.sent_requests[0][1]["message"] == "Hello"
 
 
+def test_dispatch_message_remembers_only_validated_analytics_grain(capsys: pytest.CaptureFixture[str]) -> None:
+    client = FakeChatClient(response_data={
+        "status": "COMPLETED", "route": "CUSTOMER_SUPPORT", "answer": "Resultado",
+        "customer_support": {"operational_plan": {"analytics": {"grain": "EXECUTION"}}},
+    })
+    state = CLISessionState()
+    dispatch_message(client, "test-token", state, "quantas execuções?")
+    assert state.analytics_grain_context == "EXECUTION"
+    assert "analytics_grain_context" not in client.sent_requests[0][1]
+
+
+def test_cli_uses_selected_protocol_for_one_transient_follow_up(capsys: pytest.CaptureFixture[str]) -> None:
+    client = FakeChatClient(response_data={
+        "status": "COMPLETED", "route": "CUSTOMER_SUPPORT", "answer": "POC-OPS-0001",
+        "customer_support": {"selected_protocol_number": "POC-OPS-0001"},
+    })
+    state = CLISessionState()
+    dispatch_message(client, "test-token", state, "qual foi o primeiro protocolo executado?")
+    assert state.protocol_number == "POC-OPS-0001"
+    assert state.protocol_context_transient is True
+
+    client.response_data = {"status": "COMPLETED", "route": "CUSTOMER_SUPPORT", "answer": "Detalhes"}
+    dispatch_message(client, "test-token", state, "o que aconteceu nele?")
+    assert client.sent_requests[1][1]["operational_context"]["protocol_number"] == "POC-OPS-0001"
+    assert state.protocol_number is None
+    assert state.protocol_context_transient is False
+
+
 def test_dispatch_message_error(capsys: pytest.CaptureFixture[str]) -> None:
     client = FakeChatClient(response_code=503, response_data={"error": {"code": "SERVICE_DOWN", "message": "Down"}})
     state = CLISessionState()
@@ -325,6 +372,19 @@ def test_trace_sink_prints_only_allowlisted_fields_and_flushes(capsys: pytest.Ca
     assert "OperationalRepository list_recent_protocols" in rendered
     assert "3 resultados" in rendered and "1.2s" in rendered
     assert "SELECT" not in rendered and "password" not in rendered and "prompt" not in rendered
+
+
+def test_analytics_trace_renders_exact_status_and_group_dimensions(capsys: pytest.CaptureFixture[str]) -> None:
+    sink = ConsoleTraceSink()
+    sink.emit(RuntimeTelemetryEvent(
+        kind=RuntimeEventKind.OPS_PLAN, name="analytics_status", value="ERROR",
+    ))
+    sink.emit(RuntimeTelemetryEvent(
+        kind=RuntimeEventKind.OPS_PLAN, name="analytics_group_by", value="OUTCOME",
+    ))
+    rendered = capsys.readouterr().out
+    assert "Filtro status" in rendered and "ERROR" in rendered
+    assert "Agregacao" in rendered and "OUTCOME" in rendered
 
 
 def test_trace_sink_disabled_emits_nothing(capsys: pytest.CaptureFixture[str]) -> None:

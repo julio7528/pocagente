@@ -17,6 +17,7 @@ from apps.agent_api.app.database.models import (
     ExecutionLogRecord,
     ProtocolStatusFacts,
     ServiceRequestRecord,
+    OperationalAnalyticsQuery,
 )
 from apps.agent_api.app.database.repositories.operational import OperationalRepository
 from tests.integration.support import run_async
@@ -220,6 +221,75 @@ def test_real_operational_repository_lifecycle_and_rollback(
                     assert isinstance(failure_facts[0], ExecutionFailureEvidence)
                     assert failure_facts[0].log_id == failure_log_id
                     assert failure_facts[0].last_successful_evidence is not None
+
+                    r2_run_id = await repository.create_automation_run(
+                        {"robot": "R2", "started_at": started_at + timedelta(milliseconds=500)}
+                    )
+                    await repository.update_automation_run(
+                        r2_run_id,
+                        {"finished_at": completed_at, "status": "SUCCESS", "result_message": "Synthetic R2 success"},
+                    )
+                    await repository.append_execution_log(
+                        {
+                            "run_id": r2_run_id,
+                            "logged_at": received_at + timedelta(milliseconds=500),
+                            "robot": "R2",
+                            "event": "SYNTHETIC_R2_COMPLETED",
+                            "status": "SUCCESS",
+                            "message": "Synthetic R2 completion event",
+                            "email_id": email_id,
+                            "attachment_id": attachment_id,
+                            "request_id": request_id,
+                            "establishment_id": establishment_id,
+                        }
+                    )
+
+                    exception_log_id = await repository.append_execution_log(
+                        {
+                            "run_id": run_id,
+                            "logged_at": completed_at + timedelta(milliseconds=1),
+                            "robot": "R1",
+                            "event": "SYNTHETIC_EXCEPTION",
+                            "status": "EXCEPTION",
+                            "message": "Synthetic exception status",
+                            "email_id": email_id,
+                            "attachment_id": attachment_id,
+                            "request_id": request_id,
+                            "establishment_id": establishment_id,
+                        }
+                    )
+                    assert exception_log_id > failure_log_id
+                    exact_error = await repository.query_operational_analytics(
+                        OperationalAnalyticsQuery(
+                            grain="EVENT", metric="COUNT", time_basis="EVENT_OCCURRED",
+                            start_at=completed_at, end_at=completed_at + timedelta(seconds=1),
+                            status_filter="ERROR",
+                        )
+                    )
+                    normalized_failures = await repository.query_operational_analytics(
+                        OperationalAnalyticsQuery(
+                            grain="EVENT", metric="COUNT", time_basis="EVENT_OCCURRED",
+                            start_at=completed_at, end_at=completed_at + timedelta(seconds=1),
+                            outcome_filter="FAILURE",
+                        )
+                    )
+                    assert exact_error.total_count == 1
+                    assert normalized_failures.total_count == 2
+                    protocol_count = await repository.query_operational_analytics(
+                        OperationalAnalyticsQuery(
+                            grain="PROTOCOL", metric="COUNT", time_basis="PROTOCOL_OUTCOME_AT",
+                            start_at=completed_at, end_at=completed_at + timedelta(seconds=1),
+                            outcome_filter="FAILURE",
+                        )
+                    )
+                    execution_count = await repository.query_operational_analytics(
+                        OperationalAnalyticsQuery(
+                            grain="EXECUTION", metric="COUNT", time_basis="EXECUTION_STARTED",
+                            start_at=started_at, end_at=started_at + timedelta(seconds=1),
+                        )
+                    )
+                    assert protocol_count.total_count == 1
+                    assert execution_count.total_count == 2
                     raise _RollbackScenario()
 
             async with database.connection() as connection:

@@ -20,6 +20,8 @@ from apps.agent_api.app.database.models import (
     RAGSourceRecord,
     SecurityEventRecord,
     ServiceRequestRecord,
+    OperationalAnalyticsQuery,
+    OperationalAnalyticsResult,
 )
 from apps.agent_api.app.rag.models import SearchCandidate
 from apps.agent_api.app.rag.scope import KnowledgeScope
@@ -169,6 +171,10 @@ class OperationalRepositoryContract(Protocol):
     async def list_recent_service_requests(self, limit: int) -> Sequence[ServiceRequestRecord]: ...
 
     async def list_recent_protocols_by_execution(self, limit: int) -> Sequence[RecentExecutedProtocolRecord]: ...
+
+    async def query_operational_analytics(
+        self, query: OperationalAnalyticsQuery
+    ) -> OperationalAnalyticsResult: ...
 
     async def upsert_establishment(self, establishment: RepositoryRecord) -> int: ...
 

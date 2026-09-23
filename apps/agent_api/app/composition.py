@@ -19,6 +19,7 @@ from apps.agent_api.app.database.connection import PostgresDatabase
 from apps.agent_api.app.database.models import (
     AutomationRunRecord, EmailAttachmentRecord, EstablishmentRecord, ExecutionFailureEvidence,
     ExecutionLogRecord, IncomingEmailRecord, ProtocolStatusFacts, RecentExecutedProtocolRecord, ServiceRequestRecord,
+    OperationalAnalyticsQuery, OperationalAnalyticsResult,
 )
 from apps.agent_api.app.security.audit import PostgresSecurityAuditSink, SecurityAuditService
 from apps.agent_api.app.security.semantic import OutputSecurityGate, SecurityResponseAgent, SemanticSecurityClassifier
@@ -60,6 +61,10 @@ class _PooledOperationalFactsRepository:
 
     def __init__(self, database: PostgresDatabase) -> None:
         self._database = database
+
+    async def query_operational_analytics(self, query: OperationalAnalyticsQuery) -> OperationalAnalyticsResult:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).query_operational_analytics(query)
 
     async def get_protocol_status_facts(self, protocol_number: str) -> Sequence[ProtocolStatusFacts]:
         async with self._database.connection() as connection:

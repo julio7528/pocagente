@@ -81,6 +81,7 @@ class RouterRequest(BaseModel):
 
     message: str
     ops_read_authorized: bool = False
+    protocol_context: str | None = Field(default=None, pattern=r"^POC-OPS-\d{4}$")
 
 
 class RouterDecision(BaseModel):
@@ -414,9 +415,25 @@ class RouterAgent:
                 ops_read_authorized=request.ops_read_authorized
             )
         )
+        if (
+            decision.route is RouterRoute.AMBIGUOUS
+            and request.ops_read_authorized
+            and request.protocol_context is not None
+        ):
+            # A trusted, bounded selector from the prior CLI turn can resolve a
+            # referential follow-up that the semantic classifier leaves ambiguous.
+            # It never grants OPS access and cannot override a security decision.
+            decision = self._decision(
+                RouterRoute.CUSTOMER_SUPPORT,
+                "AUTHORIZED_PROTOCOL_FOLLOW_UP_CONTEXT",
+            )
         decision = decision.model_copy(update={
             "semantic_intent": classification.intent,
-            "semantic_capability_needs": classification.capability_needs or SemanticClassification.default_needs(classification.intent),
+            "semantic_capability_needs": (
+                (SemanticCapabilityNeed.OPERATIONAL_FACTS,)
+                if decision.reason == "AUTHORIZED_PROTOCOL_FOLLOW_UP_CONTEXT"
+                else classification.capability_needs or SemanticClassification.default_needs(classification.intent)
+            ),
         })
         return decision
 

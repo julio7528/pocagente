@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from datetime import date
 from enum import StrEnum
 from typing import Iterator, Protocol
 
@@ -53,6 +54,8 @@ class RuntimeTelemetryEvent(BaseModel):
     limit: int | None = Field(default=None, ge=1, le=5)
     client_reused: bool | None = None
     input_characters: int | None = Field(default=None, ge=0)
+    start_date: date | None = None
+    end_date: date | None = None
 
     @field_validator("value")
     @classmethod
@@ -120,6 +123,8 @@ def emit_runtime_event(
     limit: int | None = None,
     client_reused: bool | None = None,
     input_characters: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> None:
     """Emit a validated allowlisted event without affecting application behavior."""
 
@@ -137,6 +142,8 @@ def emit_runtime_event(
             limit=limit,
             client_reused=client_reused,
             input_characters=input_characters,
+            start_date=start_date,
+            end_date=end_date,
         )
         sink.emit(event)
     except Exception:

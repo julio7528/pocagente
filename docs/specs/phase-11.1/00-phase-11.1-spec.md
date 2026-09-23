@@ -64,7 +64,8 @@ Implementation must not add one regex per failed sentence, hardcode Challenge an
 | `INTEG` | 9 | application/graph/API/CLI integration |
 | `SUPPORT` | 10 | cooperative capability selection, bounded evidence investigation, OPS correlation, internal-procedure grounding, and local CLI principal |
 | `VAL` | 7 | evidence and regression gates |
-| **Total** | **76** | individually traced in `05-validation-spec.md` and `06-cooperative-support-spec.md` |
+| `ANALYTICS` | 9 | composable temporal, grain-aware OPS analytics and deterministic time resolution |
+| **Total** | **85** | individually traced in `05-validation-spec.md`, `06-cooperative-support-spec.md`, and `07-temporal-ops-analytics-spec.md` |
 
 ## Implementation order after approval
 

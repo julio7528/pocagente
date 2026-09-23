@@ -28,6 +28,10 @@ from apps.agent_api.app.database.models import (
     ProtocolStatusFacts,
     RecentExecutedProtocolRecord,
     ServiceRequestRecord,
+    OperationalAnalyticsQuery,
+    OperationalAnalyticsResult,
+    OperationalAnalyticsRow,
+    OperationalAnalyticsGroup,
 )
 from apps.agent_api.app.database.repositories.base import BaseRepository
 from apps.agent_api.app.database.repositories.contracts import RepositoryRecord
@@ -431,6 +435,137 @@ class OperationalRepository(BaseRepository):
             await cursor.execute(statement, (limit,))
             rows = await cursor.fetchall()
         return tuple(map_recent_executed_protocol(row) for row in rows)
+
+    async def query_operational_analytics(
+        self, query: OperationalAnalyticsQuery
+    ) -> OperationalAnalyticsResult:
+        """Run one bounded grain-specific query; all selectable fragments are closed allowlists."""
+        if query.grain == "EXECUTION":
+            basis = {
+                "EXECUTION_STARTED": "started_at",
+                "EXECUTION_FINISHED": "finished_at",
+            }[query.time_basis]
+            base = f"""SELECT run_id, NULL::text AS protocol_number, robot, status,
+                CASE WHEN status = 'SUCCESS' THEN 'SUCCESS'
+                     WHEN status = 'ERROR' THEN 'FAILURE' ELSE 'OTHER' END AS outcome,
+                {basis} AS occurred_at, finished_at, NULL::text AS event
+                FROM ops.automation_runs"""
+        elif query.grain == "EVENT":
+            base = """SELECT NULL::bigint AS run_id, NULL::text AS protocol_number, robot, status,
+                CASE WHEN status = 'SUCCESS' THEN 'SUCCESS'
+                     WHEN status IN ('ERROR', 'EXCEPTION') THEN 'FAILURE' ELSE 'OTHER' END AS outcome,
+                logged_at AS occurred_at, NULL::timestamptz AS finished_at, event
+                FROM ops.execution_log"""
+        else:
+            basis = {
+                "PROTOCOL_CREATED": "COALESCE(domain_created.created_at, sr.created_at)",
+                "PROTOCOL_OUTCOME_AT": "CASE WHEN sr.status = 'COMPLETED' THEN sr.completed_at WHEN sr.status = 'FAILED' THEN failures.failure_at ELSE COALESCE(domain_created.created_at, sr.created_at) END",
+                "FIRST_EXECUTION": "run_times.first_execution_at",
+                "LAST_EXECUTION": "run_times.last_execution_at",
+            }[query.time_basis]
+            base = f"""WITH correlated_runs AS (
+                    SELECT request_id, r1_run_id AS run_id FROM ops.service_requests
+                    UNION SELECT request_id, run_id FROM ops.execution_log WHERE request_id IS NOT NULL
+                    UNION SELECT e.request_id, el.run_id FROM ops.execution_log AS el
+                          JOIN ops.establishments AS e ON e.establishment_id = el.establishment_id
+                    UNION SELECT sr0.request_id, el.run_id FROM ops.execution_log AS el
+                          JOIN ops.service_requests AS sr0 ON sr0.email_id = el.email_id
+                    UNION SELECT sr0.request_id, el.run_id FROM ops.execution_log AS el
+                          JOIN ops.email_attachments AS ea ON ea.attachment_id = el.attachment_id
+                          JOIN ops.service_requests AS sr0 ON sr0.email_id = ea.email_id
+                ), run_times AS (
+                    SELECT cr.request_id, MIN(ar.started_at) AS first_execution_at,
+                           MAX(ar.started_at) AS last_execution_at
+                    FROM correlated_runs AS cr
+                    JOIN ops.automation_runs AS ar ON ar.run_id = cr.run_id
+                    WHERE cr.request_id IS NOT NULL GROUP BY cr.request_id
+                ), domain_created AS (
+                    SELECT request_id, MIN(logged_at) AS created_at
+                    FROM ops.execution_log
+                    WHERE event = 'PROTOCOLO_CRIADO' AND request_id IS NOT NULL
+                    GROUP BY request_id
+                ), linked_events AS (
+                    SELECT request_id, logged_at, status FROM ops.execution_log WHERE request_id IS NOT NULL
+                    UNION SELECT e.request_id, el.logged_at, el.status FROM ops.execution_log AS el
+                          JOIN ops.establishments AS e ON e.establishment_id = el.establishment_id
+                    UNION SELECT sr0.request_id, el.logged_at, el.status FROM ops.execution_log AS el
+                          JOIN ops.service_requests AS sr0 ON sr0.email_id = el.email_id
+                    UNION SELECT sr0.request_id, el.logged_at, el.status FROM ops.execution_log AS el
+                          JOIN ops.email_attachments AS ea ON ea.attachment_id = el.attachment_id
+                          JOIN ops.service_requests AS sr0 ON sr0.email_id = ea.email_id
+                ), failures AS (
+                    SELECT request_id, MAX(logged_at) AS failure_at FROM linked_events
+                    WHERE status IN ('ERROR', 'EXCEPTION') GROUP BY request_id
+                )
+                SELECT NULL::bigint AS run_id, sr.protocol_number, NULL::text AS robot,
+                    sr.status,
+                    CASE WHEN sr.status = 'COMPLETED' THEN 'SUCCESS'
+                         WHEN sr.status = 'FAILED' THEN 'FAILURE' ELSE 'OTHER' END AS outcome,
+                    {basis} AS occurred_at, sr.completed_at AS finished_at, NULL::text AS event
+                FROM ops.service_requests AS sr
+                LEFT JOIN run_times ON run_times.request_id = sr.request_id
+                LEFT JOIN domain_created ON domain_created.request_id = sr.request_id
+                LEFT JOIN failures ON failures.request_id = sr.request_id"""
+
+        predicates: list[str] = ["occurred_at IS NOT NULL"] if query.time_basis in {"FIRST_EXECUTION", "LAST_EXECUTION", "EXECUTION_FINISHED", "PROTOCOL_OUTCOME_AT"} else []
+        parameters: list[object] = []
+        if query.start_at is not None:
+            predicates.append("occurred_at >= %s")
+            parameters.append(query.start_at)
+        if query.end_at is not None:
+            predicates.append("occurred_at < %s")
+            parameters.append(query.end_at)
+        if query.outcome_filter is not None:
+            predicates.append("outcome = %s")
+            parameters.append(query.outcome_filter)
+        if query.status_filter is not None:
+            predicates.append("status = %s")
+            parameters.append(query.status_filter)
+        if query.robot_filter is not None:
+            predicates.append("robot = %s")
+            parameters.append(query.robot_filter)
+        where = " WHERE " + " AND ".join(predicates) if predicates else ""
+        cte = f"WITH base AS ({base}), filtered AS (SELECT * FROM base{where}) "
+
+        if query.metric in {"LIST", "FIRST", "LAST"}:
+            direction = "ASC" if query.ordering == "EARLIEST" or query.metric == "FIRST" else "DESC"
+            sql_text = cte + f"""SELECT protocol_number, run_id, robot, status, outcome,
+                occurred_at, finished_at, event, COUNT(*) OVER()::bigint AS matched_count FROM filtered
+                ORDER BY occurred_at {direction}, COALESCE(run_id, 0) {direction}, protocol_number {direction}
+                LIMIT %s"""
+            async with self._cursor(row_factory=dict_row) as cursor:
+                await cursor.execute(sql_text, (*parameters, query.limit))
+                raw_rows = await cursor.fetchall()
+            matched_count = int(raw_rows[0]["matched_count"]) if raw_rows else 0
+            rows = tuple(
+                OperationalAnalyticsRow(**{key: value for key, value in row.items() if key != "matched_count"})
+                for row in raw_rows
+            )
+            return OperationalAnalyticsResult(exists=matched_count > 0, total_count=matched_count, rows=rows)
+
+        group_expressions = {
+            "OUTCOME": ("outcome", "outcome"),
+            "ROBOT": ("robot", "robot"),
+        }
+        selected = [group_expressions[group][0] for group in query.group_by]
+        if selected:
+            selection = ", ".join((*selected, "COUNT(*)::bigint AS count"))
+            grouping = " GROUP BY " + ", ".join(selected)
+            ordering = " ORDER BY " + ", ".join(f"{column} ASC" for column in selected)
+            sql_text = cte + f"SELECT {selection} FROM filtered{grouping}{ordering}"
+            async with self._cursor(row_factory=dict_row) as cursor:
+                await cursor.execute(sql_text, tuple(parameters))
+                raw_groups = await cursor.fetchall()
+            groups = tuple(OperationalAnalyticsGroup(**row) for row in raw_groups)
+            total = sum(group.count for group in groups)
+        else:
+            sql_text = cte + "SELECT COUNT(*)::bigint AS count FROM filtered"
+            async with self._cursor(row_factory=dict_row) as cursor:
+                await cursor.execute(sql_text, tuple(parameters))
+                row = await cursor.fetchone()
+            total = int(row["count"]) if row else 0
+            groups = (OperationalAnalyticsGroup(count=total),)
+        return OperationalAnalyticsResult(exists=total > 0, total_count=total, groups=groups)
 
     async def upsert_establishment(self, establishment: RepositoryRecord) -> int:
         columns = _validate_record(

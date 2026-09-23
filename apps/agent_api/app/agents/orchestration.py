@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from time import perf_counter
-from typing import Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -98,6 +98,7 @@ class CustomerSupportContext(BaseModel):
     protocol_number: str | None = Field(default=None, min_length=1)
     operation: CustomerSupportOperation | None = None
     run_id: int | None = Field(default=None, gt=0)
+    transient: bool = False
 
 
 class OrchestrationRequest(BaseModel):
@@ -108,6 +109,7 @@ class OrchestrationRequest(BaseModel):
     message: str = Field(min_length=1)
     ops_access_context: OpsAccessContext | None = None
     customer_support_context: CustomerSupportContext | None = None
+    analytics_grain_context: Literal["PROTOCOL", "EXECUTION", "EVENT"] | None = None
     human_escalation_request: HumanEscalationRequest | None = None
     security_audit_context: SecurityAuditContext | None = None
 
@@ -329,6 +331,10 @@ class LangGraphOrchestrator:
         request = state["request"]
         router_request = RouterRequest(
             message=request.message,
+            protocol_context=(
+                request.customer_support_context.protocol_number
+                if request.customer_support_context is not None else None
+            ),
             ops_read_authorized=(
                 request.ops_access_context is not None
                 and request.ops_access_context.can_read_operational_facts
@@ -502,14 +508,19 @@ class LangGraphOrchestrator:
         emit_runtime_event(RuntimeEventKind.OPS_AUTHORIZATION, value="ALLOWED")
         started_at = perf_counter()
         emit_runtime_event(RuntimeEventKind.CAPABILITY, name="CustomerSupportAgent", value="STARTED")
+        follow_up_context_applies = (
+            context is not None
+            and (not context.transient or state["routing_decision"].reason == "AUTHORIZED_PROTOCOL_FOLLOW_UP_CONTEXT")
+        )
         try:
             result = await self._customer_support_agent.answer(
                 CustomerSupportRequest(
                     question=state["request"].message,
-                    protocol_number=context.protocol_number if context else None,
-                    operation=context.operation if context else None,
+                    protocol_number=context.protocol_number if follow_up_context_applies else None,
+                    operation=context.operation if follow_up_context_applies else None,
                     authorization=authorization,
-                    run_id=context.run_id if context else None,
+                    run_id=context.run_id if follow_up_context_applies else None,
+                    analytics_grain_context=state["request"].analytics_grain_context,
                 )
             )
         except Exception:

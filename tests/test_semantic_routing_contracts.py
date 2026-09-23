@@ -228,6 +228,23 @@ def test_async_router_awaits_classifier_and_maps_without_provider_policy_fields(
     assert decision.capabilities == (RouterCapability.KNOWLEDGE,)
 
 
+def test_authorized_protocol_context_resolves_ambiguous_follow_up_only_for_ops_principal() -> None:
+    request = RouterRequest(
+        message="public question", ops_read_authorized=True, protocol_context="POC-OPS-0001",
+    )
+    decision = asyncio.run(RouterAgent(
+        AsyncClassifier(classification(SemanticIntent.AMBIGUOUS))
+    ).route_async(request))
+    assert decision.route is RouterRoute.CUSTOMER_SUPPORT
+    assert decision.reason == "AUTHORIZED_PROTOCOL_FOLLOW_UP_CONTEXT"
+    assert decision.semantic_capability_needs == (SemanticCapabilityNeed.OPERATIONAL_FACTS,)
+
+    unauthorized = asyncio.run(RouterAgent(
+        AsyncClassifier(classification(SemanticIntent.AMBIGUOUS))
+    ).route_async(request.model_copy(update={"ops_read_authorized": False})))
+    assert unauthorized.route is RouterRoute.AMBIGUOUS
+
+
 @pytest.mark.parametrize("failure", [TimeoutError(), SemanticClassifierError("provider")])
 def test_async_classifier_failure_degrades_to_non_escalating_ambiguous(failure: Exception) -> None:
     decision = asyncio.run(

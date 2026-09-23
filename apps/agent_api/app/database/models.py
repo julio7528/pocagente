@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RAGSourceRecord(BaseModel):
@@ -117,6 +118,87 @@ class RecentExecutedProtocolRecord(BaseModel):
 
     service_request: ServiceRequestRecord
     last_execution_at: datetime
+
+
+class OperationalAnalyticsQuery(BaseModel):
+    """Validated parameter bundle for fixed, read-only OPS analytics queries."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    grain: Literal["PROTOCOL", "EXECUTION", "EVENT"]
+    metric: Literal["EXISTS", "COUNT", "LIST", "FIRST", "LAST", "SUMMARY"]
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+    time_basis: Literal[
+        "PROTOCOL_CREATED", "PROTOCOL_OUTCOME_AT", "FIRST_EXECUTION", "LAST_EXECUTION",
+        "EXECUTION_STARTED", "EXECUTION_FINISHED", "EVENT_OCCURRED",
+    ]
+    outcome_filter: Literal["SUCCESS", "FAILURE", "OTHER"] | None = None
+    status_filter: Literal[
+        "CREATED", "PROCESSING", "WAITING_RESULT", "COMPLETED", "FAILED",
+        "RUNNING", "SUCCESS", "PARTIAL", "ERROR", "EXCEPTION",
+    ] | None = None
+    robot_filter: Literal["R1", "R2"] | None = None
+    ordering: Literal["EARLIEST", "LATEST"] | None = None
+    group_by: tuple[Literal["OUTCOME", "ROBOT"], ...] = ()
+    limit: int = Field(default=5, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def validate_window(self) -> OperationalAnalyticsQuery:
+        for bound in (self.start_at, self.end_at):
+            if bound is not None and bound.utcoffset() is None:
+                raise ValueError("analytics query bounds must be timezone-aware")
+        if self.start_at is not None and self.end_at is not None and self.end_at <= self.start_at:
+            raise ValueError("analytics time range must be non-empty")
+        allowed_bases = {
+            "PROTOCOL": {"PROTOCOL_CREATED", "PROTOCOL_OUTCOME_AT", "FIRST_EXECUTION", "LAST_EXECUTION"},
+            "EXECUTION": {"EXECUTION_STARTED", "EXECUTION_FINISHED"},
+            "EVENT": {"EVENT_OCCURRED"},
+        }
+        if self.time_basis not in allowed_bases[self.grain]:
+            raise ValueError("analytics time basis does not match grain")
+        if self.robot_filter is not None and self.grain == "PROTOCOL":
+            raise ValueError("robot filtering is not supported at protocol grain")
+        allowed_statuses = {
+            "PROTOCOL": {"CREATED", "PROCESSING", "WAITING_RESULT", "COMPLETED", "FAILED"},
+            "EXECUTION": {"RUNNING", "SUCCESS", "PARTIAL", "ERROR"},
+            "EVENT": {"SUCCESS", "ERROR", "EXCEPTION"},
+        }
+        if self.status_filter is not None and self.status_filter not in allowed_statuses[self.grain]:
+            raise ValueError("exact status filter does not match analytical grain")
+        return self
+
+
+class OperationalAnalyticsRow(BaseModel):
+    """One bounded selected protocol, execution, or event fact."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    protocol_number: str | None = None
+    run_id: int | None = None
+    robot: str | None = None
+    status: str
+    outcome: Literal["SUCCESS", "FAILURE", "OTHER"]
+    occurred_at: datetime
+    finished_at: datetime | None = None
+    event: str | None = None
+
+
+class OperationalAnalyticsGroup(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    outcome: Literal["SUCCESS", "FAILURE", "OTHER"] | None = None
+    robot: Literal["R1", "R2"] | None = None
+    count: int = Field(ge=0)
+
+
+class OperationalAnalyticsResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    exists: bool
+    total_count: int = Field(ge=0)
+    rows: tuple[OperationalAnalyticsRow, ...] = ()
+    groups: tuple[OperationalAnalyticsGroup, ...] = ()
 
 
 class EstablishmentRecord(BaseModel):

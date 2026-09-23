@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -58,6 +58,7 @@ class ChatOperationalContext(BaseModel):
     protocol_number: str = Field(min_length=1, max_length=128)
     operation: ChatSupportOperation | None = None
     run_id: int | None = Field(default=None, gt=0)
+    transient: bool = False
 
 
 class ChatHandoffFact(BaseModel):
@@ -114,6 +115,7 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     user_id: str = Field(min_length=1, max_length=128)
     operational_context: ChatOperationalContext | None = None
+    analytics_grain_context: Literal["PROTOCOL", "EXECUTION", "EVENT"] | None = None
     human_context: ChatHumanContext | None = None
 
     @field_validator("message", "user_id")
@@ -160,6 +162,7 @@ class ChatSupportPayload(BaseModel):
     status: str
     answer: str | None = None
     operational_plan: OperationalQueryPlan | None = None
+    selected_protocol_number: str | None = None
     facts: tuple[ChatSupportFact, ...] = ()
     inferences: tuple[ChatSupportInference, ...] = ()
 
@@ -383,6 +386,7 @@ class ChatApplicationService:
                         can_read_operational_facts=principal.can_read_operational_facts,
                     ),
                     customer_support_context=operational,
+                    analytics_grain_context=request.analytics_grain_context,
                     human_escalation_request=human,
                     security_audit_context=audit_context,
                 )
@@ -438,6 +442,7 @@ class ChatApplicationService:
             protocol_number=context.protocol_number,
             operation=(CustomerSupportOperation(context.operation.value) if context.operation else None),
             run_id=context.run_id,
+            transient=context.transient,
         )
 
     @staticmethod
@@ -528,6 +533,7 @@ class ChatApplicationService:
                 status=result.customer_support_result.status.value,
                 answer=_safe_text(result.customer_support_result.answer),
                 operational_plan=result.customer_support_result.plan,
+                selected_protocol_number=result.customer_support_result.selected_protocol_number,
                 facts=tuple(
                     ChatSupportFact(source=_safe_fact_source(item.source), statement=_safe_text(item.statement) or "Sensitive content withheld.")
                     for item in result.customer_support_result.facts

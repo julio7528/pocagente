@@ -84,6 +84,15 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-SUPPORT-008` | cooperative-query formulation and INTERNAL RAG tests prove remediation questions use PDD/SDD evidence and never Public Web authority |
 | `REQ-P11R-SUPPORT-009` | cooperative synthesis tests preserve citations and distinguish observed FACT from documented behavior and INFERENCE |
 | `REQ-P11R-SUPPORT-010` | plain local CLI runs with labeled synthetic support principal; explicit CLIENT mode remains unauthorized; `/chat` production auth regression stays unchanged |
+| `REQ-P11R-ANALYTICS-001` | strict composable analytics plan accepts only closed grain/metric/time/filter/order/group dimensions; paraphrase planner matrix |
+| `REQ-P11R-ANALYTICS-002` | protocol/execution/event grain fixtures prove distinct row cardinality and outcome mapping |
+| `REQ-P11R-ANALYTICS-003` | frozen-clock/calendar-boundary tests for all temporal expressions and configured zone; no model timestamps |
+| `REQ-P11R-ANALYTICS-004` | timestamp-basis tests distinguish protocol creation, run start/finish, log event, and persistence fallback |
+| `REQ-P11R-ANALYTICS-005` | real repository first/last protocol execution timestamps match correlated run-domain records |
+| `REQ-P11R-ANALYTICS-006` | SQL/repository tests prove allowlisted parameterized bounded queries and DB-side grouped counts |
+| `REQ-P11R-ANALYTICS-007` | explicit grain runs without clarification; ambiguous “cases” requests one short clarification only when material |
+| `REQ-P11R-ANALYTICS-008` | CLIENT unauthorized spy proves zero analytics tool/repository calls |
+| `REQ-P11R-ANALYTICS-009` | 22-query plain CLI matrix, unseen paraphrases, PostgreSQL cross-checks, zero-result case, and latency record |
 
 ## Scenario traceability
 
