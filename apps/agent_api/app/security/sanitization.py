@@ -16,6 +16,8 @@ _PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         _REDACTED,
     ),
     (re.compile(r"\bsk-[A-Za-z0-9_-]+\b", re.IGNORECASE), _REDACTED),
+    (re.compile(r"\\\\[^\s\"']+"), _REDACTED),
+    (re.compile(r"(?i)\b(?:host|hostname|server|servidor|path|caminho)\s*(?:=|:)\s*[^\s,;]+"), _REDACTED),
     (
         re.compile(r"\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"),
         _REDACTED,

@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 
-from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts, ServiceRequestRecord
+from apps.agent_api.app.database.models import (
+    AutomationRunRecord, EmailAttachmentRecord, EstablishmentRecord, ExecutionFailureEvidence,
+    ExecutionLogRecord, IncomingEmailRecord, ProtocolStatusFacts, ServiceRequestRecord,
+)
 from apps.agent_api.app.tools.ops import (
     ExecutionFailureToolResult,
     OpsAccessContext,
@@ -55,6 +58,49 @@ class FakeOperationalRepository:
         return self.recent_records[:limit]
 
 
+class CaseRepository:
+    def __init__(self) -> None:
+        self.calls = []
+        self.now = NOW
+
+    async def get_service_request_by_protocol(self, protocol_number):
+        self.calls.append("request")
+        return ServiceRequestRecord(
+            request_id=10, protocol_number=protocol_number, email_id=20, r1_run_id=30,
+            created_at=NOW, updated_at=NOW, status="FAILED",
+        )
+
+    async def get_incoming_email(self, email_id):
+        self.calls.append("email")
+        return IncomingEmailRecord(
+            email_id=email_id, run_id=30, received_at=NOW, sender="sender@example.invalid",
+            recipient="ops@example.invalid", attachment_count=0, sender_status="VALID",
+            processing_status="PROCESSED", created_at=NOW,
+        )
+
+    async def list_email_attachments(self, email_id):
+        self.calls.append("attachments")
+        return ()
+
+    async def list_automation_runs_for_request(self, request_id):
+        self.calls.append("runs")
+        return (AutomationRunRecord(
+            run_id=30, robot="R1", started_at=NOW, finished_at=NOW, status="SUCCESS", created_at=NOW,
+        ),)
+
+    async def list_establishments_for_request(self, request_id):
+        self.calls.append("establishments")
+        return ()
+
+    async def list_execution_timeline_for_request(self, request_id, limit):
+        self.calls.append("timeline")
+        return ()
+
+    async def get_execution_failure_facts(self, protocol_number, run_id=None):
+        self.calls.append("failure")
+        return ()
+
+
 AUTHORIZED = OpsAccessContext(principal_id="test-support-operator", can_read_operational_facts=True)
 DENIED = OpsAccessContext(principal_id="test-untrusted-user", can_read_operational_facts=False)
 NOW = datetime(2026, 9, 1, tzinfo=UTC)
@@ -101,6 +147,33 @@ def test_lookup_protocol_status_returns_typed_observed_facts() -> None:
     assert repository.protocol_calls == ["POC-OPS-0002"]
     assert "diagnosis" not in ProtocolStatusToolResult.model_fields
     assert "root_cause" not in ProtocolStatusToolResult.model_fields
+
+
+def test_investigation_resolves_only_requested_categories_through_typed_reads() -> None:
+    from apps.agent_api.app.tools.ops import OpsEvidenceCategory
+
+    repository = CaseRepository()
+    result = asyncio.run(OperationalTools(repository).investigate_protocol(
+        "POC-OPS-0004",
+        (OpsEvidenceCategory.ORIGIN_EMAIL, OpsEvidenceCategory.AUTOMATION_RUNS),
+        AUTHORIZED,
+    ))
+    assert result.status is OpsToolStatus.SUCCESS
+    assert result.facts is not None
+    assert result.facts.incoming_email is not None
+    assert [run.robot for run in result.facts.automation_runs] == ["R1"]
+    assert repository.calls == ["request", "email", "runs"]
+
+
+def test_investigation_denial_does_not_read_any_case_facts() -> None:
+    from apps.agent_api.app.tools.ops import OpsEvidenceCategory
+
+    repository = CaseRepository()
+    result = asyncio.run(OperationalTools(repository).investigate_protocol(
+        "POC-OPS-0004", (OpsEvidenceCategory.EXECUTION_TIMELINE,), DENIED,
+    ))
+    assert result.status is OpsToolStatus.UNAUTHORIZED
+    assert repository.calls == []
 
 
 def test_lookup_invalid_or_unauthorized_never_calls_repository() -> None:

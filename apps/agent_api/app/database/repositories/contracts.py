@@ -9,10 +9,13 @@ from uuid import UUID
 
 from apps.agent_api.app.database.models import (
     AutomationRunRecord,
+    EmailAttachmentRecord,
     EstablishmentRecord,
     ExecutionFailureEvidence,
     ExecutionLogRecord,
+    IncomingEmailRecord,
     ProtocolStatusFacts,
+    RecentExecutedProtocolRecord,
     RAGDocumentRecord,
     RAGSourceRecord,
     SecurityEventRecord,
@@ -126,6 +129,10 @@ class OperationalRepositoryContract(Protocol):
 
     async def get_automation_run(self, run_id: int) -> AutomationRunRecord | None: ...
 
+    async def list_automation_runs_for_request(
+        self, request_id: int
+    ) -> Sequence[AutomationRunRecord]: ...
+
     async def create_incoming_email(self, email: RepositoryRecord) -> int: ...
 
     async def update_incoming_email(
@@ -134,6 +141,8 @@ class OperationalRepositoryContract(Protocol):
         changes: RepositoryRecord,
     ) -> None: ...
 
+    async def get_incoming_email(self, email_id: int) -> IncomingEmailRecord | None: ...
+
     async def create_email_attachment(self, attachment: RepositoryRecord) -> int: ...
 
     async def update_email_attachment(
@@ -141,6 +150,8 @@ class OperationalRepositoryContract(Protocol):
         attachment_id: int,
         changes: RepositoryRecord,
     ) -> None: ...
+
+    async def list_email_attachments(self, email_id: int) -> Sequence[EmailAttachmentRecord]: ...
 
     async def create_service_request(self, request: RepositoryRecord) -> int: ...
 
@@ -156,6 +167,8 @@ class OperationalRepositoryContract(Protocol):
     ) -> ServiceRequestRecord | None: ...
 
     async def list_recent_service_requests(self, limit: int) -> Sequence[ServiceRequestRecord]: ...
+
+    async def list_recent_protocols_by_execution(self, limit: int) -> Sequence[RecentExecutedProtocolRecord]: ...
 
     async def upsert_establishment(self, establishment: RepositoryRecord) -> int: ...
 

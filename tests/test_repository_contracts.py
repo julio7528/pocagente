@@ -40,6 +40,9 @@ OPERATIONAL_METHODS = {
     "create_service_request",
     "update_service_request",
     "get_service_request_by_protocol",
+    "get_incoming_email",
+    "list_email_attachments",
+    "list_automation_runs_for_request",
     "upsert_establishment",
     "update_establishment",
     "list_establishments_for_request",
@@ -49,6 +52,7 @@ OPERATIONAL_METHODS = {
     "get_protocol_status_facts",
     "get_execution_failure_facts",
     "list_recent_service_requests",
+    "list_recent_protocols_by_execution",
 }
 AUDIT_METHODS = {
     "write_sanitized_security_event",

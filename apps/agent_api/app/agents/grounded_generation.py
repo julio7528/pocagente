@@ -143,7 +143,12 @@ async def generate_grounded_outcome(
         reasoning_enabled=False,
     )
     started_at = perf_counter()
-    emit_runtime_event(RuntimeEventKind.LLM, name="grounded_generation", value="STARTED")
+    emit_runtime_event(
+        RuntimeEventKind.LLM,
+        name="grounded_generation",
+        value="STARTED",
+        count=len(available_citation_ids),
+    )
     try:
         generated = await provider.generate(request)
         outcome = parse_grounded_generation(generated.content)

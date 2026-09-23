@@ -38,11 +38,13 @@ from apps.agent_api.app.agents.semantic_routing import SemanticIntent
 from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.tools.ops import OpsAccessContext
 from apps.agent_api.app.security.models import (
+    SecurityAction as AuditAction,
     SecurityAuditContext,
     SecurityAuditResult,
     SecurityAuditStatus,
     SecurityClassification,
 )
+from apps.agent_api.app.security.semantic import SecurityCategory
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
 
@@ -63,7 +65,7 @@ class CustomerSupportCapability(Protocol):
 class WebKnowledgeCapability(Protocol):
     """Controlled live-public Knowledge boundary used only for approved web routes."""
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, *, knowledge_scope: KnowledgeScope = KnowledgeScope.NONE) -> KnowledgeResult:
         """Return a typed result based on non-persistent live web evidence."""
 
 
@@ -83,6 +85,8 @@ class SecurityAuditCapability(Protocol):
         message: str,
         context: SecurityAuditContext,
         security_semantics: tuple[SecurityClassification, ...],
+        source_component: str = "router_security_guardrail",
+        action_taken: AuditAction = AuditAction.BLOCK,
     ) -> SecurityAuditResult: ...
 
 
@@ -92,7 +96,7 @@ class CustomerSupportContext(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     protocol_number: str | None = Field(default=None, min_length=1)
-    operation: CustomerSupportOperation = CustomerSupportOperation.PROTOCOL_STATUS
+    operation: CustomerSupportOperation | None = None
     run_id: int | None = Field(default=None, gt=0)
 
 
@@ -143,6 +147,7 @@ class OrchestrationResult(BaseModel):
     human_escalation_required: bool = False
     human_escalation_result: HumanEscalationResult | None = None
     reason: str = Field(min_length=1)
+    security_semantics: tuple[SecurityClassification, ...] = ()
 
     @model_validator(mode="after")
     def conversational_result_is_exclusive(self) -> OrchestrationResult:
@@ -240,6 +245,7 @@ class LangGraphOrchestrator:
             human_escalation_required=state.get("human_escalation_required", False),
             human_escalation_result=state.get("human_escalation_result"),
             reason=state["reason"],
+            security_semantics=state["routing_decision"].security_semantics,
         )
         emit_runtime_event(
             RuntimeEventKind.ORCHESTRATION,
@@ -248,12 +254,32 @@ class LangGraphOrchestrator:
         )
         return result
 
+    async def audit_output_security_block(
+        self, *, message: str, context: SecurityAuditContext, category: SecurityCategory,
+        action_taken: AuditAction = AuditAction.BLOCK,
+    ) -> SecurityAuditResult:
+        """Persist a sanitized outbound-policy event through the existing AUDIT boundary."""
+        if self._security_audit_service is None:
+            return SecurityAuditResult(status=SecurityAuditStatus.UNAVAILABLE, reason="SECURITY_AUDIT_UNAVAILABLE")
+        semantics = RouterAgent._semantic_security_audit_semantics(category)
+        if not semantics:
+            return SecurityAuditResult(status=SecurityAuditStatus.UNAVAILABLE, reason="SECURITY_AUDIT_CATEGORY_UNAVAILABLE")
+        try:
+            return await self._security_audit_service.record_router_security_block(
+                message=message, context=context, security_semantics=semantics,
+                source_component="output_security_gate",
+                action_taken=action_taken,
+            )
+        except Exception:
+            return SecurityAuditResult(status=SecurityAuditStatus.UNAVAILABLE, reason="SECURITY_AUDIT_UNAVAILABLE")
+
     def _build_graph(self):
         graph = StateGraph(OrchestrationState)
         graph.add_node("router", self._router_node)
         graph.add_node("conversational", self._conversational_node)
         graph.add_node("knowledge", self._knowledge_node)
         graph.add_node("customer_support", self._customer_support_node)
+        graph.add_node("cooperative_synthesis", self._cooperative_synthesis_node)
         graph.add_node("web_knowledge", self._web_knowledge_node)
         graph.add_node("security_terminal", self._security_terminal)
         graph.add_node("ambiguous_terminal", self._ambiguous_terminal)
@@ -268,7 +294,7 @@ class LangGraphOrchestrator:
                 "knowledge": "knowledge",
                 "conversational": "conversational",
                 "customer_support": "customer_support",
-                "cooperative": "knowledge",
+                "cooperative": "customer_support",
                 "web_fallback": "web_knowledge",
                 "human": "human_escalation",
                 "security": "security_terminal",
@@ -281,14 +307,16 @@ class LangGraphOrchestrator:
             {
                 "customer_support": "customer_support",
                 "web_fallback": "web_knowledge",
+                "cooperative_synthesis": "cooperative_synthesis",
                 "assembly": "assembly",
             },
         )
         graph.add_conditional_edges(
             "customer_support",
             self._route_after_customer_support,
-            {"human": "human_escalation", "assembly": "assembly"},
+            {"human": "human_escalation", "knowledge": "knowledge", "assembly": "assembly"},
         )
+        graph.add_edge("cooperative_synthesis", "assembly")
         graph.add_edge("web_knowledge", "assembly")
         graph.add_edge("conversational", "assembly")
         graph.add_edge("security_terminal", "assembly")
@@ -314,6 +342,8 @@ class LangGraphOrchestrator:
         else:
             decision = await route_async(router_request)
         emit_runtime_event(RuntimeEventKind.ROUTER, value=decision.route.value)
+        for need in decision.semantic_capability_needs:
+            emit_runtime_event(RuntimeEventKind.CAPABILITY_NEED, value=need.value)
         emit_runtime_event(RuntimeEventKind.KNOWLEDGE_SCOPE, value=decision.knowledge_scope.value)
         if decision.web_search_policy is not WebSearchPolicy.NONE:
             emit_runtime_event(RuntimeEventKind.WEB_POLICY, value=decision.web_search_policy.value)
@@ -345,12 +375,16 @@ class LangGraphOrchestrator:
     @staticmethod
     def _route_after_customer_support(state: OrchestrationState) -> str:
         human = state["request"].human_escalation_request
-        return "human" if human is not None and human.action is HumanEscalationAction.OFFER else "assembly"
+        if human is not None and human.action is HumanEscalationAction.OFFER:
+            return "human"
+        if state["routing_decision"].route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT:
+            return "knowledge"
+        return "assembly"
 
     @staticmethod
     def _route_after_knowledge(state: OrchestrationState) -> str:
         if state["routing_decision"].route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT:
-            return "customer_support"
+            return "cooperative_synthesis"
         if (
             state["routing_decision"].web_search_policy
             is WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT
@@ -362,10 +396,20 @@ class LangGraphOrchestrator:
     async def _knowledge_node(self, state: OrchestrationState) -> dict[str, KnowledgeResult]:
         started_at = perf_counter()
         emit_runtime_event(RuntimeEventKind.CAPABILITY, name="KnowledgeAgent", value="STARTED")
+        question = state["request"].message
+        if state["routing_decision"].route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT:
+            formulate = getattr(self._customer_support_agent, "formulate_internal_knowledge_query", None)
+            if formulate is not None:
+                try:
+                    formulated = await formulate(question, state.get("customer_support_result"))
+                except Exception:
+                    formulated = None
+                if isinstance(formulated, str) and formulated.strip():
+                    question = formulated
         try:
             result = await self._knowledge_agent.answer(
                 KnowledgeRequest(
-                    question=state["request"].message,
+                    question=question,
                     knowledge_scope=state["knowledge_scope"],
                 )
             )
@@ -382,6 +426,17 @@ class LangGraphOrchestrator:
             elapsed_ms=int((perf_counter() - started_at) * 1000),
         )
         return {"knowledge_result": result, "persistent_knowledge_result": result}
+
+    async def _cooperative_synthesis_node(self, state: OrchestrationState) -> dict[str, CustomerSupportResult]:
+        support = state.get("customer_support_result")
+        knowledge = state.get("knowledge_result")
+        synthesize = getattr(self._customer_support_agent, "synthesize_cooperative", None)
+        if support is not None and knowledge is not None and synthesize is not None:
+            try:
+                support = await synthesize(state["request"].message, support, knowledge)
+            except Exception:
+                pass
+        return {"customer_support_result": support} if support is not None else {}
 
     async def _conversational_node(self, state: OrchestrationState) -> dict[str, ConversationalResult]:
         started_at = perf_counter()
@@ -410,7 +465,9 @@ class LangGraphOrchestrator:
                 "web_fallback_required": True,
             }
         try:
-            result = await self._web_knowledge_agent.answer(state["request"].message)
+            result = await self._web_knowledge_agent.answer(
+                state["request"].message, knowledge_scope=state["knowledge_scope"]
+            )
         except Exception:
             result = KnowledgeResult(
                 question=state["request"].message,
@@ -471,6 +528,13 @@ class LangGraphOrchestrator:
     async def _security_terminal(
         self, state: OrchestrationState
     ) -> dict[str, OrchestrationStatus | str]:
+        if not state["routing_decision"].security_audit_required:
+            emit_runtime_event(RuntimeEventKind.SECURITY_AUDIT, value="TAXONOMY_UNAVAILABLE")
+            emit_runtime_event(RuntimeEventKind.SECURITY, value="CONTINUATION_INTERRUPTED")
+            return {
+                "status": OrchestrationStatus.SECURITY_BLOCKED,
+                "reason": "SECURITY_AUDIT_CATEGORY_UNAVAILABLE",
+            }
         context = state["request"].security_audit_context
         emit_runtime_event(RuntimeEventKind.SECURITY_AUDIT, value="STARTED")
         if self._security_audit_service is None or context is None:
@@ -479,11 +543,22 @@ class LangGraphOrchestrator:
                 "status": OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
                 "reason": "SECURITY_AUDIT_UNAVAILABLE",
             }
-        result = await self._security_audit_service.record_router_security_block(
-            message=state["request"].message,
-            context=context,
-            security_semantics=state["routing_decision"].security_semantics,
-        )
+        audit_kwargs = {
+            "message": state["request"].message,
+            "context": context,
+            "security_semantics": state["routing_decision"].security_semantics,
+        }
+        if state["routing_decision"].reason == "SEMANTIC_SECURITY_POLICY_BLOCK":
+            audit_kwargs["source_component"] = "semantic_security_classifier"
+        try:
+            result = await self._security_audit_service.record_router_security_block(**audit_kwargs)
+        except TypeError:
+            # Compatibility for legacy narrow audit doubles; production service
+            # accepts the safe source-component label.
+            if "source_component" not in audit_kwargs:
+                raise
+            audit_kwargs.pop("source_component")
+            result = await self._security_audit_service.record_router_security_block(**audit_kwargs)
         emit_runtime_event(
             RuntimeEventKind.SECURITY_AUDIT,
             value="RECORDED" if result.status is SecurityAuditStatus.RECORDED else "UNAVAILABLE",

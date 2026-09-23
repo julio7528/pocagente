@@ -8,6 +8,7 @@ from typing import Protocol
 from apps.agent_api.app.database.connection import PostgresDatabase
 from apps.agent_api.app.database.repositories.audit import AuditRepository
 from apps.agent_api.app.security.models import (
+    SecurityAction,
     SecurityClassification,
     SanitizedSecurityEvent,
     SecurityAuditContext,
@@ -62,6 +63,8 @@ class SecurityAuditService:
         message: str,
         context: SecurityAuditContext,
         security_semantics: tuple[SecurityClassification, ...],
+        source_component: str = "router_security_guardrail",
+        action_taken: SecurityAction = SecurityAction.BLOCK,
     ) -> SecurityAuditResult:
         """Record one request's typed policy-trigger events without reclassifying user text."""
 
@@ -78,6 +81,8 @@ class SecurityAuditService:
                     request_reference=context.request_reference,
                     resource_category=semantic.resource_category,
                     sanitized_content=sanitized_content,
+                    source_component=source_component,
+                    action_taken=action_taken,
                 )
                 for semantic in security_semantics
             )

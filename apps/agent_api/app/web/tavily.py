@@ -11,6 +11,8 @@ import httpx
 from .config import TavilyConfig
 from .errors import WebSearchResponseError, WebSearchTimeoutError, WebSearchUnavailableError
 from .models import WebEvidence, WebSearchRequest, WebSearchResult, WebSearchStatus
+from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
+from time import perf_counter
 
 
 class TavilyWebSearchProvider:
@@ -19,28 +21,85 @@ class TavilyWebSearchProvider:
     def __init__(self, config: TavilyConfig, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._config = config
         self._transport = transport
+        self._client = httpx.AsyncClient(timeout=self._config.timeout_seconds, transport=self._transport)
+        self._request_count = 0
+        self._closed = False
+
+    async def aclose(self) -> None:
+        """Close the application-scoped HTTP connection pool idempotently."""
+
+        if self._closed:
+            return
+        self._closed = True
+        await self._client.aclose()
 
     async def search(self, request: WebSearchRequest) -> WebSearchResult:
+        request_started_at = perf_counter()
+        if self._closed:
+            raise WebSearchUnavailableError()
+        client_reused = self._request_count > 0
+        self._request_count += 1
         payload = {
             "api_key": self._config.api_key.get_secret_value(),
             "query": request.query,
-            "max_results": request.max_results,
+            "max_results": request.max_results or self._config.max_results,
             "search_depth": "basic",
             "include_answer": False,
             "include_raw_content": False,
         }
+        if request.include_domains:
+            payload["include_domains"] = list(request.include_domains)
+        http_started_at = perf_counter()
+        emit_runtime_event(
+            RuntimeEventKind.PROVIDER_HTTP,
+            name="tavily",
+            value="STARTED",
+            client_reused=client_reused,
+        )
+        parse_started_at: float | None = None
         try:
-            async with httpx.AsyncClient(timeout=self._config.timeout_seconds, transport=self._transport) as client:
-                response = await client.post(str(self._config.base_url), json=payload)
-                response.raise_for_status()
-                body = response.json()
+            response = await self._client.post(str(self._config.base_url), json=payload)
+            response.raise_for_status()
+            emit_runtime_event(
+                RuntimeEventKind.PROVIDER_HTTP,
+                name="tavily",
+                value="RESPONSE_RECEIVED",
+                elapsed_ms=int((perf_counter() - http_started_at) * 1000),
+                client_reused=client_reused,
+            )
+            parse_started_at = perf_counter()
+            emit_runtime_event(RuntimeEventKind.PROVIDER_PARSE, name="tavily", value="STARTED")
+            body = response.json()
+            result = self._extract_result(body)
+            emit_runtime_event(
+                RuntimeEventKind.PROVIDER_PARSE,
+                name="tavily",
+                value="COMPLETED",
+                elapsed_ms=int((perf_counter() - parse_started_at) * 1000),
+            )
         except httpx.TimeoutException as error:
+            emit_runtime_event(RuntimeEventKind.PROVIDER_HTTP, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - http_started_at) * 1000), client_reused=client_reused)
+            emit_runtime_event(RuntimeEventKind.PROVIDER_REQUEST, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - request_started_at) * 1000))
             raise WebSearchTimeoutError() from error
         except httpx.HTTPError as error:
+            emit_runtime_event(RuntimeEventKind.PROVIDER_HTTP, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - http_started_at) * 1000), client_reused=client_reused)
+            emit_runtime_event(RuntimeEventKind.PROVIDER_REQUEST, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - request_started_at) * 1000))
             raise WebSearchUnavailableError() from error
         except (TypeError, ValueError) as error:
+            emit_runtime_event(RuntimeEventKind.PROVIDER_PARSE, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=(int((perf_counter() - parse_started_at) * 1000) if parse_started_at is not None else 0))
+            emit_runtime_event(RuntimeEventKind.PROVIDER_REQUEST, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - request_started_at) * 1000))
             raise WebSearchResponseError() from error
-        return self._extract_result(body)
+        except WebSearchResponseError:
+            emit_runtime_event(RuntimeEventKind.PROVIDER_PARSE, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=(int((perf_counter() - parse_started_at) * 1000) if parse_started_at is not None else 0))
+            emit_runtime_event(RuntimeEventKind.PROVIDER_REQUEST, name="tavily", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - request_started_at) * 1000))
+            raise
+        emit_runtime_event(
+            RuntimeEventKind.PROVIDER_REQUEST,
+            name="tavily",
+            value="COMPLETED",
+            elapsed_ms=int((perf_counter() - request_started_at) * 1000),
+        )
+        return result
 
     @staticmethod
     def _extract_result(body: object) -> WebSearchResult:

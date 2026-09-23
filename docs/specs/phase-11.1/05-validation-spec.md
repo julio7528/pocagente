@@ -45,6 +45,14 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-SEC-005` | per-request forbidden-capability delta spies |
 | `REQ-P11R-SEC-006` | PostgreSQL/pgvector high-level question non-block test |
 | `REQ-P11R-SEC-007` | semantic-output cannot change security classification test |
+| `REQ-P11R-SEC-008` | deterministic -> semantic security -> business Router ordering; zero downstream calls after either block |
+| `REQ-P11R-SEC-009` | provider-neutral decision schema and paired functional-vs-implementation security matrix |
+| `REQ-P11R-SEC-010` | generated refusal receives safe metadata only; provider failure/invalid response uses fallback |
+| `REQ-P11R-SEC-011` | current AUDIT event/resource taxonomy and sanitized PostgreSQL-row verification |
+| `REQ-P11R-SEC-012` | every route output/handoff is checked by deterministic and semantic output gates |
+| `REQ-P11R-SEC-013` | synthetic credential/path/connection-string redaction or blocking; safe regeneration excludes candidate |
+| `REQ-P11R-SEC-014` | RAG/OPS/Web injection and protected implementation leakage tests; functional support remains available |
+| `REQ-P11R-SEC-015` | contextual inappropriate-content tests plus audit-taxonomy compatibility review |
 | `REQ-P11R-CONV-001` | `oi`, `bom dia`, `obrigado`, orientation tests |
 | `REQ-P11R-CONV-002` | zero-capability invocation observation |
 | `REQ-P11R-CONV-003` | substantive-prefix route tests |
@@ -66,6 +74,16 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-VAL-005` | Phase 11 RAG + Challenge regression execution, artifacts preserved |
 | `REQ-P11R-VAL-006` | full pytest, compileall, pip check, imports, diff check, secret scan |
 | `REQ-P11R-VAL-007` | real CLI/runtime cases prove natural conversational generation, authorized discovery without preselection, inline protocol selection, and relational OPS synthesis |
+| `REQ-P11R-SUPPORT-001` | capability-needs schema and deterministic route-mapping tests; semantic paraphrase matrix |
+| `REQ-P11R-SUPPORT-002` | authorized/unauthorized tests prove routing never creates OPS authorization |
+| `REQ-P11R-SUPPORT-003` | investigation-plan schema/property tests reject SQL, schema identifiers, arbitrary selectors, tool names, credentials, and authority |
+| `REQ-P11R-SUPPORT-004` | iterative investigation tests prove evidence accumulation, sufficiency stop, and three-round bound |
+| `REQ-P11R-SUPPORT-005` | mapping/repository tests cover approved OPS read models and real FK relationships without raw rows escaping |
+| `REQ-P11R-SUPPORT-006` | protocol aggregate integration tests trace email, R1, R2, attachments, establishments, and log evidence to one protocol |
+| `REQ-P11R-SUPPORT-007` | real-row tests distinguish request-created recency from execution-domain recency and expose timestamp discrepancies |
+| `REQ-P11R-SUPPORT-008` | cooperative-query formulation and INTERNAL RAG tests prove remediation questions use PDD/SDD evidence and never Public Web authority |
+| `REQ-P11R-SUPPORT-009` | cooperative synthesis tests preserve citations and distinguish observed FACT from documented behavior and INFERENCE |
+| `REQ-P11R-SUPPORT-010` | plain local CLI runs with labeled synthetic support principal; explicit CLIENT mode remains unauthorized; `/chat` production auth regression stays unchanged |
 
 ## Scenario traceability
 
@@ -88,3 +106,10 @@ Later implementation must run Router, LangGraph, Knowledge, WebKnowledge, securi
 * `REQ-P11R-VAL-005`: closed Phase 11 RAG/Challenge evidence is preserved and re-run only as regression.
 * `REQ-P11R-VAL-006`: static, environment, dependency, and secret-safety gates pass.
 * `REQ-P11R-VAL-007`: the real CLI/runtime demonstrates natural conversational generation, authorized OPS discovery without preselected context, inline protocol selection, and relational operational synthesis.
+
+The owner-requested acceptance matrix and unprompted paraphrases are in
+`06-cooperative-support-spec.md`. All required support questions and
+generalization paraphrases must be exercised against the real local
+application/database where their evidence exists. A fabricated or unsupported
+fact, missing required relational evidence, unauthorized OPS call, or missing
+internal procedure participation is a failure and blocks progression.

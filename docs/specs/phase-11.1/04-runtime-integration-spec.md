@@ -14,9 +14,11 @@ FastAPI /chat -> ChatApplicationService -> RouterAgent -> LangGraphOrchestrator
 
 OPS authorization and operational selection are separate. Authorization is derived only from trusted authenticated application claims/context and is checked before any OPS planning or tool call. An optional protocol/run selector may come from trusted preselection or from a validated strict typed plan over the current message; a selector never establishes authorization. Authorized discovery plans may omit a selector when the approved operation, such as recent-protocol listing, does not need one.
 
-Authorized Customer Support may use an LLM-generated strict typed operational plan over an application-owned allowlist of read-only capabilities. The closed plan contains only an approved intent and bounded typed selectors/limits. It cannot contain SQL, table/column names, arbitrary filters, credentials, routes, authorization, or repository/tool names. Application code validates and dispatches the plan to typed repository-bound operations. The LLM may synthesize answers from supplied typed facts, explicitly separating FACT from INFERENCE; SQL construction and data access remain in application/repository code.
+Authorized Customer Support may use an LLM-generated strict typed operational investigation plan over an application-owned allowlist of read-only evidence categories. The closed plan contains an objective, bounded protocol/run/limit selectors, optional bounded discovery criteria, and an ordered/deduplicated set of evidence needs. It cannot contain SQL, table/column names, JOINs, arbitrary filters, credentials, routes, authorization, or repository/tool names. Application code validates and dispatches the plan to typed repository-bound operations. Investigation is bounded to at most three rounds. The LLM may synthesize answers from supplied typed facts, explicitly separating FACT from INFERENCE; SQL construction and data access remain in application/repository code.
 
-For `LATEST_PROTOCOL` and `RECENT_PROTOCOLS`, “recent” means greatest `ops.service_requests.created_at` (protocol creation/persistence time), with `request_id DESC` as a deterministic tie-breaker. This answers which protocol was created most recently; status-update recency is a separate question and is not implied.
+For questions about required procedure, expected behavior, correctness, remediation, or reprocessing, the deterministic capability mapper may select the existing cooperative INTERNAL Knowledge + Customer Support path. The Knowledge query is formulated from the original question and only selected safe observed facts; it must not use a protocol identifier as the sole process-document query. Internal PDD/SDD evidence and observed OPS facts are combined only in a validated grounded synthesis. Public Web is never procedure authority.
+
+For latest-request discovery, “recent” means greatest `ops.service_requests.created_at` (record/request creation time), with `request_id DESC` as a deterministic tie-breaker. For latest-execution discovery, ordering uses actual `ops.automation_runs.started_at` and/or correlated `ops.execution_log.logged_at`, according to a documented definition of the last execution for a request; database persistence `created_at` and protocol-string ordering are not substitutes. If domain timestamps conflict, the response preserves the discrepancy.
 
 The Router semantic operation and LangGraph router node are natively async when a provider classification is required. Security preflight runs first; then the graph awaits classification through its normal async execution path. No sync facade may call the provider through `asyncio.run()`, nested event loops, blocking waits, or ad-hoc thread wrappers.
 
@@ -29,6 +31,13 @@ Any route/intent/scope/status additions are additive, validated, and safe to exp
 The authenticated `/chat` allowlist may expose the validated semantic intent and closed operational plan for observability. The plan contains only its approved intent and bounded selectors/limit; it never exposes raw model output or authority fields. Authorization remains solely in the trusted application context and is not serialized into the plan.
 
 `scripts/chat_cli.py` remains a manual harness over the real application boundary. It may later render approved typed public route/intent/scope/status fields, but must not route, secure, retrieve, decide fallback, or emulate business behavior itself.
+
+The local developer CLI may default to an explicitly labeled synthetic
+`SUPPORT_AGENT` principal with OPS read authorization so that the normal local
+invocation exercises the approved POC support path. Explicit `CLIENT` and
+unauthorized options remain available. This is CLI-only test identity; it does
+not change production authentication, `AuthenticatedPrincipal`, or `/chat`
+authorization.
 
 ## Requirements
 

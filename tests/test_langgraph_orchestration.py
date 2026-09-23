@@ -133,7 +133,7 @@ class RecordingSupport:
 
 
 class RecordingWebKnowledge(RecordingKnowledge):
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, **kwargs) -> KnowledgeResult:
         self.questions.append(question)
         if isinstance(self.result, Exception):
             raise self.result

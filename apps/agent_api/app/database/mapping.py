@@ -11,10 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from apps.agent_api.app.database.models import (
     AutomationRunRecord,
+    EmailAttachmentRecord,
     EstablishmentRecord,
     ExecutionFailureEvidence,
     ExecutionLogRecord,
+    IncomingEmailRecord,
     ProtocolStatusFacts,
+    RecentExecutedProtocolRecord,
     RAGDocumentRecord,
     RAGSourceRecord,
     SecurityEventRecord,
@@ -107,9 +110,29 @@ def map_automation_run(row: Mapping[str, object]) -> AutomationRunRecord:
     return AutomationRunRecord(**row)
 
 
+def map_incoming_email(row: Mapping[str, object]) -> IncomingEmailRecord:
+    """Map a raw ops.incoming_emails row to IncomingEmailRecord."""
+    return IncomingEmailRecord(**row)
+
+
+def map_email_attachment(row: Mapping[str, object]) -> EmailAttachmentRecord:
+    """Map a raw ops.email_attachments row to EmailAttachmentRecord."""
+    return EmailAttachmentRecord(**row)
+
+
 def map_service_request(row: Mapping[str, object]) -> ServiceRequestRecord:
     """Map a raw ops.service_requests row to ServiceRequestRecord."""
     return ServiceRequestRecord(**row)
+
+
+def map_recent_executed_protocol(row: Mapping[str, object]) -> RecentExecutedProtocolRecord:
+    """Map a request plus the latest authoritative run start timestamp."""
+    data = dict(row)
+    last_execution_at = data.pop("last_execution_at")
+    return RecentExecutedProtocolRecord(
+        service_request=map_service_request(data),
+        last_execution_at=last_execution_at,
+    )
 
 
 def map_establishment(row: Mapping[str, object]) -> EstablishmentRecord:

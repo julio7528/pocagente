@@ -29,6 +29,17 @@ class SemanticIntent(StrEnum):
     AMBIGUOUS = "AMBIGUOUS"
 
 
+class SemanticCapabilityNeed(StrEnum):
+    """Semantic capability needs; none of these values conveys authority."""
+
+    CONVERSATIONAL = "CONVERSATIONAL"
+    INTERNAL_KNOWLEDGE = "INTERNAL_KNOWLEDGE"
+    PUBLIC_GETNET = "PUBLIC_GETNET"
+    OPERATIONAL_FACTS = "OPERATIONAL_FACTS"
+    CURRENT_WEB = "CURRENT_WEB"
+    HUMAN = "HUMAN"
+
+
 class SemanticClassification(BaseModel):
     """Strict provider-neutral semantic result with no policy authority."""
 
@@ -36,6 +47,23 @@ class SemanticClassification(BaseModel):
 
     schema_version: Literal["1.0"]
     intent: SemanticIntent
+    capability_needs: tuple[SemanticCapabilityNeed, ...] = ()
+
+    @classmethod
+    def default_needs(cls, intent: SemanticIntent) -> tuple[SemanticCapabilityNeed, ...]:
+        return {
+            SemanticIntent.CONVERSATIONAL: (SemanticCapabilityNeed.CONVERSATIONAL,),
+            SemanticIntent.INTERNAL_KNOWLEDGE: (SemanticCapabilityNeed.INTERNAL_KNOWLEDGE,),
+            SemanticIntent.PUBLIC_GETNET_KNOWLEDGE: (SemanticCapabilityNeed.PUBLIC_GETNET,),
+            SemanticIntent.CUSTOMER_SUPPORT: (SemanticCapabilityNeed.OPERATIONAL_FACTS,),
+            SemanticIntent.EXPECTED_VS_OBSERVED: (
+                SemanticCapabilityNeed.INTERNAL_KNOWLEDGE, SemanticCapabilityNeed.OPERATIONAL_FACTS,
+            ),
+            SemanticIntent.GENERAL_PUBLIC_INFORMATION: (SemanticCapabilityNeed.CURRENT_WEB,),
+            SemanticIntent.CURRENT_PUBLIC_INFORMATION: (SemanticCapabilityNeed.CURRENT_WEB,),
+            SemanticIntent.HUMAN_REQUEST: (SemanticCapabilityNeed.HUMAN,),
+            SemanticIntent.AMBIGUOUS: (),
+        }[intent]
 
 
 class SemanticRoutingContext(BaseModel):
@@ -78,7 +106,19 @@ class SemanticIntentMapper:
 
         trusted = context or SemanticRoutingContext()
         intent = classification.intent
-        if intent is SemanticIntent.CONVERSATIONAL:
+        needs = classification.capability_needs or SemanticClassification.default_needs(intent)
+        if len(set(needs)) != len(needs):
+            return SemanticIntentMapper.safe_failure("SEMANTIC_CAPABILITY_NEEDS_INVALID")
+        need_set = frozenset(needs)
+        if need_set == {SemanticCapabilityNeed.OPERATIONAL_FACTS, SemanticCapabilityNeed.INTERNAL_KNOWLEDGE}:
+            return RouterDecision(
+                status=RouterStatus.ROUTED,
+                route=RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT,
+                capabilities=(RouterCapability.KNOWLEDGE, RouterCapability.CUSTOMER_SUPPORT),
+                knowledge_scope=KnowledgeScope.INTERNAL,
+                reason="SEMANTIC_INTERNAL_AND_OPERATIONAL_NEEDS",
+            )
+        if need_set == {SemanticCapabilityNeed.CONVERSATIONAL}:
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.CONVERSATIONAL,
@@ -86,7 +126,7 @@ class SemanticIntentMapper:
                 knowledge_scope=KnowledgeScope.NONE,
                 reason="SEMANTIC_CONVERSATIONAL",
             )
-        if intent is SemanticIntent.INTERNAL_KNOWLEDGE:
+        if need_set == {SemanticCapabilityNeed.INTERNAL_KNOWLEDGE}:
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.KNOWLEDGE,
@@ -94,7 +134,7 @@ class SemanticIntentMapper:
                 knowledge_scope=KnowledgeScope.INTERNAL,
                 reason="SEMANTIC_INTERNAL_KNOWLEDGE",
             )
-        if intent is SemanticIntent.PUBLIC_GETNET_KNOWLEDGE:
+        if need_set == {SemanticCapabilityNeed.PUBLIC_GETNET}:
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.KNOWLEDGE,
@@ -103,7 +143,7 @@ class SemanticIntentMapper:
                 knowledge_scope=KnowledgeScope.PUBLIC_GETNET,
                 reason="SEMANTIC_PUBLIC_GETNET_KNOWLEDGE",
             )
-        if intent is SemanticIntent.CUSTOMER_SUPPORT:
+        if need_set == {SemanticCapabilityNeed.OPERATIONAL_FACTS}:
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.CUSTOMER_SUPPORT,
@@ -111,20 +151,7 @@ class SemanticIntentMapper:
                 knowledge_scope=KnowledgeScope.NONE,
                 reason="SEMANTIC_CUSTOMER_SUPPORT",
             )
-        if intent is SemanticIntent.EXPECTED_VS_OBSERVED:
-            if not trusted.ops_read_authorized:
-                return SemanticIntentMapper.safe_failure("OPERATIONAL_ACCESS_DENIED")
-            return RouterDecision(
-                status=RouterStatus.ROUTED,
-                route=RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT,
-                capabilities=(RouterCapability.KNOWLEDGE, RouterCapability.CUSTOMER_SUPPORT),
-                knowledge_scope=KnowledgeScope.INTERNAL,
-                reason="SEMANTIC_EXPECTED_AND_OBSERVED",
-            )
-        if intent in {
-            SemanticIntent.GENERAL_PUBLIC_INFORMATION,
-            SemanticIntent.CURRENT_PUBLIC_INFORMATION,
-        }:
+        if need_set == {SemanticCapabilityNeed.CURRENT_WEB}:
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK,
@@ -137,7 +164,7 @@ class SemanticIntentMapper:
                     else "SEMANTIC_GENERAL_PUBLIC_INFORMATION"
                 ),
             )
-        if intent is SemanticIntent.HUMAN_REQUEST:
+        if need_set == {SemanticCapabilityNeed.HUMAN}:
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.HUMAN_ESCALATION,
@@ -145,9 +172,9 @@ class SemanticIntentMapper:
                 knowledge_scope=KnowledgeScope.NONE,
                 reason="SEMANTIC_HUMAN_REQUEST",
             )
-        if intent is SemanticIntent.AMBIGUOUS:
+        if not need_set:
             return SemanticIntentMapper.safe_failure("SEMANTIC_AMBIGUOUS")
-        raise SemanticClassifierError("unsupported semantic intent")
+        return SemanticIntentMapper.safe_failure("SEMANTIC_CAPABILITY_COMBINATION_UNSUPPORTED")
 
     @staticmethod
     def safe_failure(reason: str = "SEMANTIC_CLASSIFIER_UNAVAILABLE"):

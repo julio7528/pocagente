@@ -8,11 +8,15 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from apps.agent_api.app.database.models import ProtocolCaseFacts
+
 from apps.agent_api.app.database.mapping import (
     map_automation_run,
+    map_email_attachment,
     map_establishment,
     map_execution_failure_evidence,
     map_execution_log,
+    map_incoming_email,
     map_protocol_status_facts,
     map_rag_document,
     map_rag_source,
@@ -181,6 +185,43 @@ def test_map_automation_run_positive() -> None:
     assert result.run_id == 5
     assert result.robot == "R1"
     assert result.status == "SUCCESS"
+
+
+def test_map_incoming_email_positive() -> None:
+    now = datetime.now(timezone.utc)
+    result = map_incoming_email({
+        "email_id": 4, "run_id": 5, "received_at": now, "processed_at": None,
+        "sender": "support@example.test", "recipient": "ops@example.test",
+        "subject": "Cancelamento", "attachment_count": 1, "sender_status": "VALID",
+        "processing_status": "PROCESSED", "rejection_reason": None, "created_at": now,
+    })
+    assert result.email_id == 4 and result.run_id == 5
+    assert result.sender == "support@example.test"
+
+
+def test_map_email_attachment_positive() -> None:
+    now = datetime.now(timezone.utc)
+    result = map_email_attachment({
+        "attachment_id": 8, "email_id": 4, "file_name": "pedido.txt", "file_type": "text/plain",
+        "received_at": now, "validation_status": "VALID", "validation_message": None,
+        "establishment_count": 1, "processing_status": "PROCESSED", "created_at": now,
+    })
+    assert result.attachment_id == 8 and result.email_id == 4
+    assert result.file_name == "pedido.txt"
+
+
+def test_protocol_case_facts_is_typed_aggregate_of_observed_records() -> None:
+    now = datetime.now(timezone.utc)
+    request = {
+        "request_id": 12, "protocol_number": "POC-OPS-0004", "email_id": 4,
+        "r1_run_id": 5, "created_at": now, "updated_at": now, "status": "FAILED",
+        "result": None, "failure_reason": "Observed failure", "completed_at": None,
+        "return_email_at": None,
+    }
+    aggregate = ProtocolCaseFacts.model_validate({"service_request": request})
+    assert aggregate.service_request.protocol_number == "POC-OPS-0004"
+    assert aggregate.incoming_email is None
+    assert aggregate.execution_timeline == ()
 
 
 def test_map_service_request_positive() -> None:

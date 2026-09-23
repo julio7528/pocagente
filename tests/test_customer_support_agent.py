@@ -11,10 +11,12 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportAgent,
     CustomerSupportOperation,
     CustomerSupportRequest,
+    CustomerSupportResult,
     CustomerSupportStatus,
+    OperationalEvidenceNeed,
     OperationalQueryPlan,
 )
-from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts, ServiceRequestRecord
+from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolCaseFacts, ProtocolStatusFacts, ServiceRequestRecord
 from apps.agent_api.app.llm.errors import LLMProviderTimeoutError
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult
 from apps.agent_api.app.tools.ops import (
@@ -22,6 +24,7 @@ from apps.agent_api.app.tools.ops import (
     OpsAccessContext,
     OpsToolStatus,
     ProtocolStatusToolResult,
+    ProtocolCaseToolResult,
     RecentProtocolsToolResult,
 )
 
@@ -79,6 +82,7 @@ class FakeTools:
         self.failure_calls: list[tuple[str, OpsAccessContext, int | None]] = []
         self.recent_result = RecentProtocolsToolResult(status=OpsToolStatus.NOT_FOUND, reason="NO_PROTOCOLS_FOUND")
         self.recent_calls: list[tuple[int, OpsAccessContext]] = []
+        self.investigation_calls = []
 
     async def lookup_protocol_status(
         self, protocol_number: str, authorization: OpsAccessContext
@@ -99,6 +103,24 @@ class FakeTools:
     async def list_recent_protocols(self, limit: int, authorization: OpsAccessContext) -> RecentProtocolsToolResult:
         self.recent_calls.append((limit, authorization))
         return self.recent_result
+
+    async def investigate_protocol(self, protocol_number, evidence_needs, authorization):
+        self.investigation_calls.append((protocol_number, tuple(evidence_needs), authorization))
+        if self.lookup.status is not OpsToolStatus.SUCCESS or self.lookup.facts is None:
+            return ProtocolCaseToolResult(status=self.lookup.status, reason=self.lookup.reason)
+        source = self.lookup.facts
+        request = ServiceRequestRecord(
+            request_id=source.request_id, protocol_number=source.protocol_number,
+            email_id=source.email_id, r1_run_id=source.r1_run_id, created_at=source.created_at,
+            updated_at=source.updated_at, status=source.status, result=source.result,
+            failure_reason=source.failure_reason, completed_at=source.completed_at,
+            return_email_at=source.return_email_at,
+        )
+        return ProtocolCaseToolResult(
+            status=OpsToolStatus.SUCCESS,
+            facts=ProtocolCaseFacts(service_request=request),
+            reason="OBSERVED_PROTOCOL_CASE_FACTS",
+        )
 
 
 class RecordingProvider:
@@ -341,7 +363,8 @@ def test_latest_protocol_plan_uses_authorized_typed_discovery_then_synthesis() -
 def test_inline_protocol_plan_uses_message_selector_after_authorization() -> None:
     tools = FakeTools(lookup=lookup_success())
     provider = RecordingProvider([
-        LLMGenerationResult(content='{"intent":"PROTOCOL_EXECUTION_RESULT","protocol_number":"POC-OPS-0004"}'),
+        LLMGenerationResult(content='{"intent":"PROTOCOL_EXECUTION_RESULT","protocol_number":"POC-OPS-0004","evidence_needs":["SERVICE_REQUEST"]}'),
+        LLMGenerationResult(content='{"intent":"PROTOCOL_EXECUTION_RESULT","protocol_number":"POC-OPS-0004","evidence_needs":[]}'),
         generated(),
     ])
     request_without_preselection = CustomerSupportRequest(
@@ -353,8 +376,107 @@ def test_inline_protocol_plan_uses_message_selector_after_authorization() -> Non
 
     assert result.status is CustomerSupportStatus.ANSWERED
     assert result.plan is not None and result.plan.protocol_number == "POC-OPS-0004"
-    assert tools.lookup_calls == [("POC-OPS-0004", AUTHORIZED)]
+    assert tools.investigation_calls[0][0] == "POC-OPS-0004"
+    assert tools.lookup_calls == []
     assert provider.requests[0].response_format == "json_object"
+    assert len(provider.requests) == 3
+
+
+def test_planner_cannot_redirect_an_explicit_protocol_identifier() -> None:
+    provider = RecordingProvider(LLMGenerationResult(content=(
+        '{"intent":"PROTOCOL_EXECUTION_RESULT","protocol_number":"POC-OPS-0004",'
+        '"evidence_needs":["SERVICE_REQUEST"]}'
+    )))
+    agent = CustomerSupportAgent(FakeTools(lookup=lookup_success()), provider)
+    planned = asyncio.run(agent._plan(CustomerSupportRequest(
+        question="o que aconteceu no POC-OPS-0005?",
+        authorization=AUTHORIZED,
+    )))
+
+    assert isinstance(planned, OperationalQueryPlan)
+    assert planned.protocol_number == "POC-OPS-0005"
+
+
+def test_invalid_planner_json_gets_one_bounded_retry() -> None:
+    provider = RecordingProvider([
+        LLMGenerationResult(content="not valid structured output"),
+        LLMGenerationResult(content=(
+            '{"intent":"PROTOCOL_EXECUTION_RESULT","protocol_number":"POC-OPS-0005",'
+            '"evidence_needs":["SERVICE_REQUEST"]}'
+        )),
+    ])
+    agent = CustomerSupportAgent(FakeTools(lookup=lookup_success()), provider)
+    planned = asyncio.run(agent._plan(CustomerSupportRequest(
+        question="qual resultado do POC-OPS-0005?", authorization=AUTHORIZED,
+    )))
+
+    assert isinstance(planned, OperationalQueryPlan)
+    assert planned.protocol_number == "POC-OPS-0005"
+    assert len(provider.requests) == 2
+
+
+def test_repeated_invalid_plan_uses_only_bounded_read_plan_for_trusted_protocol_context() -> None:
+    provider = RecordingProvider([
+        LLMGenerationResult(content="invalid"), LLMGenerationResult(content="still invalid"),
+    ])
+    agent = CustomerSupportAgent(FakeTools(lookup=lookup_success()), provider)
+    planned = asyncio.run(agent._plan(CustomerSupportRequest(
+        question="qual foi o último passo bem-sucedido?",
+        protocol_number="POC-OPS-0004", authorization=AUTHORIZED,
+    )))
+
+    assert isinstance(planned, OperationalQueryPlan)
+    assert planned.protocol_number == "POC-OPS-0004"
+    assert planned.intent.value == "PROTOCOL_EXECUTION_RESULT"
+    assert set(planned.evidence_needs) == {
+        OperationalEvidenceNeed.SERVICE_REQUEST,
+        OperationalEvidenceNeed.AUTOMATION_RUNS,
+        OperationalEvidenceNeed.ESTABLISHMENTS,
+        OperationalEvidenceNeed.EXECUTION_TIMELINE,
+        OperationalEvidenceNeed.FAILURE_EVIDENCE,
+    }
+
+
+def test_investigation_loop_accepts_new_categories_and_stops_after_three_rounds() -> None:
+    tools = FakeTools(lookup=lookup_success())
+    provider = RecordingProvider([
+        LLMGenerationResult(content='{"intent":"PROTOCOL_SUMMARY","protocol_number":"POC-OPS-0002","evidence_needs":["SERVICE_REQUEST"]}'),
+        LLMGenerationResult(content='{"intent":"PROTOCOL_SUMMARY","protocol_number":"POC-OPS-0002","evidence_needs":["AUTOMATION_RUNS"]}'),
+        LLMGenerationResult(content='{"intent":"PROTOCOL_SUMMARY","protocol_number":"POC-OPS-0002","evidence_needs":["EXECUTION_TIMELINE"]}'),
+        generated(),
+    ])
+    result = asyncio.run(CustomerSupportAgent(tools, provider).answer(CustomerSupportRequest(
+        question="me conte toda a história do POC-OPS-0002",
+        authorization=AUTHORIZED,
+    )))
+
+    assert result.status is CustomerSupportStatus.ANSWERED
+    assert len(tools.investigation_calls) == CustomerSupportAgent.MAX_INVESTIGATION_ROUNDS
+    assert [call[1][0].value for call in tools.investigation_calls] == [
+        "SERVICE_REQUEST", "AUTOMATION_RUNS", "EXECUTION_TIMELINE",
+    ]
+    assert len(provider.requests) == 4
+
+
+def test_internal_query_formulation_uses_safe_domain_signals_and_drops_protocol_id() -> None:
+    from apps.agent_api.app.agents.customer_support import ObservedOperationalFact
+
+    support = CustomerSupportResult(
+        status=CustomerSupportStatus.ANSWERED,
+        facts=(ObservedOperationalFact(
+            source="ExecutionLogRecord",
+            statement="Observed execution event at 2026-09-11T14:06:00+00:00 by R2: PORTAL_INDISPONIVEL, status ERROR; message: sanitized.",
+        ),),
+        answer="Observed portal failure.",
+        reason="OBSERVED_OPS_EVIDENCE_INTERPRETED",
+    )
+    query = asyncio.run(CustomerSupportAgent(FakeTools(lookup=lookup_success()), RecordingProvider(generated())).formulate_internal_knowledge_query(
+        "como reprocessar POC-OPS-0005 depois desse erro?", support,
+    ))
+    assert query is not None
+    assert "R2 PORTAL_INDISPONIVEL ERROR" in query
+    assert "POC-OPS-0005" not in query
+    assert "reprocessamento" in query
 
 
 def test_discovery_plan_does_not_authorize_unauthorized_caller() -> None:

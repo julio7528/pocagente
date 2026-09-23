@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import pytest
+import asyncio
 from pydantic import ValidationError
 
 from apps.agent_api.app.security.audit import SecurityAuditService
 from apps.agent_api.app.security.models import (
+    SecurityAction,
     SanitizedSecurityEvent,
     SecurityAuditContext,
     SecurityAuditStatus,
@@ -153,3 +155,26 @@ async def test_empty_security_semantics_fail_closed_without_sink_events() -> Non
     assert result.status is SecurityAuditStatus.UNAVAILABLE
     assert result.event_ids == ()
     assert sink.events == []
+
+
+def test_output_redaction_audit_records_redact_and_sanitized_content() -> None:
+    sink = RecordingSink()
+
+    async def scenario() -> None:
+        result = await SecurityAuditService(sink).record_router_security_block(
+            message=r"Evidence includes \\internal-test\restricted\folder",
+            context=SecurityAuditContext(user_identifier="client-1", request_reference="output-redact"),
+            security_semantics=(SecurityClassification(
+                event_type=SecurityEventType.SENSITIVE_INFRASTRUCTURE_REQUEST,
+                resource_category=SecurityResourceCategory.PROTECTED_PATH,
+            ),),
+            source_component="output_security_gate",
+            action_taken=SecurityAction.REDACT,
+        )
+        assert result.status is SecurityAuditStatus.RECORDED
+        event = sink.events[0]
+        assert event.source_component == "output_security_gate"
+        assert event.action_taken is SecurityAction.REDACT
+        assert r"\\internal-test" not in (event.sanitized_content or "")
+
+    asyncio.run(scenario())

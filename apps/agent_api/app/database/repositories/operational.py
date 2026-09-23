@@ -9,18 +9,24 @@ from psycopg.rows import dict_row
 
 from apps.agent_api.app.database.mapping import (
     map_automation_run,
+    map_email_attachment,
     map_establishment,
     map_execution_failure_evidence,
     map_execution_log,
+    map_incoming_email,
     map_protocol_status_facts,
+    map_recent_executed_protocol,
     map_service_request,
 )
 from apps.agent_api.app.database.models import (
     AutomationRunRecord,
+    EmailAttachmentRecord,
     EstablishmentRecord,
     ExecutionFailureEvidence,
     ExecutionLogRecord,
+    IncomingEmailRecord,
     ProtocolStatusFacts,
+    RecentExecutedProtocolRecord,
     ServiceRequestRecord,
 )
 from apps.agent_api.app.database.repositories.base import BaseRepository
@@ -215,6 +221,36 @@ class OperationalRepository(BaseRepository):
             row = await cursor.fetchone()
         return map_automation_run(row) if row is not None else None
 
+    async def list_automation_runs_for_request(
+        self, request_id: int
+    ) -> Sequence[AutomationRunRecord]:
+        """Correlate the creating R1 run and later runs linked by request logs."""
+        statement = """
+            WITH correlated_runs AS (
+                SELECT r1_run_id AS run_id FROM ops.service_requests WHERE request_id = %s
+                UNION SELECT run_id FROM ops.execution_log WHERE request_id = %s
+                UNION SELECT el.run_id FROM ops.execution_log AS el
+                      JOIN ops.establishments AS e ON e.establishment_id = el.establishment_id
+                      WHERE e.request_id = %s
+                UNION SELECT el.run_id FROM ops.execution_log AS el
+                      JOIN ops.service_requests AS sr ON sr.email_id = el.email_id
+                      WHERE sr.request_id = %s
+                UNION SELECT el.run_id FROM ops.execution_log AS el
+                      JOIN ops.email_attachments AS ea ON ea.attachment_id = el.attachment_id
+                      JOIN ops.service_requests AS sr ON sr.email_id = ea.email_id
+                      WHERE sr.request_id = %s
+            )
+            SELECT ar.run_id, ar.robot, ar.started_at, ar.finished_at,
+                   ar.status, ar.result_message, ar.created_at
+            FROM correlated_runs AS correlated
+            JOIN ops.automation_runs AS ar ON ar.run_id = correlated.run_id
+            ORDER BY ar.started_at ASC, ar.run_id ASC
+        """
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, (request_id,) * 5)
+            rows = await cursor.fetchall()
+        return tuple(map_automation_run(row) for row in rows)
+
     async def create_incoming_email(self, email: RepositoryRecord) -> int:
         columns = _validate_record(
             email,
@@ -239,6 +275,19 @@ class OperationalRepository(BaseRepository):
         parameters = tuple(changes[column] for column in columns) + (email_id,)
         async with self._cursor() as cursor:
             await cursor.execute(statement, parameters)
+
+    async def get_incoming_email(self, email_id: int) -> IncomingEmailRecord | None:
+        statement = """
+            SELECT email_id, run_id, received_at, processed_at, sender, recipient,
+                   subject, attachment_count, sender_status, processing_status,
+                   rejection_reason, created_at
+            FROM ops.incoming_emails
+            WHERE email_id = %s
+        """
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, (email_id,))
+            row = await cursor.fetchone()
+        return map_incoming_email(row) if row is not None else None
 
     async def create_email_attachment(self, attachment: RepositoryRecord) -> int:
         columns = _validate_record(
@@ -268,6 +317,20 @@ class OperationalRepository(BaseRepository):
         parameters = tuple(changes[column] for column in columns) + (attachment_id,)
         async with self._cursor() as cursor:
             await cursor.execute(statement, parameters)
+
+    async def list_email_attachments(self, email_id: int) -> Sequence[EmailAttachmentRecord]:
+        statement = """
+            SELECT attachment_id, email_id, file_name, file_type, received_at,
+                   validation_status, validation_message, establishment_count,
+                   processing_status, created_at
+            FROM ops.email_attachments
+            WHERE email_id = %s
+            ORDER BY attachment_id ASC
+        """
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, (email_id,))
+            rows = await cursor.fetchall()
+        return tuple(map_email_attachment(row) for row in rows)
 
     async def create_service_request(self, request: RepositoryRecord) -> int:
         columns = _validate_record(
@@ -329,6 +392,45 @@ class OperationalRepository(BaseRepository):
             await cursor.execute(statement, (limit,))
             rows = await cursor.fetchall()
         return tuple(map_service_request(row) for row in rows)
+
+    async def list_recent_protocols_by_execution(self, limit: int) -> Sequence[RecentExecutedProtocolRecord]:
+        """Order requests by the latest actual R1/R2 run start timestamp."""
+        if not 1 <= limit <= 5:
+            raise ValueError("Recent service request limit must be between 1 and 5")
+        statement = """
+            SELECT sr.request_id, sr.protocol_number, sr.email_id, sr.r1_run_id,
+                   sr.created_at, sr.updated_at, sr.status, sr.result,
+                   sr.failure_reason, sr.completed_at, sr.return_email_at,
+                   execution_recency.last_execution_at
+            FROM ops.service_requests AS sr
+            JOIN (
+                SELECT correlated.request_id, MAX(ar.started_at) AS last_execution_at
+                FROM (
+                    SELECT request_id, r1_run_id AS run_id FROM ops.service_requests
+                    UNION
+                    SELECT request_id, run_id FROM ops.execution_log WHERE request_id IS NOT NULL
+                    UNION
+                    SELECT e.request_id, el.run_id FROM ops.execution_log AS el
+                    JOIN ops.establishments AS e ON e.establishment_id = el.establishment_id
+                    UNION
+                    SELECT sr.request_id, el.run_id FROM ops.execution_log AS el
+                    JOIN ops.service_requests AS sr ON sr.email_id = el.email_id
+                    UNION
+                    SELECT sr.request_id, el.run_id FROM ops.execution_log AS el
+                    JOIN ops.email_attachments AS ea ON ea.attachment_id = el.attachment_id
+                    JOIN ops.service_requests AS sr ON sr.email_id = ea.email_id
+                ) AS correlated
+                JOIN ops.automation_runs AS ar ON ar.run_id = correlated.run_id
+                WHERE correlated.request_id IS NOT NULL
+                GROUP BY correlated.request_id
+            ) AS execution_recency ON execution_recency.request_id = sr.request_id
+            ORDER BY execution_recency.last_execution_at DESC, sr.request_id DESC
+            LIMIT %s
+        """
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, (limit,))
+            rows = await cursor.fetchall()
+        return tuple(map_recent_executed_protocol(row) for row in rows)
 
     async def upsert_establishment(self, establishment: RepositoryRecord) -> int:
         columns = _validate_record(
@@ -462,13 +564,22 @@ class OperationalRepository(BaseRepository):
         statement = """
             SELECT log_id, run_id, logged_at, robot, event, status, message,
                    email_id, attachment_id, request_id, establishment_id, created_at
-            FROM ops.execution_log
-            WHERE request_id = %s
-            ORDER BY logged_at DESC, log_id DESC
+            FROM ops.execution_log AS el
+            WHERE el.request_id = %s
+               OR el.establishment_id IN (
+                    SELECT e.establishment_id FROM ops.establishments AS e WHERE e.request_id = %s
+               )
+               OR el.email_id = (
+                    SELECT sr.email_id FROM ops.service_requests AS sr WHERE sr.request_id = %s
+               )
+               OR el.attachment_id IN (
+                    SELECT e.attachment_id FROM ops.establishments AS e WHERE e.request_id = %s
+               )
+            ORDER BY el.logged_at DESC, el.log_id DESC
             LIMIT %s
         """
         async with self._cursor(row_factory=dict_row) as cursor:
-            await cursor.execute(statement, (request_id, limit))
+            await cursor.execute(statement, (request_id, request_id, request_id, request_id, limit))
             rows = await cursor.fetchall()
         return tuple(map_execution_log(row) for row in rows)
 
@@ -524,7 +635,16 @@ class OperationalRepository(BaseRepository):
                    (
                        SELECT to_jsonb(previous_success)
                        FROM ops.execution_log AS previous_success
-                       WHERE previous_success.request_id = sr.request_id
+                       WHERE (
+                             previous_success.request_id = sr.request_id
+                             OR previous_success.establishment_id IN (
+                                 SELECT e.establishment_id FROM ops.establishments AS e WHERE e.request_id = sr.request_id
+                             )
+                             OR previous_success.email_id = sr.email_id
+                             OR previous_success.attachment_id IN (
+                                 SELECT e.attachment_id FROM ops.establishments AS e WHERE e.request_id = sr.request_id
+                             )
+                         )
                          AND previous_success.status = 'SUCCESS'
                          AND (
                              previous_success.logged_at < l.logged_at
@@ -538,7 +658,16 @@ class OperationalRepository(BaseRepository):
                        LIMIT 1
                    ) AS last_successful_evidence
             FROM ops.service_requests AS sr
-            JOIN ops.execution_log AS l ON l.request_id = sr.request_id
+            JOIN ops.execution_log AS l ON (
+                l.request_id = sr.request_id
+                OR l.establishment_id IN (
+                    SELECT e.establishment_id FROM ops.establishments AS e WHERE e.request_id = sr.request_id
+                )
+                OR l.email_id = sr.email_id
+                OR l.attachment_id IN (
+                    SELECT e.attachment_id FROM ops.establishments AS e WHERE e.request_id = sr.request_id
+                )
+            )
             JOIN ops.automation_runs AS ar ON ar.run_id = l.run_id
             WHERE sr.protocol_number = %s
               AND l.status IN ('ERROR', 'EXCEPTION')

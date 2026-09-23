@@ -1,6 +1,6 @@
 # PHASE 11.1 — Semantic Routing and Runtime Hardening
 
-Status: **SDD DRAFT — implementation requires explicit owner approval**
+Status: **OWNER-REQUESTED REMEDIATION IN PROGRESS — Phase 11.1 remains open**
 
 Type: post-Phase-11 bridge/hardening phase; documentation only
 Requirement namespace: `REQ-P11R-*`
@@ -42,13 +42,13 @@ Implementation must not add one regex per failed sentence, hardcode Challenge an
 
 ## Invariants
 
-* Security preflight is deterministic and terminal before semantic classification.
+* Deterministic security preflight is terminal before semantic security classification; semantic security is terminal before business semantic routing.
 * The semantic model receives no tools and cannot emit routes, capabilities, scope, Web policy, authorization, or handoff decisions.
 * Only the deterministic mapper can create a `RouterDecision`; trusted auth/context remains owned by `ChatApplicationService` and OPS boundaries.
 * `KnowledgeScope` is trusted typed state: semantic intent → deterministic mapper → `RouterDecision` → graph state → knowledge request/agent → HybridRetriever → both retrieval channels/repository predicates. It is never reconstructed from query text, LLM output, Web output, or a user filter.
 * Scope filtering is applied consistently to lexical and semantic retrieval before RRF; provenance, Top-5, grounding, and current source identity remain intact.
 * Security preflight may remain synchronous internally, but provider-backed semantic routing is natively async through FastAPI/LangGraph; sync-over-async workarounds are prohibited.
-* `SECURITY_BLOCK` causes sanitized Phase 10 AUDIT and zero downstream Knowledge, Web, OPS, Human, or provider continuation.
+* `SECURITY_BLOCK` causes sanitized Phase 10 AUDIT and zero downstream Knowledge, Web, OPS, Human, or business-provider continuation; safe refusal formulation uses only sanitized metadata. Every candidate response passes the output security gate.
 * Existing Phase 11 RAG and Challenge artifacts are regression baselines, not rewritten acceptance inputs.
 
 ## Requirement families
@@ -59,21 +59,23 @@ Implementation must not add one regex per failed sentence, hardcode Challenge an
 | `ROUTER` | 10 | semantic intent and deterministic mapping |
 | `KNOW` | 8 | scope, public-corpus prerequisite, and typed knowledge outcomes |
 | `WEB` | 6 | deterministic Web policy and fallback |
-| `SEC` | 7 | deterministic security hardening |
+| `SEC` | 15 | deterministic and semantic defense-in-depth security, audit, and output protection |
 | `CONV` | 5 | bounded conversational experience |
 | `INTEG` | 9 | application/graph/API/CLI integration |
+| `SUPPORT` | 10 | cooperative capability selection, bounded evidence investigation, OPS correlation, internal-procedure grounding, and local CLI principal |
 | `VAL` | 7 | evidence and regression gates |
-| **Total** | **58** | individually traced in `05-validation-spec.md` |
+| **Total** | **76** | individually traced in `05-validation-spec.md` and `06-cooperative-support-spec.md` |
 
 ## Implementation order after approval
 
-1. Freeze the async typed contracts, intent mapper, scope propagation policy, and safe failure behavior with unit tests.
+1. Freeze the async typed contracts, structured capability-needs mapper, scope propagation policy, bounded evidence-plan contracts, and safe failure behavior with unit tests.
 2. Harden the existing deterministic Phase 10 security classifier and prove precedence/non-overblocking.
 3. Add semantic classifier adapter and deterministic Router mapping; add conversational route only through the current Router/graph contracts.
 4. Inspect the real local public corpus; if absent, stop persistent-public-RAG publication work pending the owner decision defined in `02`.
 5. Add scoped retrieval predicates and prove identical scope propagation through both channels before RRF, without a second retriever.
 6. Add typed generation sufficiency and wire existing LangGraph fallback transitions.
 7. Integrate safely through application/API/CLI presentation, then run unit, integration, E2E, manual CLI, and Phase 11 regression evidence.
+8. Implement the owner-requested cooperative support contract in `06-cooperative-support-spec.md`; keep local synthetic CLI authorization isolated from production identity and `/chat` authorization.
 
 ## Definition of done
 

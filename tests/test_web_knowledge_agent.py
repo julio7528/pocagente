@@ -10,6 +10,7 @@ from apps.agent_api.app.agents.web_knowledge import WebKnowledgeAgent
 from apps.agent_api.app.llm.errors import LLMProviderTimeoutError
 from apps.agent_api.app.llm.models import LLMGenerationResult
 from apps.agent_api.app.rag.grounding import LiveWebContextBuilder
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.web.errors import WebSearchUnavailableError
 from apps.agent_api.app.web.models import WebEvidence, WebSearchResult, WebSearchStatus
 
@@ -104,6 +105,25 @@ def test_agent_uses_injected_registry_grounding_not_a_hardcoded_domain_set() -> 
     llm = Llm()
     result = asyncio.run(WebKnowledgeAgent(web, llm, LiveWebContextBuilder(frozenset({"registered.example"}))).answer("Question"))
     assert result.citations[0].source_url == registered.url
+
+
+def test_getnet_web_search_is_restricted_to_registry_domains() -> None:
+    web = Web(WebSearchResult(status=WebSearchStatus.SUCCESS, evidence=(evidence(),), reason="OK"))
+    registry = LiveWebContextBuilder(frozenset({"site.getnet.com.br", "getnet.com.br"}))
+    result = asyncio.run(WebKnowledgeAgent(web, Llm(), registry).answer(
+        "O que é a Getnet?", knowledge_scope=KnowledgeScope.PUBLIC_GETNET
+    ))
+    assert result.status is KnowledgeResultStatus.ANSWERED
+    assert web.requests[0].include_domains == ("getnet.com.br", "site.getnet.com.br")
+
+
+def test_single_source_can_remain_insufficient_after_grounded_generation() -> None:
+    web = Web(WebSearchResult(status=WebSearchStatus.SUCCESS, evidence=(evidence(),), reason="OK"))
+    llm = Llm('{"schema_version":"1.0","status":"INSUFFICIENT_EVIDENCE","answer":null,"citation_ids":[]}')
+    result = asyncio.run(WebKnowledgeAgent(web, llm).answer("Question?"))
+    assert len(web.requests[0].include_domains) == 0
+    assert result.status is KnowledgeResultStatus.INSUFFICIENT_EVIDENCE
+    assert len(llm.requests) == 1
 
 
 def test_live_web_typed_insufficient_and_invalid_citation_do_not_become_answered() -> None:

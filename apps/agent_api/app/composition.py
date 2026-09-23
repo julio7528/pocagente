@@ -16,12 +16,16 @@ from apps.agent_api.app.agents.web_knowledge import WebKnowledgeAgent
 from apps.agent_api.app.chat import ChatApplicationService
 from apps.agent_api.app.database.config import load_database_config
 from apps.agent_api.app.database.connection import PostgresDatabase
-from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts, ServiceRequestRecord
+from apps.agent_api.app.database.models import (
+    AutomationRunRecord, EmailAttachmentRecord, EstablishmentRecord, ExecutionFailureEvidence,
+    ExecutionLogRecord, IncomingEmailRecord, ProtocolStatusFacts, RecentExecutedProtocolRecord, ServiceRequestRecord,
+)
 from apps.agent_api.app.security.audit import PostgresSecurityAuditSink, SecurityAuditService
+from apps.agent_api.app.security.semantic import OutputSecurityGate, SecurityResponseAgent, SemanticSecurityClassifier
 from apps.agent_api.app.database.repositories.operational import OperationalRepository
 from apps.agent_api.app.llm.errors import LLMConfigurationError, LLMProviderError
 from apps.agent_api.app.llm.factory import create_deepseek_provider
-from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult
+from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult, LLMProvider
 from apps.agent_api.app.rag.embeddings.fastembed import FastEmbedAdapter
 from apps.agent_api.app.rag.grounding.context_builder import ContextBuilder
 from apps.agent_api.app.rag.retrieval.hybrid import HybridRetriever
@@ -30,6 +34,7 @@ from apps.agent_api.app.rag.retrieval.semantic import SemanticRetriever
 from apps.agent_api.app.tools.ops import OperationalTools
 from apps.agent_api.app.web.errors import WebSearchConfigurationError
 from apps.agent_api.app.web.factory import create_tavily_web_search_provider
+from apps.agent_api.app.web.models import WebSearchProvider
 
 
 class _UnavailableLLMProvider:
@@ -64,6 +69,10 @@ class _PooledOperationalFactsRepository:
         async with self._database.connection() as connection:
             return await OperationalRepository(connection).list_recent_service_requests(limit)
 
+    async def list_recent_protocols_by_execution(self, limit: int) -> Sequence[RecentExecutedProtocolRecord]:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).list_recent_protocols_by_execution(limit)
+
     async def get_execution_failure_facts(
         self,
         protocol_number: str,
@@ -75,14 +84,54 @@ class _PooledOperationalFactsRepository:
                 run_id=run_id,
             )
 
+    async def get_service_request_by_protocol(self, protocol_number: str) -> ServiceRequestRecord | None:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).get_service_request_by_protocol(protocol_number)
+
+    async def get_incoming_email(self, email_id: int) -> IncomingEmailRecord | None:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).get_incoming_email(email_id)
+
+    async def list_email_attachments(self, email_id: int) -> Sequence[EmailAttachmentRecord]:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).list_email_attachments(email_id)
+
+    async def list_automation_runs_for_request(self, request_id: int) -> Sequence[AutomationRunRecord]:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).list_automation_runs_for_request(request_id)
+
+    async def list_establishments_for_request(self, request_id: int) -> Sequence[EstablishmentRecord]:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).list_establishments_for_request(request_id)
+
+    async def list_execution_timeline_for_request(self, request_id: int, limit: int) -> Sequence[ExecutionLogRecord]:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).list_execution_timeline_for_request(request_id, limit)
+
 
 @dataclass(frozen=True)
 class RuntimeComposition:
     chat_service: ChatApplicationService
     database: PostgresDatabase
+    llm_provider: LLMProvider
+    web_search_provider: WebSearchProvider | None = None
 
     async def close(self) -> None:
-        await self.database.close()
+        first_error: Exception | None = None
+        for resource in (self.llm_provider, self.web_search_provider):
+            closer = getattr(resource, "aclose", None) if resource is not None else None
+            if closer is None:
+                continue
+            try:
+                await closer()
+            except Exception as error:
+                first_error = first_error or error
+        try:
+            await self.database.close()
+        except Exception as error:
+            first_error = first_error or error
+        if first_error is not None:
+            raise first_error
 
 
 async def compose_runtime() -> RuntimeComposition:
@@ -90,6 +139,8 @@ async def compose_runtime() -> RuntimeComposition:
 
     database = PostgresDatabase(load_database_config())
     await database.open()
+    llm_provider: object | None = None
+    web_search_provider: object | None = None
     try:
         try:
             llm_provider = create_deepseek_provider()
@@ -108,12 +159,16 @@ async def compose_runtime() -> RuntimeComposition:
 
         web_knowledge = None
         try:
-            web_knowledge = WebKnowledgeAgent(create_tavily_web_search_provider(), llm_provider)
+            web_search_provider = create_tavily_web_search_provider()
+            web_knowledge = WebKnowledgeAgent(web_search_provider, llm_provider)
         except WebSearchConfigurationError:
             pass
 
         orchestrator = LangGraphOrchestrator(
-            RouterAgent(ProviderSemanticIntentClassifier(llm_provider)),
+            RouterAgent(
+                ProviderSemanticIntentClassifier(llm_provider),
+                SemanticSecurityClassifier(llm_provider),
+            ),
             knowledge,
             support,
             web_knowledge,
@@ -121,7 +176,23 @@ async def compose_runtime() -> RuntimeComposition:
             SecurityAuditService(PostgresSecurityAuditSink(database)),
             ConversationalAgent(llm_provider),
         )
-        return RuntimeComposition(ChatApplicationService(orchestrator), database)
+        return RuntimeComposition(
+            ChatApplicationService(
+                orchestrator,
+                SecurityResponseAgent(llm_provider),
+                OutputSecurityGate(llm_provider),
+            ),
+            database,
+            llm_provider,
+            web_search_provider,
+        )
     except Exception:
+        for resource in (llm_provider, web_search_provider):
+            closer = getattr(resource, "aclose", None) if resource is not None else None
+            if closer is not None:
+                try:
+                    await closer()
+                except Exception:
+                    pass
         await database.close()
         raise

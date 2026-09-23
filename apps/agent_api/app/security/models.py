@@ -87,7 +87,7 @@ class SanitizedSecurityEvent(BaseModel):
 
     occurred_at: datetime
     event_type: SecurityEventType
-    source_component: Literal["router_security_guardrail"] = "router_security_guardrail"
+    source_component: Literal["router_security_guardrail", "semantic_security_classifier", "output_security_gate"] = "router_security_guardrail"
     user_identifier: str | None = Field(default=None, min_length=1, max_length=128)
     request_reference: str | None = Field(default=None, min_length=1, max_length=128)
     resource_category: SecurityResourceCategory | None = None

@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import re
 import sys
 from time import perf_counter
 import warnings
@@ -56,10 +57,10 @@ class CLISessionState:
     """Session state for the terminal test client."""
 
     user_id: str = "test-client"
-    role: str = "CLIENT"
-    ops_authorized: bool = False
+    role: str = "SUPPORT_AGENT"
+    ops_authorized: bool = True
     protocol_number: str | None = None
-    operation: str = "PROTOCOL_STATUS"
+    operation: str | None = None
 
 
 def build_headers(token: str, state: CLISessionState) -> dict[str, str]:
@@ -80,10 +81,10 @@ def build_payload(message: str, state: CLISessionState) -> dict[str, Any]:
         "user_id": state.user_id,
     }
     if state.protocol_number and state.ops_authorized:
-        payload["operational_context"] = {
-            "protocol_number": state.protocol_number,
-            "operation": state.operation,
-        }
+        context = {"protocol_number": state.protocol_number}
+        if state.operation:
+            context["operation"] = state.operation
+        payload["operational_context"] = context
     return payload
 
 
@@ -124,6 +125,11 @@ def format_chat_response(data: Mapping[str, Any]) -> str:
     is_combined = route == "KNOWLEDGE_AND_CUSTOMER_SUPPORT" or (kn_data and cs_data)
 
     if is_combined:
+        if answer:
+            lines.append("  SÍNTESE COOPERATIVA:")
+            for line in str(answer).splitlines():
+                lines.append(f"    {line}")
+            lines.append("")
         if kn_data and isinstance(kn_data, dict):
             kn_answer = kn_data.get("answer")
             kn_citations = kn_data.get("citations", ())
@@ -150,7 +156,7 @@ def format_chat_response(data: Mapping[str, Any]) -> str:
             facts = cs_data.get("facts", ())
             inferences = cs_data.get("inferences", ())
             lines.append("  [SUPORTE OPERACIONAL / OPS]")
-            if cs_answer:
+            if cs_answer and not answer:
                 for line in str(cs_answer).splitlines():
                     lines.append(f"    {line}")
             if facts:
@@ -369,6 +375,7 @@ class ConsoleTraceSink:
         "conversational_response": "LLM resposta",
         "ops_planning": "LLM planejamento OPS",
         "ops_synthesis": "LLM síntese",
+        "cooperative_synthesis": "Síntese cooperativa",
         "grounded_generation": "LLM grounded generation",
     }
 
@@ -394,6 +401,12 @@ class ConsoleTraceSink:
                 "SECURITY_BLOCK": "SECURITY_BLOCK",
                 "CONTINUATION_INTERRUPTED": "continuação interrompida",
             }.get(event.value or "", "verificação concluída")
+        elif kind is RuntimeEventKind.SECURITY_SEMANTIC:
+            label = "Segurança semântica"
+            detail = {"STARTED": "iniciado", "ALLOWED": "ALLOWED", "BLOCKED": "BLOCK", "CONTROLLED_ERROR": "CONTROLLED_ERROR"}.get(event.value or "", "concluído")
+        elif kind is RuntimeEventKind.SECURITY_OUTPUT:
+            label = "Validação de saída"
+            detail = {"STARTED": "iniciada", "ALLOWED": "ALLOWED", "REDACTED": "REDACT", "BLOCKED": "BLOCK", "CONTROLLED_ERROR": "CONTROLLED_ERROR"}.get(event.value or "", "concluída")
         elif kind is RuntimeEventKind.CLASSIFIER:
             label = "Classificador semântico"
             detail = {
@@ -406,8 +419,13 @@ class ConsoleTraceSink:
             label = "Intenção"
         elif kind is RuntimeEventKind.ROUTER:
             label = "Router"
+        elif kind is RuntimeEventKind.CAPABILITY_NEED:
+            label = "Necessidade semântica"
         elif kind is RuntimeEventKind.KNOWLEDGE_SCOPE:
             label = "KnowledgeScope"
+        elif kind is RuntimeEventKind.KNOWLEDGE_QUERY:
+            label = "Consulta RAG interna"
+            detail = "formulada" if event.value == "COMPLETED" else "CONTROLLED_ERROR"
         elif kind is RuntimeEventKind.WEB_POLICY:
             label = "Web policy"
         elif kind is RuntimeEventKind.CAPABILITY:
@@ -428,8 +446,21 @@ class ConsoleTraceSink:
             label = "Autorização OPS"
             detail = "YES" if event.value == "ALLOWED" else "NO"
         elif kind is RuntimeEventKind.OPS_PLAN:
-            label = "Plano operacional"
-            detail = event.value or "plano validado"
+            if event.name == "evidence_need":
+                label = "Evidência solicitada OPS"
+                detail = event.value or ""
+            elif event.name == "discovery_order":
+                label = "Ordenação descoberta OPS"
+                detail = event.value or ""
+            elif event.name == "investigation_round":
+                label = "Investigação OPS"
+                detail = f"rodada {(event.value or '').removeprefix('ROUND_')}"
+            elif event.name == "evidence_sufficiency":
+                label = "Suficiência de evidências"
+                detail = event.value or ""
+            else:
+                label = "Plano operacional"
+                detail = event.value or "plano validado"
             if event.protocol_number:
                 detail += f" (protocolo={event.protocol_number})"
             if event.limit is not None:
@@ -484,6 +515,31 @@ class ConsoleTraceSink:
                 "CONTROLLED_ERROR": "CONTROLLED_ERROR",
                 "INVALID_OUTPUT": "INVALID_OUTPUT",
             }.get(event.value or "", event.value or "")
+            if event.count is not None and event.name == "grounded_generation" and event.value == "STARTED":
+                detail += f" ({event.count} citações disponíveis)"
+        elif kind in {
+            RuntimeEventKind.PROVIDER_HTTP,
+            RuntimeEventKind.PROVIDER_PARSE,
+            RuntimeEventKind.PROVIDER_REQUEST,
+        }:
+            providers = {"deepseek": "DeepSeek", "tavily": "Web provider"}
+            provider = providers.get(event.name or "", "Provider")
+            phase_labels = {
+                RuntimeEventKind.PROVIDER_HTTP: "HTTP",
+                RuntimeEventKind.PROVIDER_PARSE: "parse",
+                RuntimeEventKind.PROVIDER_REQUEST: "request total",
+            }
+            label = f"{provider} {phase_labels[kind]}"
+            detail = {
+                "STARTED": "iniciado",
+                "RESPONSE_RECEIVED": "resposta recebida",
+                "COMPLETED": "concluído",
+                "CONTROLLED_ERROR": "CONTROLLED_ERROR",
+            }.get(event.value or "", event.value or "")
+            if kind is RuntimeEventKind.PROVIDER_HTTP and event.client_reused is not None:
+                detail += " [cliente reutilizado]" if event.client_reused else " [cliente novo]"
+            if kind is RuntimeEventKind.PROVIDER_HTTP and event.input_characters is not None:
+                detail += f" [entrada {event.input_characters} caracteres]"
         elif kind is RuntimeEventKind.HUMAN:
             label = "Human Escalation"
         elif kind is RuntimeEventKind.SECURITY_AUDIT:
@@ -567,6 +623,15 @@ def interactive_loop(
         if not user_input:
             continue
 
+        # Carry only an explicitly named protocol as a non-authoritative
+        # follow-up selector. Routing and OPS permission remain runtime-owned.
+        explicit_protocols = tuple(dict.fromkeys(
+            match.upper() for match in re.findall(r"\bPOC-OPS-\d{4}\b", user_input, re.IGNORECASE)
+        ))
+        if len(explicit_protocols) == 1 and state.ops_authorized:
+            state.protocol_number = explicit_protocols[0]
+            state.operation = None
+
         normalized = user_input.lower()
         if normalized in {"exit", "quit", "sair", "/exit", "/quit", "/sair"}:
             print("Encerrando Getnet Support CLI. Recursos liberados com sucesso.")
@@ -632,6 +697,9 @@ def interactive_loop(
             if new_role == "SUPPORT":
                 new_role = "SUPPORT_AGENT"
             state.role = new_role
+            if new_role == "CLIENT":
+                state.ops_authorized = False
+                state.protocol_number = None
             print(f"\n[OK] Papel alterado para {new_role}.\n")
             continue
 
@@ -664,9 +732,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--role",
         type=str,
-        default="CLIENT",
+        default=None,
         choices=["CLIENT", "SUPPORT_AGENT"],
-        help="Initial principal role (default: CLIENT).",
+        help="Synthetic principal role (local default: SUPPORT_AGENT; remote default: CLIENT).",
     )
     parser.add_argument(
         "--protocol",
@@ -674,11 +742,22 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Pre-configured synthetic operational protocol number (e.g. POC-OPS-0001).",
     )
-    parser.add_argument(
+    ops_group = parser.add_mutually_exclusive_group()
+    ops_group.add_argument(
         "--ops-authorized",
-        action="store_true",
-        help="Send the trusted OPS authorization claim for a local synthetic acceptance test.",
+        dest="ops_authorization",
+        action="store_const",
+        const=True,
+        help="Explicitly authorize OPS reads for the local synthetic test principal.",
     )
+    ops_group.add_argument(
+        "--no-ops-authorized",
+        dest="ops_authorization",
+        action="store_const",
+        const=False,
+        help="Explicitly deny OPS reads for the synthetic test principal.",
+    )
+    parser.set_defaults(ops_authorization=None)
     parser.add_argument(
         "--no-trace",
         action="store_true",
@@ -701,15 +780,27 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
+    role = args.role or ("CLIENT" if args.url else "SUPPORT_AGENT")
+    if role == "CLIENT" and args.protocol:
+        parser.error("--protocol requires SUPPORT_AGENT; a selector cannot grant OPS authorization")
+    if role == "CLIENT" and args.ops_authorization is True:
+        parser.error("CLIENT cannot be combined with --ops-authorized")
+    ops_authorized = args.ops_authorization
+    if ops_authorized is None:
+        ops_authorized = bool(args.protocol) or (role == "SUPPORT_AGENT" and args.url is None)
+
     state = CLISessionState(
         user_id=args.user_id,
-        role=args.role,
-        ops_authorized=bool(args.protocol) or args.ops_authorized,
+        role=role,
+        ops_authorized=ops_authorized,
         protocol_number=args.protocol,
-        operation=args.operation,
+        operation=args.operation if args.protocol else None,
     )
 
     trace_sink = ConsoleTraceSink(enabled=not args.no_trace, available=args.url is None)
+    if args.url is None:
+        ops_state = "OPS READ AUTHORIZED" if state.ops_authorized else "OPS READ UNAUTHORIZED"
+        print(f"[DEV TEST PRINCIPAL] {state.role} / {ops_state}")
     client = create_chat_client(args.url, telemetry_sink=trace_sink)
     if args.url and not args.no_trace:
         print("[NOTICE] --url remote runtime does not stream telemetry; no execution stages will be inferred.")

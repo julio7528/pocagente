@@ -28,10 +28,17 @@ from apps.agent_api.app.agents.orchestration import (
     OrchestrationStatus,
 )
 from apps.agent_api.app.agents.semantic_routing import SemanticIntent
+from apps.agent_api.app.agents.router import RouterRoute
 from apps.agent_api.app.auth import AuthenticatedPrincipal, PrincipalRole
-from apps.agent_api.app.security.models import SecurityAuditContext
+from apps.agent_api.app.security.models import SecurityAction as AuditAction, SecurityAuditContext, SecurityAuditStatus
+from apps.agent_api.app.security.semantic import (
+    OutputAction,
+    OutputSecurityGate,
+    SecurityCategory,
+    SecurityResponseAgent,
+)
 from apps.agent_api.app.tools.ops import OpsAccessContext
-from apps.agent_api.app.telemetry import RuntimeTelemetrySink, runtime_telemetry
+from apps.agent_api.app.telemetry import RuntimeEventKind, RuntimeTelemetrySink, emit_runtime_event, runtime_telemetry
 
 
 class OrchestrationCapability(Protocol):
@@ -49,7 +56,7 @@ class ChatOperationalContext(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
     protocol_number: str = Field(min_length=1, max_length=128)
-    operation: ChatSupportOperation
+    operation: ChatSupportOperation | None = None
     run_id: int | None = Field(default=None, gt=0)
 
 
@@ -213,11 +220,7 @@ class ChatUnavailableError(Exception):
     pass
 
 
-_SECURITY_BLOCK_RESPONSE = (
-    "I can't provide or help access protected credentials, secrets, or restricted "
-    "system information. I can help with permitted functional or high-level "
-    "technical questions instead."
-)
+_SECURITY_BLOCK_FALLBACK = "Essa informação é restrita pela política de segurança. Posso ajudar com informações funcionais permitidas."
 
 
 _UNSAFE_OUTPUT = re.compile(
@@ -244,16 +247,117 @@ def _safe_fact_source(value: str) -> str:
         "ProtocolStatusFacts": "OPS_PROTOCOL_STATUS",
         "ExecutionFailureEvidence": "OPS_EXECUTION_FAILURE",
         "ServiceRequestRecord": "OPS_RECENT_PROTOCOLS",
+        "RecentExecutedProtocolRecord": "OPS_EXECUTION_RECENCY",
+        "IncomingEmailRecord": "OPS_ORIGIN_EMAIL",
+        "EmailAttachmentRecord": "OPS_EMAIL_ATTACHMENT",
+        "AutomationRunRecord": "OPS_AUTOMATION_RUN",
         "EstablishmentRecord": "OPS_ESTABLISHMENT_STATE",
         "ExecutionLogRecord": "OPS_EXECUTION_TIMELINE",
+        "ProtocolTimestampSemantics": "OPS_TIMESTAMP_SEMANTICS",
     }.get(value, "OPS_EVIDENCE")
+
+
+def _security_category(semantics: tuple[object, ...]) -> SecurityCategory:
+    from apps.agent_api.app.security.models import SecurityEventType, SecurityResourceCategory
+
+    if semantics:
+        item = semantics[0]
+        if getattr(item, "event_type", None) is SecurityEventType.DATABASE_ACCESS_REQUEST:
+            return SecurityCategory.DATABASE_ACCESS
+        if getattr(item, "event_type", None) is SecurityEventType.PROMPT_INJECTION:
+            return SecurityCategory.PROMPT_INJECTION
+        if getattr(item, "event_type", None) is SecurityEventType.CREDENTIAL_REQUEST:
+            return SecurityCategory.CREDENTIAL_REQUEST
+        if getattr(item, "event_type", None) is SecurityEventType.SECRET_REQUEST:
+            return SecurityCategory.SECRET_REQUEST
+        if getattr(item, "resource_category", None) is SecurityResourceCategory.PROTECTED_PATH:
+            return SecurityCategory.PROTECTED_PATH
+        if getattr(item, "event_type", None) is SecurityEventType.AUTHORIZATION_BYPASS_ATTEMPT:
+            return SecurityCategory.AUTHORIZATION_BYPASS
+        if getattr(item, "event_type", None) is SecurityEventType.SENSITIVE_INFRASTRUCTURE_REQUEST:
+            return SecurityCategory.SENSITIVE_INFRASTRUCTURE
+    return SecurityCategory.OTHER_POLICY_VIOLATION
+
+
+def _redact_tree(value: object, gate: OutputSecurityGate) -> object:
+    if isinstance(value, str):
+        return gate.redact(value)
+    if isinstance(value, list):
+        return [_redact_tree(item, gate) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_tree(item, gate) for key, item in value.items()}
+    return value
+
+
+async def _apply_output_security(
+    response: ChatResponse,
+    gate: OutputSecurityGate,
+    security_response_agent: SecurityResponseAgent | None,
+) -> tuple[ChatResponse, SecurityCategory | None, AuditAction | None]:
+    import json
+
+    original = response.model_dump(mode="json")
+    # Empty/ambiguous outcomes carry no candidate disclosure to validate.
+    if not (
+        response.answer
+        or response.citations
+        or response.knowledge is not None
+        or response.customer_support is not None
+        or response.human is not None
+    ):
+        return response, None, None
+    safe_candidate = _redact_tree(original, gate)
+    changed = safe_candidate != original
+    emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="STARTED")
+    try:
+        review = await gate.review(json.dumps(safe_candidate, ensure_ascii=False))
+    except Exception:
+        # An unavailable reviewer cannot authorize a potentially unsafe answer.
+        emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="CONTROLLED_ERROR")
+        category = SecurityCategory.OTHER_POLICY_VIOLATION
+        return await _blocked_output_response(response, category, security_response_agent), category, AuditAction.BLOCK
+    if review.action is OutputAction.BLOCK or review.action is OutputAction.REDACT:
+        emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="BLOCKED")
+        return await _blocked_output_response(response, review.category, security_response_agent), review.category, AuditAction.BLOCK
+    emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="REDACTED" if changed else "ALLOWED")
+    if changed:
+        category = gate.redaction_category(json.dumps(original, ensure_ascii=False))
+        return ChatResponse.model_validate(safe_candidate), category, AuditAction.REDACT
+    return ChatResponse.model_validate(safe_candidate), None, None
+
+
+async def _blocked_output_response(
+    response: ChatResponse,
+    category: SecurityCategory,
+    security_response_agent: SecurityResponseAgent | None,
+) -> ChatResponse:
+    answer = _SECURITY_BLOCK_FALLBACK
+    if security_response_agent is not None:
+        try:
+            answer = await security_response_agent.respond(category)
+        except Exception:
+            pass
+    # Never return the candidate, nested fact payloads, citations, or handoff data.
+    return ChatResponse(
+        status=OrchestrationStatus.SECURITY_BLOCKED.value,
+        route=response.route,
+        answer=answer,
+        reason="OUTPUT_SECURITY_BLOCK",
+    )
 
 
 class ChatApplicationService:
     """Translate transport contracts; it neither routes nor executes capabilities directly."""
 
-    def __init__(self, orchestrator: OrchestrationCapability) -> None:
+    def __init__(
+        self,
+        orchestrator: OrchestrationCapability,
+        security_response_agent: SecurityResponseAgent | None = None,
+        output_security_gate: OutputSecurityGate | None = None,
+    ) -> None:
         self._orchestrator = orchestrator
+        self._security_response_agent = security_response_agent
+        self._output_security_gate = output_security_gate
 
     async def handle(
         self,
@@ -266,6 +370,10 @@ class ChatApplicationService:
             raise ChatAuthorizationError()
         operational = self._operational_context(request, principal)
         human = self._human_context(request.human_context, principal)
+        audit_context = SecurityAuditContext(
+            user_identifier=principal.user_id,
+            request_reference=f"chat-{uuid4().hex}",
+        )
         with runtime_telemetry(telemetry_sink):
             result = await self._orchestrator.execute(
                 OrchestrationRequest(
@@ -276,18 +384,47 @@ class ChatApplicationService:
                     ),
                     customer_support_context=operational,
                     human_escalation_request=human,
-                    security_audit_context=SecurityAuditContext(
-                        user_identifier=principal.user_id,
-                        request_reference=f"chat-{uuid4().hex}",
-                    ),
+                    security_audit_context=audit_context,
                 )
             )
+            security_answer = None
+            if result.status is OrchestrationStatus.SECURITY_BLOCKED:
+                category = _security_category(result.security_semantics)
+                if self._security_response_agent is not None:
+                    try:
+                        security_answer = await self._security_response_agent.respond(category)
+                        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="SecurityResponseAgent", value="LLM_FORMULATED_RESPONSE")
+                    except Exception:
+                        security_answer = _SECURITY_BLOCK_FALLBACK
+                        emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="CONTROLLED_ERROR")
+                else:
+                    security_answer = _SECURITY_BLOCK_FALLBACK
+                    emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="CONTROLLED_ERROR")
+            response = self._response(result, security_answer=security_answer)
+            output_block_category = None
+            output_action = None
+            if self._output_security_gate is not None:
+                response, output_block_category, output_action = await _apply_output_security(
+                    response, self._output_security_gate, self._security_response_agent
+                )
+            if output_block_category is not None and output_action is not None and result.status is not OrchestrationStatus.SECURITY_BLOCKED:
+                audit_output = getattr(self._orchestrator, "audit_output_security_block", None)
+                if audit_output is not None:
+                    try:
+                        audit_result = await audit_output(
+                            message=request.message, context=audit_context, category=output_block_category,
+                            action_taken=output_action,
+                        )
+                    except Exception:
+                        raise ChatUnavailableError() from None
+                    if audit_result.status is not SecurityAuditStatus.RECORDED:
+                        raise ChatUnavailableError()
         if result.status in {
             OrchestrationStatus.ORCHESTRATION_ERROR,
             OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
         }:
             raise ChatUnavailableError()
-        return self._response(result)
+        return response
 
     @staticmethod
     def _operational_context(
@@ -299,7 +436,7 @@ class ChatApplicationService:
             return None
         return CustomerSupportContext(
             protocol_number=context.protocol_number,
-            operation=CustomerSupportOperation(context.operation.value),
+            operation=(CustomerSupportOperation(context.operation.value) if context.operation else None),
             run_id=context.run_id,
         )
 
@@ -362,12 +499,12 @@ class ChatApplicationService:
         )
 
     @staticmethod
-    def _response(result: OrchestrationResult) -> ChatResponse:
+    def _response(result: OrchestrationResult, *, security_answer: str | None = None) -> ChatResponse:
         if result.status is OrchestrationStatus.SECURITY_BLOCKED:
             return ChatResponse(
                 status=result.status.value,
                 route=result.route.value,
-                answer=_SECURITY_BLOCK_RESPONSE,
+                answer=security_answer or _SECURITY_BLOCK_FALLBACK,
                 reason="SECURITY_REQUEST_BLOCKED",
             )
         knowledge = None
@@ -434,6 +571,9 @@ class ChatApplicationService:
             direct_answer, citations = knowledge.answer, knowledge.citations
         elif support is not None and knowledge is None:
             direct_answer = support.answer
+        elif support is not None and knowledge is not None and result.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT:
+            direct_answer = support.answer
+            citations = knowledge.citations
         elif result.conversational_result is not None and knowledge is None and support is None:
             direct_answer = _safe_text(result.conversational_result.answer)
         return ChatResponse(

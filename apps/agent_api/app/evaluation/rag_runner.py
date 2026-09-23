@@ -126,7 +126,7 @@ class _WebInvocationSpy:
     def __init__(self, observer: InvocationObserver) -> None:
         self._observer = observer
 
-    async def answer(self, question: str):
+    async def answer(self, question: str, **kwargs):
         self._observer.increment("web")
         raise RuntimeError("evaluation web capability was unexpectedly invoked")
 

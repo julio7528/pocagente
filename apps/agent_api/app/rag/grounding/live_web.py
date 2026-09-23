@@ -48,6 +48,10 @@ class LiveWebContextBuilder:
     def __init__(self, approved_public_domains: frozenset[str]) -> None:
         self._approved_public_domains = frozenset(domain.lower() for domain in approved_public_domains)
 
+    @property
+    def approved_public_domains(self) -> tuple[str, ...]:
+        return tuple(sorted(self._approved_public_domains))
+
     @classmethod
     def from_project_registry(cls) -> LiveWebContextBuilder:
         root = Path(__file__).resolve().parents[5]

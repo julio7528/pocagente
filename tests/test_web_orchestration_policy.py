@@ -32,7 +32,7 @@ class Knowledge:
 
 
 class WebKnowledge(Knowledge):
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, **kwargs) -> KnowledgeResult:
         self.questions.append(question)
         return KnowledgeResult(question=question, status=KnowledgeResultStatus.ANSWERED, answer="Live [C1].", reason="WEB")
 

@@ -21,11 +21,17 @@ from apps.agent_api.app.agents.semantic_routing import (
     SemanticClassifierError,
     SemanticIntentClassifier,
     SemanticIntent,
+    SemanticCapabilityNeed,
     SemanticIntentMapper,
     SemanticRoutingContext,
 )
 from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
+from apps.agent_api.app.security.semantic import (
+    SemanticSecurityClassifier,
+    SecurityAction as SemanticSecurityAction,
+    SecurityCategory,
+)
 
 
 class RouterCapability(StrEnum):
@@ -90,6 +96,8 @@ class RouterDecision(BaseModel):
     reason: str = Field(min_length=1)
     security_semantics: tuple[SecurityClassification, ...] = ()
     semantic_intent: SemanticIntent | None = None
+    semantic_capability_needs: tuple[SemanticCapabilityNeed, ...] = ()
+    security_audit_required: bool = True
 
     @model_validator(mode="after")
     def fields_match_route(self) -> RouterDecision:
@@ -125,7 +133,7 @@ class RouterDecision(BaseModel):
                 raise ValueError("current-information route cannot carry a retrieval scope")
         elif self.web_search_policy is WebSearchPolicy.REQUIRED:
             raise ValueError("only the approved current-information route requires live web search")
-        if self.route is RouterRoute.SECURITY_BLOCK and not self.security_semantics:
+        if self.route is RouterRoute.SECURITY_BLOCK and not self.security_semantics and self.security_audit_required:
             raise ValueError("security blocks require typed security semantics")
         if self.route is not RouterRoute.SECURITY_BLOCK and self.security_semantics:
             raise ValueError("only security blocks may carry security semantics")
@@ -258,8 +266,13 @@ class RouterAgent:
         re.IGNORECASE,
     )
 
-    def __init__(self, semantic_classifier: SemanticIntentClassifier | None = None) -> None:
+    def __init__(
+        self,
+        semantic_classifier: SemanticIntentClassifier | None = None,
+        semantic_security_classifier: SemanticSecurityClassifier | None = None,
+    ) -> None:
         self._semantic_classifier = semantic_classifier
+        self._semantic_security_classifier = semantic_security_classifier
 
     def route(self, request: RouterRequest) -> RouterDecision:
         """Return a controlled decision without running the selected capability."""
@@ -350,6 +363,28 @@ class RouterAgent:
             value="ALLOWED",
             elapsed_ms=int((perf_counter() - started_at) * 1000),
         )
+        if self._semantic_security_classifier is not None:
+            emit_runtime_event(RuntimeEventKind.SECURITY_SEMANTIC, value="STARTED")
+            try:
+                security_decision = await self._semantic_security_classifier.classify(message)
+            except Exception:
+                # No business capability is selected when the additional security
+                # boundary cannot provide a validated decision.
+                emit_runtime_event(RuntimeEventKind.SECURITY_SEMANTIC, value="CONTROLLED_ERROR")
+                return self._decision(RouterRoute.AMBIGUOUS, "SEMANTIC_SECURITY_UNAVAILABLE")
+            if security_decision.action is SemanticSecurityAction.BLOCK:
+                semantics = self._semantic_security_audit_semantics(security_decision.category)
+                if not semantics and security_decision.category is not SecurityCategory.INAPPROPRIATE_CONTENT:
+                    return self._decision(RouterRoute.AMBIGUOUS, "SECURITY_AUDIT_CATEGORY_UNAVAILABLE")
+                emit_runtime_event(RuntimeEventKind.SECURITY_SEMANTIC, value="BLOCKED")
+                emit_runtime_event(RuntimeEventKind.SECURITY, value="SECURITY_BLOCK")
+                decision = self._decision(
+                    RouterRoute.SECURITY_BLOCK, "SEMANTIC_SECURITY_POLICY_BLOCK",
+                    security_semantics=semantics,
+                    security_audit_required=bool(semantics),
+                )
+                return decision
+            emit_runtime_event(RuntimeEventKind.SECURITY_SEMANTIC, value="ALLOWED")
         if self._semantic_classifier is None:
             emit_runtime_event(RuntimeEventKind.CLASSIFIER, value="NOT_CONFIGURED")
             decision = SemanticIntentMapper.safe_failure("SEMANTIC_CLASSIFIER_UNAVAILABLE")
@@ -379,8 +414,26 @@ class RouterAgent:
                 ops_read_authorized=request.ops_read_authorized
             )
         )
-        decision = decision.model_copy(update={"semantic_intent": classification.intent})
+        decision = decision.model_copy(update={
+            "semantic_intent": classification.intent,
+            "semantic_capability_needs": classification.capability_needs or SemanticClassification.default_needs(classification.intent),
+        })
         return decision
+
+    @staticmethod
+    def _semantic_security_audit_semantics(category: SecurityCategory) -> tuple[SecurityClassification, ...]:
+        mapping = {
+            SecurityCategory.CREDENTIAL_REQUEST: SecurityClassification(event_type=SecurityEventType.CREDENTIAL_REQUEST, resource_category=SecurityResourceCategory.OTHER_PROTECTED_RESOURCE),
+            SecurityCategory.SECRET_REQUEST: SecurityClassification(event_type=SecurityEventType.SECRET_REQUEST, resource_category=SecurityResourceCategory.OTHER_PROTECTED_RESOURCE),
+            SecurityCategory.DATABASE_ACCESS: SecurityClassification(event_type=SecurityEventType.DATABASE_ACCESS_REQUEST, resource_category=SecurityResourceCategory.INTERNAL_INFRASTRUCTURE),
+            SecurityCategory.SENSITIVE_INFRASTRUCTURE: SecurityClassification(event_type=SecurityEventType.SENSITIVE_INFRASTRUCTURE_REQUEST, resource_category=SecurityResourceCategory.INTERNAL_INFRASTRUCTURE),
+            SecurityCategory.PROTECTED_IMPLEMENTATION: SecurityClassification(event_type=SecurityEventType.SENSITIVE_INFRASTRUCTURE_REQUEST, resource_category=SecurityResourceCategory.INTERNAL_INFRASTRUCTURE),
+            SecurityCategory.PROMPT_INJECTION: SecurityClassification(event_type=SecurityEventType.PROMPT_INJECTION),
+            SecurityCategory.AUTHORIZATION_BYPASS: SecurityClassification(event_type=SecurityEventType.AUTHORIZATION_BYPASS_ATTEMPT, resource_category=SecurityResourceCategory.AUTHENTICATION_CONTROL),
+            SecurityCategory.PROTECTED_PATH: SecurityClassification(event_type=SecurityEventType.SENSITIVE_INFRASTRUCTURE_REQUEST, resource_category=SecurityResourceCategory.PROTECTED_PATH),
+        }
+        value = mapping.get(category)
+        return (value,) if value is not None else ()
 
     @staticmethod
     def _decision(
@@ -388,6 +441,7 @@ class RouterAgent:
         reason: str,
         web_search_policy: WebSearchPolicy = WebSearchPolicy.NONE,
         security_semantics: tuple[SecurityClassification, ...] = (),
+        security_audit_required: bool = True,
     ) -> RouterDecision:
         routes = {
             RouterRoute.KNOWLEDGE: (RouterStatus.ROUTED, (RouterCapability.KNOWLEDGE,)),
@@ -432,6 +486,7 @@ class RouterAgent:
             knowledge_scope=knowledge_scope,
             reason=reason,
             security_semantics=security_semantics,
+            security_audit_required=security_audit_required,
         )
 
     @classmethod

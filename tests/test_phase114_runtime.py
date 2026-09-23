@@ -75,7 +75,7 @@ class RecordingWeb:
     def __init__(self) -> None:
         self.questions: list[str] = []
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, **kwargs) -> KnowledgeResult:
         self.questions.append(question)
         return KnowledgeResult(question=question, status=KnowledgeResultStatus.ANSWERED, answer="Web double answer.", reason="WEB_DOUBLE")
 
@@ -307,7 +307,7 @@ def test_structural_irrelevant_public_context_typed_insufficient_falls_back_thro
         def __init__(self):
             self.questions = []
 
-        async def answer(self, question):
+        async def answer(self, question, **kwargs):
             self.questions.append(question)
             return KnowledgeResult(
                 question=question, status=KnowledgeResultStatus.ANSWERED,
@@ -337,8 +337,10 @@ def test_structural_irrelevant_public_context_typed_insufficient_falls_back_thro
 def test_expected_vs_observed_requires_trusted_context_and_then_uses_both_capabilities() -> None:
     denied, _, denied_knowledge, _, denied_support, _, _ = runtime("EXPECTED_VS_OBSERVED")
     denied_response = chat(denied, "Compare expected and observed protocol behavior")
-    assert denied_response.route == RouterRoute.AMBIGUOUS.value
-    assert denied_knowledge.requests == [] and denied_support.requests == []
+    assert denied_response.route == RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT.value
+    assert denied_knowledge.requests and denied_support.requests == []
+    assert denied_response.customer_support is not None
+    assert denied_response.customer_support.status == "UNAUTHORIZED"
 
     allowed, _, knowledge, _, support, _, _ = runtime("EXPECTED_VS_OBSERVED", knowledge_status=KnowledgeResultStatus.ANSWERED)
     response = chat(
@@ -354,8 +356,10 @@ def test_expected_vs_observed_requires_trusted_context_and_then_uses_both_capabi
 def test_expected_vs_observed_greeting_prefix_does_not_change_trusted_context_requirement() -> None:
     service, _, knowledge, _, support, _, _ = runtime("EXPECTED_VS_OBSERVED")
     response = chat(service, "Oi, compare o procedimento esperado com o que ocorreu no protocolo 123")
-    assert response.route == RouterRoute.AMBIGUOUS.value
-    assert knowledge.requests == [] and support.requests == []
+    assert response.route == RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT.value
+    assert knowledge.requests and support.requests == []
+    assert response.customer_support is not None
+    assert response.customer_support.status == "UNAUTHORIZED"
 
 
 def test_semantic_human_request_reuses_existing_state_machine_when_context_is_present() -> None:

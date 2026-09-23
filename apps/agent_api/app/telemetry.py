@@ -13,10 +13,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class RuntimeEventKind(StrEnum):
     SECURITY = "SECURITY"
+    SECURITY_SEMANTIC = "SECURITY_SEMANTIC"
+    SECURITY_OUTPUT = "SECURITY_OUTPUT"
     CLASSIFIER = "CLASSIFIER"
     INTENT = "INTENT"
     ROUTER = "ROUTER"
+    CAPABILITY_NEED = "CAPABILITY_NEED"
     KNOWLEDGE_SCOPE = "KNOWLEDGE_SCOPE"
+    KNOWLEDGE_QUERY = "KNOWLEDGE_QUERY"
     WEB_POLICY = "WEB_POLICY"
     CAPABILITY = "CAPABILITY"
     OPS_AUTHORIZATION = "OPS_AUTHORIZATION"
@@ -27,6 +31,9 @@ class RuntimeEventKind(StrEnum):
     GROUNDING = "GROUNDING"
     WEB_SEARCH = "WEB_SEARCH"
     LLM = "LLM"
+    PROVIDER_HTTP = "PROVIDER_HTTP"
+    PROVIDER_PARSE = "PROVIDER_PARSE"
+    PROVIDER_REQUEST = "PROVIDER_REQUEST"
     HUMAN = "HUMAN"
     SECURITY_AUDIT = "SECURITY_AUDIT"
     ORCHESTRATION = "ORCHESTRATION"
@@ -44,6 +51,8 @@ class RuntimeTelemetryEvent(BaseModel):
     elapsed_ms: int | None = Field(default=None, ge=0)
     protocol_number: str | None = None
     limit: int | None = Field(default=None, ge=1, le=5)
+    client_reused: bool | None = None
+    input_characters: int | None = Field(default=None, ge=0)
 
     @field_validator("value")
     @classmethod
@@ -109,6 +118,8 @@ def emit_runtime_event(
     elapsed_ms: int | None = None,
     protocol_number: str | None = None,
     limit: int | None = None,
+    client_reused: bool | None = None,
+    input_characters: int | None = None,
 ) -> None:
     """Emit a validated allowlisted event without affecting application behavior."""
 
@@ -124,6 +135,8 @@ def emit_runtime_event(
             elapsed_ms=elapsed_ms,
             protocol_number=protocol_number,
             limit=limit,
+            client_reused=client_reused,
+            input_characters=input_characters,
         )
         sink.emit(event)
     except Exception:

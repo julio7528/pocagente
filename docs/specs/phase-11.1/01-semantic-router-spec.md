@@ -32,6 +32,20 @@ The v1 intent vocabulary is closed:
 | `HUMAN_REQUEST` | existing Human Escalation route/state machine |
 | `AMBIGUOUS` | current bounded clarification behavior |
 
+### Cooperative capability needs
+
+Customer Support cooperation must not add a new top-level intent for each
+question shape. The semantic result may carry a closed `capability_needs`
+collection alongside the existing primary intent, using only
+`INTERNAL_KNOWLEDGE`, `PUBLIC_GETNET`, `OPERATIONAL_FACTS`, `CURRENT_WEB`,
+`HUMAN`, and `CONVERSATIONAL`. It contains no tool names, repository names,
+selectors, authority, or free-text rationale. The deterministic mapper
+validates compatible combinations and maps `OPERATIONAL_FACTS` plus
+`INTERNAL_KNOWLEDGE` to the existing cooperative route/capability shape.
+Capability needs describe what evidence may be relevant; they never grant
+authorization. `ChatApplicationService` and the OPS boundary continue to gate
+operational reads from the authenticated principal.
+
 The mapper, not the model, rejects impossible combinations. `EXPECTED_VS_OBSERVED` without trusted operational context degrades safely; it cannot unlock OPS. The mapper may use authenticated context supplied by the application, never model output.
 
 `RouterDecision.knowledge_scope` is an application-owned, typed field. It is populated only by this mapper and is propagated unchanged through orchestration and the retrieval request path specified in `02`; semantic/query wording, the user, the LLM, and Web evidence cannot choose or mutate it.

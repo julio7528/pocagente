@@ -110,7 +110,7 @@ class _WebKnowledgeDouble:
     def __init__(self, observer: ChallengeInvocationObserver) -> None:
         self._observer = observer
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, **kwargs) -> KnowledgeResult:
         self._observer.increment("web")
         return KnowledgeResult(
             question=question,

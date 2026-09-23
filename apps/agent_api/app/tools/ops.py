@@ -5,11 +5,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from enum import StrEnum
 from time import perf_counter
+from time import perf_counter
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts, ServiceRequestRecord
+from apps.agent_api.app.database.models import (
+    AutomationRunRecord, EmailAttachmentRecord, EstablishmentRecord, ExecutionFailureEvidence,
+    ExecutionLogRecord, IncomingEmailRecord, ProtocolCaseFacts, ProtocolStatusFacts,
+    RecentExecutedProtocolRecord, ServiceRequestRecord,
+)
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
 
@@ -29,6 +34,31 @@ class OperationalFactsRepository(Protocol):
     async def list_recent_service_requests(self, limit: int) -> Sequence[ServiceRequestRecord]:
         """Return protocols ordered by authoritative request creation time."""
 
+    async def list_recent_protocols_by_execution(self, limit: int) -> Sequence[RecentExecutedProtocolRecord]: ...
+
+    async def get_service_request_by_protocol(self, protocol_number: str) -> ServiceRequestRecord | None: ...
+    async def get_incoming_email(self, email_id: int) -> IncomingEmailRecord | None: ...
+    async def list_email_attachments(self, email_id: int) -> Sequence[EmailAttachmentRecord]: ...
+    async def list_automation_runs_for_request(self, request_id: int) -> Sequence[AutomationRunRecord]: ...
+    async def list_establishments_for_request(self, request_id: int) -> Sequence[EstablishmentRecord]: ...
+    async def list_execution_timeline_for_request(self, request_id: int, limit: int) -> Sequence[ExecutionLogRecord]: ...
+
+
+class ProtocolCaseToolResult(BaseModel):
+    """Controlled result for an authorized bounded protocol investigation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: OpsToolStatus
+    facts: ProtocolCaseFacts | None = None
+    reason: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def status_matches_facts(self) -> ProtocolCaseToolResult:
+        if (self.status is OpsToolStatus.SUCCESS) != (self.facts is not None):
+            raise ValueError("protocol case facts must match success status")
+        return self
+
 
 class OpsAccessContext(BaseModel):
     """Minimal authorization decision supplied by a future application boundary."""
@@ -47,6 +77,18 @@ class OpsToolStatus(StrEnum):
     NOT_FOUND = "NOT_FOUND"
     UNAUTHORIZED = "UNAUTHORIZED"
     REPOSITORY_ERROR = "REPOSITORY_ERROR"
+
+
+class OpsEvidenceCategory(StrEnum):
+    """Closed application-owned categories a support plan may request."""
+
+    SERVICE_REQUEST = "SERVICE_REQUEST"
+    ORIGIN_EMAIL = "ORIGIN_EMAIL"
+    EMAIL_ATTACHMENTS = "EMAIL_ATTACHMENTS"
+    AUTOMATION_RUNS = "AUTOMATION_RUNS"
+    ESTABLISHMENTS = "ESTABLISHMENTS"
+    EXECUTION_TIMELINE = "EXECUTION_TIMELINE"
+    FAILURE_EVIDENCE = "FAILURE_EVIDENCE"
 
 
 class ProtocolStatusToolResult(BaseModel):
@@ -103,11 +145,98 @@ class RecentProtocolsToolResult(BaseModel):
         return self
 
 
+class RecentExecutedProtocolsToolResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: OpsToolStatus
+    records: tuple[RecentExecutedProtocolRecord, ...] = ()
+    reason: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def records_match_status(self) -> RecentExecutedProtocolsToolResult:
+        if self.status is OpsToolStatus.SUCCESS and not self.records:
+            raise ValueError("successful execution discovery requires records")
+        if self.status is not OpsToolStatus.SUCCESS and self.records:
+            raise ValueError("non-success execution discovery cannot contain records")
+        return self
+
+
 class OperationalTools:
     """Expose approved OPS facts without SQL, connections, or diagnosis logic."""
 
     def __init__(self, repository: OperationalFactsRepository) -> None:
         self._repository = repository
+
+    async def investigate_protocol(
+        self,
+        protocol_number: str,
+        evidence_needs: Sequence[OpsEvidenceCategory],
+        authorization: OpsAccessContext,
+    ) -> ProtocolCaseToolResult:
+        """Resolve validated evidence categories through fixed read-only repository methods."""
+        if not self._valid_protocol(protocol_number):
+            return ProtocolCaseToolResult(status=OpsToolStatus.INVALID_INPUT, reason="INVALID_PROTOCOL_NUMBER")
+        if not authorization.can_read_operational_facts:
+            emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="investigate_protocol", value="DENIED")
+            return ProtocolCaseToolResult(status=OpsToolStatus.UNAUTHORIZED, reason="OPERATIONAL_ACCESS_DENIED")
+
+        emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="investigate_protocol", value="STARTED", protocol_number=protocol_number)
+        requested = set(evidence_needs)
+        requested.add(OpsEvidenceCategory.SERVICE_REQUEST)
+
+        async def read(name: str, call):
+            started = perf_counter()
+            emit_runtime_event(RuntimeEventKind.REPOSITORY, name=name, value="STARTED", protocol_number=protocol_number)
+            result = await call
+            count = len(result) if isinstance(result, (tuple, list)) else int(result is not None)
+            emit_runtime_event(
+                RuntimeEventKind.REPOSITORY, name=name, value="COMPLETED", count=count,
+                elapsed_ms=int((perf_counter() - started) * 1000), protocol_number=protocol_number,
+            )
+            return result
+        try:
+            request = await read(
+                "get_service_request_by_protocol",
+                self._repository.get_service_request_by_protocol(protocol_number),
+            )
+            if request is None:
+                emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="investigate_protocol", value="NOT_FOUND")
+                return ProtocolCaseToolResult(status=OpsToolStatus.NOT_FOUND, reason="PROTOCOL_NOT_FOUND")
+
+            incoming_email = None
+            attachments: tuple[EmailAttachmentRecord, ...] = ()
+            runs: tuple[AutomationRunRecord, ...] = ()
+            establishments: tuple[EstablishmentRecord, ...] = ()
+            timeline: tuple[ExecutionLogRecord, ...] = ()
+            failures: tuple[ExecutionFailureEvidence, ...] = ()
+
+            if OpsEvidenceCategory.ORIGIN_EMAIL in requested or OpsEvidenceCategory.EMAIL_ATTACHMENTS in requested:
+                incoming_email = await read("get_incoming_email", self._repository.get_incoming_email(request.email_id))
+            if OpsEvidenceCategory.EMAIL_ATTACHMENTS in requested:
+                attachments = tuple(await read("list_email_attachments", self._repository.list_email_attachments(request.email_id)))
+            if OpsEvidenceCategory.AUTOMATION_RUNS in requested:
+                runs = tuple(await read("list_automation_runs_for_request", self._repository.list_automation_runs_for_request(request.request_id)))
+            if OpsEvidenceCategory.ESTABLISHMENTS in requested:
+                establishments = tuple(await read("list_establishments_for_request", self._repository.list_establishments_for_request(request.request_id)))
+            if OpsEvidenceCategory.EXECUTION_TIMELINE in requested:
+                timeline = tuple(await read("list_execution_timeline_for_request", self._repository.list_execution_timeline_for_request(request.request_id, 100)))
+            if OpsEvidenceCategory.FAILURE_EVIDENCE in requested:
+                failures = tuple(await read("get_execution_failure_facts", self._repository.get_execution_failure_facts(protocol_number)))
+        except Exception:
+            emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="investigate_protocol", value="CONTROLLED_ERROR")
+            return ProtocolCaseToolResult(status=OpsToolStatus.REPOSITORY_ERROR, reason="PROTOCOL_CASE_FACTS_UNAVAILABLE")
+
+        facts = ProtocolCaseFacts(
+            service_request=request,
+            incoming_email=incoming_email,
+            attachments=attachments,
+            automation_runs=runs,
+            establishments=establishments,
+            execution_timeline=timeline,
+            failure_evidence=failures,
+        )
+        emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="investigate_protocol", value="SUCCESS", count=len(timeline), protocol_number=protocol_number)
+        return ProtocolCaseToolResult(status=OpsToolStatus.SUCCESS, facts=facts, reason="OBSERVED_PROTOCOL_CASE_FACTS")
 
     async def lookup_protocol_status(
         self,
@@ -281,6 +410,26 @@ class OperationalTools:
             records=records,
             reason="OBSERVED_RECENT_PROTOCOLS",
         )
+
+    async def list_recent_protocols_by_execution(
+        self, limit: int, authorization: OpsAccessContext
+    ) -> RecentExecutedProtocolsToolResult:
+        """Return recent requests ordered by real automation-run start times."""
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 5:
+            return RecentExecutedProtocolsToolResult(status=OpsToolStatus.INVALID_INPUT, reason="INVALID_RECENT_LIMIT")
+        if not authorization.can_read_operational_facts:
+            emit_runtime_event(RuntimeEventKind.OPS_TOOL, name="list_recent_protocols_by_execution", value="DENIED")
+            return RecentExecutedProtocolsToolResult(status=OpsToolStatus.UNAUTHORIZED, reason="OPERATIONAL_ACCESS_DENIED")
+        started = perf_counter()
+        try:
+            records = tuple(await self._repository.list_recent_protocols_by_execution(limit))
+        except Exception:
+            emit_runtime_event(RuntimeEventKind.REPOSITORY, name="list_recent_protocols_by_execution", value="CONTROLLED_ERROR", elapsed_ms=int((perf_counter() - started) * 1000))
+            return RecentExecutedProtocolsToolResult(status=OpsToolStatus.REPOSITORY_ERROR, reason="EXECUTION_RECENCY_UNAVAILABLE")
+        emit_runtime_event(RuntimeEventKind.REPOSITORY, name="list_recent_protocols_by_execution", value="COMPLETED", count=len(records), elapsed_ms=int((perf_counter() - started) * 1000), limit=limit)
+        if not records:
+            return RecentExecutedProtocolsToolResult(status=OpsToolStatus.NOT_FOUND, reason="NO_EXECUTED_PROTOCOLS_FOUND")
+        return RecentExecutedProtocolsToolResult(status=OpsToolStatus.SUCCESS, records=records, reason="OBSERVED_EXECUTION_RECENCY")
 
     @staticmethod
     def _valid_protocol(protocol_number: object) -> bool:

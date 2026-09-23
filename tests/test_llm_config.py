@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from pydantic import SecretStr, ValidationError
 
@@ -61,3 +63,4 @@ def test_factory_composes_only_the_provider_boundary(monkeypatch: pytest.MonkeyP
     provider = create_deepseek_provider()
 
     assert isinstance(provider, DeepSeekProvider)
+    asyncio.run(provider.aclose())

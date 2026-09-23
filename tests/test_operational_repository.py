@@ -191,6 +191,51 @@ async def test_automation_run_create_get_and_update_are_parameterized() -> None:
 
 
 @pytest.mark.anyio
+async def test_protocol_correlation_reads_email_attachments_and_runs_with_bound_ids() -> None:
+    now = datetime.now(UTC)
+    email = {
+        "email_id": 10, "run_id": 7, "received_at": now, "processed_at": None,
+        "sender": "sender@example.test", "recipient": "ops@example.test", "subject": "Request",
+        "attachment_count": 1, "sender_status": "VALID", "processing_status": "PROCESSED",
+        "rejection_reason": None, "created_at": now,
+    }
+    attachment = {
+        "attachment_id": 12, "email_id": 10, "file_name": "request.csv", "file_type": "text/csv",
+        "received_at": now, "validation_status": "VALID", "validation_message": None,
+        "establishment_count": 1, "processing_status": "PROCESSED", "created_at": now,
+    }
+    run = _run_row(7)
+    connection = FakeConnection(email, [attachment], [run])
+    repository = OperationalRepository(connection)
+
+    assert (await repository.get_incoming_email(10)).sender == "sender@example.test"
+    assert (await repository.list_email_attachments(10))[0].file_name == "request.csv"
+    assert (await repository.list_automation_runs_for_request(20))[0].run_id == 7
+    assert [statement.parameters for statement in connection.statements] == [(10,), (10,), (20,) * 5]
+    sql_text = normalized_sql(connection.statements[2]).lower()
+    assert "r1_run_id as run_id" in sql_text and "ops.execution_log" in sql_text
+    assert "ops.establishments" in sql_text and "ops.email_attachments" in sql_text
+    assert all("%s" in normalized_sql(statement) for statement in connection.statements)
+
+
+@pytest.mark.anyio
+async def test_recent_protocols_by_execution_uses_domain_run_timestamps() -> None:
+    row = _request_row(20)
+    row["last_execution_at"] = datetime.now(UTC)
+    connection = FakeConnection([row])
+    repository = OperationalRepository(connection)
+    result = await repository.list_recent_protocols_by_execution(1)
+
+    assert result[0].service_request.request_id == 20
+    assert result[0].last_execution_at == row["last_execution_at"]
+    statement = connection.statements[0]
+    sql_text = normalized_sql(statement).lower()
+    assert "max(ar.started_at)" in sql_text
+    assert "ar.created_at" not in sql_text.split("order by", 1)[1]
+    assert statement.parameters == (1,)
+
+
+@pytest.mark.anyio
 async def test_automation_run_rejects_identity_or_unknown_mutation() -> None:
     connection = FakeConnection()
     repository = OperationalRepository(connection)
@@ -475,8 +520,11 @@ async def test_execution_log_is_append_only_and_timelines_follow_indexes() -> No
     assert append.parameters == tuple(event.values())
     assert "WHERE run_id = %s ORDER BY logged_at DESC, log_id DESC LIMIT %s" in normalized_sql(run_timeline)
     assert run_timeline.parameters == (7, 20)
-    assert "WHERE request_id = %s ORDER BY logged_at DESC, log_id DESC LIMIT %s" in normalized_sql(request_timeline)
-    assert request_timeline.parameters == (20, 20)
+    assert "el.request_id = %s" in normalized_sql(request_timeline)
+    request_sql = normalized_sql(request_timeline).lower()
+    assert "establishment_id in (" in request_sql
+    assert "order by el.logged_at desc, el.log_id desc limit %s" in request_sql
+    assert request_timeline.parameters == (20, 20, 20, 20, 20)
     source = inspect.getsource(OperationalRepository)
     assert "update_execution_log" not in source and "delete_execution_log" not in source
 

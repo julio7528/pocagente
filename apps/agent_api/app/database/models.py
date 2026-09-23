@@ -56,6 +56,42 @@ class AutomationRunRecord(BaseModel):
     created_at: datetime
 
 
+class IncomingEmailRecord(BaseModel):
+    """Typed read model for an OPS incoming email and its R1 provenance."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    email_id: int
+    run_id: int
+    received_at: datetime
+    processed_at: datetime | None = None
+    sender: str
+    recipient: str
+    subject: str | None = None
+    attachment_count: int
+    sender_status: str
+    processing_status: str
+    rejection_reason: str | None = None
+    created_at: datetime
+
+
+class EmailAttachmentRecord(BaseModel):
+    """Typed read model for an OPS email attachment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    attachment_id: int
+    email_id: int
+    file_name: str
+    file_type: str | None = None
+    received_at: datetime
+    validation_status: str
+    validation_message: str | None = None
+    establishment_count: int | None = None
+    processing_status: str
+    created_at: datetime
+
+
 class ServiceRequestRecord(BaseModel):
     """Factual read model for ops.service_requests rows."""
 
@@ -72,6 +108,15 @@ class ServiceRequestRecord(BaseModel):
     failure_reason: str | None = None
     completed_at: datetime | None = None
     return_email_at: datetime | None = None
+
+
+class RecentExecutedProtocolRecord(BaseModel):
+    """A request paired with the actual latest automation-run start timestamp."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_request: ServiceRequestRecord
+    last_execution_at: datetime
 
 
 class EstablishmentRecord(BaseModel):
@@ -157,6 +202,20 @@ class ExecutionFailureEvidence(BaseModel):
     attachment_id: int | None = None
     establishment_id: int | None = None
     last_successful_evidence: ExecutionLogRecord | None = None
+
+
+class ProtocolCaseFacts(BaseModel):
+    """Facts correlated for one protocol; absent fields were not requested or unavailable."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    service_request: ServiceRequestRecord
+    incoming_email: IncomingEmailRecord | None = None
+    attachments: tuple[EmailAttachmentRecord, ...] = ()
+    automation_runs: tuple[AutomationRunRecord, ...] = ()
+    establishments: tuple[EstablishmentRecord, ...] = ()
+    execution_timeline: tuple[ExecutionLogRecord, ...] = ()
+    failure_evidence: tuple[ExecutionFailureEvidence, ...] = ()
 
 
 class SecurityEventRecord(BaseModel):

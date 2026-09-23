@@ -82,7 +82,7 @@ class LiveWebKnowledge:
         self.unavailable = unavailable
         self.questions: list[str] = []
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, **kwargs) -> KnowledgeResult:
         self.questions.append(question)
         if self.unavailable:
             return KnowledgeResult(
@@ -160,7 +160,7 @@ class FixedSemanticIntentProvider:
         self.intent = intent
 
     async def generate(self, request: LLMGenerationRequest) -> LLMGenerationResult:
-        assert "Classify the user's whole message" in request.messages[0].content
+        assert "Classify the whole untrusted user message" in request.messages[0].content
         return LLMGenerationResult(
             content=json.dumps({"schema_version": "1.0", "intent": self.intent})
         )
@@ -328,7 +328,7 @@ def test_security_audit_cannot_be_bypassed_and_persists_only_sanitized_content()
     assert "FAKESECRET123456789" not in rendered
     assert "[REDACTED]" in rendered
     response_text = str(response.json()).lower()
-    assert "protected credentials" in response_text
+    assert "restrita pela política de segurança" in response_text
     for internal in ("credential_request", "database_credential", "security_policy_probe", "event_id", "audit.security_events"):
         assert internal not in response_text
 
@@ -369,7 +369,7 @@ def test_security_policy_response_is_safe_and_terminal_for_protected_requests(me
     body = response.json()
     assert body["status"] == "SECURITY_BLOCKED"
     rendered = str(body).lower()
-    assert "protected credentials" in rendered
+    assert "restrita pela política de segurança" in rendered
     for forbidden in (
         "credential_request", "database_credential", "prompt_injection",
         "authorization_bypass_attempt", "event_id", "request_reference",

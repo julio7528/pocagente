@@ -18,6 +18,7 @@ from apps.agent_api.app.agents.semantic_routing import (
     SemanticClassification,
     SemanticClassifierError,
     SemanticIntent,
+    SemanticCapabilityNeed,
     SemanticIntentClassifier,
     SemanticIntentMapper,
     SemanticRoutingContext,
@@ -78,16 +79,38 @@ def test_mapper_maps_each_non_cooperative_intent_to_fixed_policy(
     assert decision.knowledge_scope is scope
 
 
-def test_expected_vs_observed_requires_trusted_context_and_never_receives_auth_from_intent() -> None:
+def test_capability_routing_does_not_grant_or_require_ops_authorization() -> None:
     denied = SemanticIntentMapper.map(classification(SemanticIntent.EXPECTED_VS_OBSERVED))
-    assert denied.route is RouterRoute.AMBIGUOUS
-    assert denied.capabilities == ()
+    assert denied.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT
+    assert denied.capabilities == (RouterCapability.KNOWLEDGE, RouterCapability.CUSTOMER_SUPPORT)
     allowed = SemanticIntentMapper.map(
         classification(SemanticIntent.EXPECTED_VS_OBSERVED),
         SemanticRoutingContext(ops_read_authorized=True),
     )
     assert allowed.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT
     assert allowed.knowledge_scope is KnowledgeScope.INTERNAL
+
+
+def test_capability_needs_select_cooperative_internal_and_ops_without_granting_auth() -> None:
+    combined = SemanticClassification(
+        schema_version="1.0",
+        intent=SemanticIntent.CUSTOMER_SUPPORT,
+        capability_needs=(SemanticCapabilityNeed.INTERNAL_KNOWLEDGE, SemanticCapabilityNeed.OPERATIONAL_FACTS),
+    )
+    selected = SemanticIntentMapper.map(combined, SemanticRoutingContext(ops_read_authorized=False))
+    assert selected.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT
+    allowed = SemanticIntentMapper.map(combined, SemanticRoutingContext(ops_read_authorized=True))
+    assert allowed.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT
+    assert allowed.capabilities == (RouterCapability.KNOWLEDGE, RouterCapability.CUSTOMER_SUPPORT)
+
+
+def test_procedure_only_capability_does_not_select_ops() -> None:
+    result = SemanticIntentMapper.map(SemanticClassification(
+        schema_version="1.0", intent=SemanticIntent.INTERNAL_KNOWLEDGE,
+        capability_needs=(SemanticCapabilityNeed.INTERNAL_KNOWLEDGE,),
+    ), SemanticRoutingContext(ops_read_authorized=True))
+    assert result.route is RouterRoute.KNOWLEDGE
+    assert RouterCapability.CUSTOMER_SUPPORT not in result.capabilities
 
 
 def test_security_block_is_not_a_semantic_intent() -> None:

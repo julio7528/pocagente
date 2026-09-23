@@ -17,6 +17,7 @@ from scripts.chat_cli import (
     dispatch_message,
     format_chat_response,
     interactive_loop,
+    main,
     load_env_file,
     _safe_console_text,
     ConsoleTraceSink,
@@ -82,6 +83,45 @@ def test_build_headers_and_payload_with_ops_context() -> None:
             "operation": "PROTOCOL_STATUS",
         },
     }
+
+
+def test_ops_follow_up_selector_can_be_sent_without_forcing_a_fixed_operation() -> None:
+    state = CLISessionState(
+        role="SUPPORT_AGENT", ops_authorized=True,
+        protocol_number="POC-OPS-0005", operation=None,
+    )
+    assert build_payload("qual foi o último passo?", state) == {
+        "message": "qual foi o último passo?",
+        "user_id": "test-client",
+        "operational_context": {"protocol_number": "POC-OPS-0005"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected_role", "expected_ops"),
+    [
+        (["-m", "qual o status do protocolo POC-OPS-0004?"], "SUPPORT_AGENT", "true"),
+        (["--role", "CLIENT", "-m", "qual o status do protocolo POC-OPS-0004?"], "CLIENT", "false"),
+        (["--role", "SUPPORT_AGENT", "--no-ops-authorized", "-m", "status"], "SUPPORT_AGENT", "false"),
+    ],
+)
+def test_cli_principal_defaults_are_local_synthetic_and_explicitly_overridable(
+    argv: list[str], expected_role: str, expected_ops: str, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    client = FakeChatClient()
+    monkeypatch.setattr("scripts.chat_cli.create_chat_client", lambda *args, **kwargs: client)
+    assert main(argv) == 0
+    headers, _ = client.sent_requests[0]
+    assert headers["X-Authenticated-Role"] == expected_role
+    assert headers["X-Ops-Authorized"] == expected_ops
+    rendered = capsys.readouterr().out
+    if expected_role == "SUPPORT_AGENT" and expected_ops == "true":
+        assert "[DEV TEST PRINCIPAL] SUPPORT_AGENT / OPS READ AUTHORIZED" in rendered
+
+
+def test_cli_rejects_client_role_as_a_way_to_claim_ops_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(SystemExit):
+        main(["--role", "CLIENT", "--ops-authorized", "-m", "status"])
 
 
 def test_format_chat_response_knowledge() -> None:
@@ -345,3 +385,19 @@ def test_interactive_loop_commands_and_exit(capsys: pytest.CaptureFixture[str]) 
     assert "Papel alterado para SUPPORT_AGENT." in captured
     assert "AJUDA / GUIA DE USO" in captured
     assert "Encerrando Getnet Support CLI." in captured
+
+
+def test_interactive_loop_carries_only_explicit_protocol_as_follow_up_context(monkeypatch, capsys) -> None:
+    client = FakeChatClient()
+    state = CLISessionState(role="SUPPORT_AGENT", ops_authorized=True)
+    inputs = iter([
+        "o que aconteceu no POC-OPS-0005?",
+        "qual foi o último passo bem-sucedido?",
+        "exit",
+    ])
+    with patch("builtins.input", lambda prompt="": next(inputs)):
+        interactive_loop(client, "tok", state)
+
+    assert client.sent_requests[0][1]["operational_context"] == {"protocol_number": "POC-OPS-0005"}
+    assert client.sent_requests[1][1]["operational_context"] == {"protocol_number": "POC-OPS-0005"}
+    assert state.operation is None

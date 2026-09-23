@@ -6,6 +6,8 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
+import re
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -20,7 +22,15 @@ class WebSearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
     query: str = Field(min_length=1, max_length=1000)
-    max_results: int = Field(default=3, ge=1, le=5)
+    max_results: int | None = Field(default=None, ge=1, le=5)
+    include_domains: tuple[str, ...] = Field(default=(), max_length=20)
+
+    @field_validator("include_domains")
+    @classmethod
+    def domains_are_hosts(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}", domain) for domain in value):
+            raise ValueError("include_domains must contain hostnames")
+        return value
 
 
 class WebEvidence(BaseModel):

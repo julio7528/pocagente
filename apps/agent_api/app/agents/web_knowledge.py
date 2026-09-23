@@ -14,6 +14,7 @@ from apps.agent_api.app.agents.knowledge import KnowledgeResult, KnowledgeResult
 from apps.agent_api.app.llm.errors import LLMProviderError
 from apps.agent_api.app.llm.models import LLMProvider
 from apps.agent_api.app.rag.grounding import EvidenceStatus, LiveWebContextBuilder
+from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.web.errors import WebSearchError
 from apps.agent_api.app.web.models import WebSearchProvider, WebSearchRequest, WebSearchStatus
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
@@ -43,7 +44,7 @@ class WebKnowledgeAgent:
         re.IGNORECASE,
     )
 
-    async def answer(self, question: str) -> KnowledgeResult:
+    async def answer(self, question: str, *, knowledge_scope: KnowledgeScope = KnowledgeScope.NONE) -> KnowledgeResult:
         """Generate only when live public evidence is available through the controlled boundary."""
 
         if not isinstance(question, str) or not question.strip():
@@ -63,7 +64,14 @@ class WebKnowledgeAgent:
         search_started_at = perf_counter()
         emit_runtime_event(RuntimeEventKind.WEB_SEARCH, value="STARTED")
         try:
-            search_result = await self._web_search.search(WebSearchRequest(query=question))
+            approved_domains = (
+                getattr(self._grounding, "approved_public_domains", ())
+                if knowledge_scope is KnowledgeScope.PUBLIC_GETNET
+                else ()
+            )
+            search_result = await self._web_search.search(
+                WebSearchRequest(query=question, include_domains=approved_domains)
+            )
         except WebSearchError as error:
             emit_runtime_event(
                 RuntimeEventKind.WEB_SEARCH,

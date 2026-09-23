@@ -280,7 +280,7 @@ def test_security_block_and_failures_are_sanitized() -> None:
     body = response.json()
     rendered = str(body).lower()
     assert "password" not in rendered
-    assert "protected credentials" in rendered
+    assert "restrita pela política de segurança" in rendered
     for internal in (
         "credential_request", "database_credential", "security_policy_probe",
         "event_id", "audit.security_events", "securityauditservice",
