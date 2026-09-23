@@ -33,7 +33,7 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-KNOW-007` | UNKNOWN-like rendered text cannot create `ANSWERED`; graph assembly test |
 | `REQ-P11R-KNOW-008` | registry-only is rejected as publication evidence; real local PostgreSQL/RAG inspection verifies approved public provenance/chunks or exposes absence without silent success |
 | `REQ-P11R-WEB-001` | public RAG sufficient/no-Web and insufficient/Web ordered-call tests |
-| `REQ-P11R-WEB-002` | weather/current exchange Web-required tests |
+| `REQ-P11R-WEB-002` | weather/current exchange Web-required tests; a forecast without a city/region requests clarification before Web search |
 | `REQ-P11R-WEB-003` | stable general-public fact and paraphrase Web journey tests |
 | `REQ-P11R-WEB-004` | internal/OPS no-Web substitution negatives |
 | `REQ-P11R-WEB-005` | live evidence non-persistence observer test |
@@ -49,18 +49,23 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-CONV-002` | zero-capability invocation observation |
 | `REQ-P11R-CONV-003` | substantive-prefix route tests |
 | `REQ-P11R-CONV-004` | public response/internal-metadata safety test |
+| `REQ-P11R-CONV-005` | provider spy proves normal conversational response uses the shared LLM, with zero tools/RAG/OPS/Web; provider failure/invalid output proves deterministic safe fallback |
 | `REQ-P11R-INTEG-001` | authenticated FastAPI `/chat` E2E |
 | `REQ-P11R-INTEG-002` | real graph node/edge invocation integration tests |
 | `REQ-P11R-INTEG-003` | OPS authorization and expected-vs-observed E2E |
-| `REQ-P11R-INTEG-004` | API model/serialization/secret-safety tests |
+| `REQ-P11R-INTEG-004` | API model/serialization/secret-safety tests prove only validated semantic intent and closed operational plan fields are rendered; no raw model output or authority is exposed |
 | `REQ-P11R-INTEG-005` | CLI source inspection + real-app manual smoke |
 | `REQ-P11R-INTEG-006` | end-to-end trusted scope propagation spy: RouterDecision → graph → knowledge request/agent → Hybrid → lexical/semantic repository; query/LLM/Web cannot mutate it; RRF receives admitted candidates only |
+| `REQ-P11R-INTEG-007` | authorized/unauthorized natural protocol-selector tests prove selector extraction never grants OPS authorization; discovery without a selector is allowed only for an authorized caller |
+| `REQ-P11R-INTEG-008` | strict planner schema/allowlist tests reject SQL, schema names, arbitrary filters, credentials, tool names, and authorization fields; dispatch spy proves only approved typed read operations run |
+| `REQ-P11R-INTEG-009` | local OPS integration correlates typed facts across only necessary repository operations; synthesis tests preserve direct FACT evidence and label model-only interpretation as INFERENCE |
 | `REQ-P11R-VAL-001` | Challenge scenario family traceability below |
 | `REQ-P11R-VAL-002` | unit suite for semantic contract/mapper/security/scope |
 | `REQ-P11R-VAL-003` | local integration for retrieval/filter/graph/Web/OPS |
 | `REQ-P11R-VAL-004` | authenticated E2E and manual CLI matrix |
 | `REQ-P11R-VAL-005` | Phase 11 RAG + Challenge regression execution, artifacts preserved |
 | `REQ-P11R-VAL-006` | full pytest, compileall, pip check, imports, diff check, secret scan |
+| `REQ-P11R-VAL-007` | real CLI/runtime cases prove natural conversational generation, authorized discovery without preselection, inline protocol selection, and relational OPS synthesis |
 
 ## Scenario traceability
 
@@ -82,3 +87,4 @@ Later implementation must run Router, LangGraph, Knowledge, WebKnowledge, securi
 * `REQ-P11R-VAL-004`: authenticated E2E and CLI validate the actual application path.
 * `REQ-P11R-VAL-005`: closed Phase 11 RAG/Challenge evidence is preserved and re-run only as regression.
 * `REQ-P11R-VAL-006`: static, environment, dependency, and secret-safety gates pass.
+* `REQ-P11R-VAL-007`: the real CLI/runtime demonstrates natural conversational generation, authorized OPS discovery without preselected context, inline protocol selection, and relational operational synthesis.

@@ -60,10 +60,10 @@ Implementation must not add one regex per failed sentence, hardcode Challenge an
 | `KNOW` | 8 | scope, public-corpus prerequisite, and typed knowledge outcomes |
 | `WEB` | 6 | deterministic Web policy and fallback |
 | `SEC` | 7 | deterministic security hardening |
-| `CONV` | 4 | bounded conversational experience |
-| `INTEG` | 6 | application/graph/API/CLI integration |
-| `VAL` | 6 | evidence and regression gates |
-| **Total** | **53** | individually traced in `05-validation-spec.md` |
+| `CONV` | 5 | bounded conversational experience |
+| `INTEG` | 9 | application/graph/API/CLI integration |
+| `VAL` | 7 | evidence and regression gates |
+| **Total** | **58** | individually traced in `05-validation-spec.md` |
 
 ## Implementation order after approval
 

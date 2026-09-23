@@ -119,6 +119,8 @@ def test_real_operational_repository_lifecycle_and_rollback(
                     request = await repository.get_service_request_by_protocol(protocol)
                     assert isinstance(request, ServiceRequestRecord)
                     assert request.request_id == request_id
+                    recent_requests = await repository.list_recent_service_requests(5)
+                    assert any(item.protocol_number == protocol for item in recent_requests)
 
                     establishment_payload = {
                         "request_id": request_id,

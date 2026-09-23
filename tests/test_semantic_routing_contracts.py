@@ -84,7 +84,7 @@ def test_expected_vs_observed_requires_trusted_context_and_never_receives_auth_f
     assert denied.capabilities == ()
     allowed = SemanticIntentMapper.map(
         classification(SemanticIntent.EXPECTED_VS_OBSERVED),
-        SemanticRoutingContext(has_authorized_protocol_context=True),
+        SemanticRoutingContext(ops_read_authorized=True),
     )
     assert allowed.route is RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT
     assert allowed.knowledge_scope is KnowledgeScope.INTERNAL

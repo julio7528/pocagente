@@ -12,7 +12,7 @@ High-level permitted architecture questions remain answerable: asking whether Po
 
 ## Conversational capability
 
-Add a small deterministic, no-tool conversational capability for greetings, thanks, basic orientation, and “what can you do?” messages. It returns a bounded helpful response such as an offer to help with Getnet products/services, documented processes, support, and general information. It does not independently answer knowledge-intensive, protected, operational, or customer-specific requests.
+Add a narrow conversational capability for greetings, thanks, basic orientation, and “what can you do?” messages. On normal provider success, `ConversationalAgent` uses the shared provider-neutral LLM boundary to formulate a natural, brief response in the user's language. It has no tools, RAG, OPS, Web, authorization, routing, or handoff authority and does not independently answer knowledge-intensive, protected, operational, or customer-specific requests. The existing deterministic orientation response is only the safe fallback when generation fails or returns invalid output. Bound and validate generated output; do not require JSON for this user-facing generation.
 
 It may be implemented as an additive controlled route/node or an equivalent current-contract extension, but must be observable as `CONVERSATIONAL`, must not be reported as `AMBIGUOUS`, and must preserve safe public response boundaries.
 
@@ -29,3 +29,4 @@ It may be implemented as an additive controlled route/node or an equivalent curr
 * `REQ-P11R-CONV-002`: conversational behavior has no RAG/Web/OPS/Human/tool access.
 * `REQ-P11R-CONV-003`: greeting prefixes do not override dominant substantive intent.
 * `REQ-P11R-CONV-004`: conversational responses remain public-safe and do not expose implementation detail.
+* `REQ-P11R-CONV-005`: normal conversational responses are naturally formulated through the approved provider-neutral LLM boundary without tools/RAG/OPS/Web authority; deterministic orientation is a safe generation-failure fallback.

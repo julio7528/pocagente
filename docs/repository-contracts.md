@@ -184,6 +184,7 @@ or create transactions.
 |---|---|---|
 | Automation-run facts | `get_automation_run` | `run_id` PK |
 | Protocol identity | `get_service_request_by_protocol` | `UNIQUE(protocol_number)` |
+| Recent protocol discovery | `list_recent_service_requests` | `ops.service_requests.created_at DESC`, then `request_id DESC`; limit 1â€“5 |
 | Establishments for request | `list_establishments_for_request` | Request-leading approved UNIQUE indexes |
 | Run chronology | `list_execution_timeline_for_run` | `(run_id, logged_at DESC)` |
 | Request chronology | `list_execution_timeline_for_request` | Partial `(request_id, logged_at DESC)` |
@@ -197,7 +198,7 @@ approved controlled tools without exposing repositories directly as tools:
 Customer Support Agent
         |
         v
-lookup_protocol_status / inspect_execution_failure
+list_recent_protocols / lookup_protocol_status / inspect_execution_failure
         |
         v
 Customer Support Application Service

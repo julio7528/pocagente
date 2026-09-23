@@ -6,12 +6,14 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
+from time import perf_counter
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from apps.agent_api.app.llm.errors import LLMProviderError
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMMessage, LLMProvider
+from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
 
 class GroundedGenerationStatus(StrEnum):
@@ -140,10 +142,32 @@ async def generate_grounded_outcome(
         response_format="json_object",
         reasoning_enabled=False,
     )
+    started_at = perf_counter()
+    emit_runtime_event(RuntimeEventKind.LLM, name="grounded_generation", value="STARTED")
     try:
         generated = await provider.generate(request)
+        outcome = parse_grounded_generation(generated.content)
+        validate_grounded_citations(outcome, available_citation_ids)
     except LLMProviderError:
+        emit_runtime_event(
+            RuntimeEventKind.LLM,
+            name="grounded_generation",
+            value="CONTROLLED_ERROR",
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
         raise
-    outcome = parse_grounded_generation(generated.content)
-    validate_grounded_citations(outcome, available_citation_ids)
+    except GroundedGenerationError:
+        emit_runtime_event(
+            RuntimeEventKind.LLM,
+            name="grounded_generation",
+            value="CONTROLLED_ERROR",
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
+        raise
+    emit_runtime_event(
+        RuntimeEventKind.LLM,
+        name="grounded_generation",
+        value=outcome.status.value,
+        elapsed_ms=int((perf_counter() - started_at) * 1000),
+    )
     return outcome

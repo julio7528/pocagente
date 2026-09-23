@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from time import perf_counter
 import unicodedata
 from enum import StrEnum
 
@@ -19,10 +20,12 @@ from apps.agent_api.app.agents.semantic_routing import (
     SemanticClassification,
     SemanticClassifierError,
     SemanticIntentClassifier,
+    SemanticIntent,
     SemanticIntentMapper,
     SemanticRoutingContext,
 )
 from apps.agent_api.app.rag.scope import KnowledgeScope
+from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
 
 class RouterCapability(StrEnum):
@@ -71,7 +74,7 @@ class RouterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     message: str
-    has_authorized_protocol_context: bool = False
+    ops_read_authorized: bool = False
 
 
 class RouterDecision(BaseModel):
@@ -86,6 +89,7 @@ class RouterDecision(BaseModel):
     knowledge_scope: KnowledgeScope = KnowledgeScope.NONE
     reason: str = Field(min_length=1)
     security_semantics: tuple[SecurityClassification, ...] = ()
+    semantic_intent: SemanticIntent | None = None
 
     @model_validator(mode="after")
     def fields_match_route(self) -> RouterDecision:
@@ -282,7 +286,7 @@ class RouterAgent:
             message,
             re.IGNORECASE,
         )
-        if request.has_authorized_protocol_context and expected_vs_observed:
+        if request.ops_read_authorized and expected_vs_observed:
             return self._decision(
                 RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT,
                 "EXPECTED_AND_OBSERVED_OPERATIONAL_STATE",
@@ -317,29 +321,66 @@ class RouterAgent:
         safely degrades without selecting a capability.
         """
 
+        started_at = perf_counter()
         message = request.message.strip()
+        emit_runtime_event(RuntimeEventKind.SECURITY, value="PREFLIGHT_STARTED")
         if not message:
-            return self._decision(RouterRoute.AMBIGUOUS, "ROUTER_MESSAGE_BLANK")
+            decision = self._decision(RouterRoute.AMBIGUOUS, "ROUTER_MESSAGE_BLANK")
+            emit_runtime_event(
+                RuntimeEventKind.SECURITY,
+                value="ALLOWED",
+                elapsed_ms=int((perf_counter() - started_at) * 1000),
+            )
+            return decision
         security_semantics = self._classify_security_semantics(message)
         if security_semantics:
-            return self._decision(
+            decision = self._decision(
                 RouterRoute.SECURITY_BLOCK,
                 "SECURITY_POLICY_ROUTE",
                 security_semantics=security_semantics,
             )
+            emit_runtime_event(
+                RuntimeEventKind.SECURITY,
+                value="SECURITY_BLOCK",
+                elapsed_ms=int((perf_counter() - started_at) * 1000),
+            )
+            return decision
+        emit_runtime_event(
+            RuntimeEventKind.SECURITY,
+            value="ALLOWED",
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
         if self._semantic_classifier is None:
-            return SemanticIntentMapper.safe_failure("SEMANTIC_CLASSIFIER_UNAVAILABLE")
+            emit_runtime_event(RuntimeEventKind.CLASSIFIER, value="NOT_CONFIGURED")
+            decision = SemanticIntentMapper.safe_failure("SEMANTIC_CLASSIFIER_UNAVAILABLE")
+            return decision
+        classifier_started_at = perf_counter()
+        emit_runtime_event(RuntimeEventKind.CLASSIFIER, value="STARTED")
         try:
             classification = await self._semantic_classifier.classify(message)
             classification = SemanticClassification.model_validate(classification)
         except (TimeoutError, LLMProviderError, SemanticClassifierError, ValidationError, TypeError):
-            return SemanticIntentMapper.safe_failure()
-        return SemanticIntentMapper.map(
+            emit_runtime_event(
+                RuntimeEventKind.CLASSIFIER,
+                value="CONTROLLED_ERROR",
+                elapsed_ms=int((perf_counter() - classifier_started_at) * 1000),
+            )
+            decision = SemanticIntentMapper.safe_failure()
+            return decision
+        emit_runtime_event(
+            RuntimeEventKind.CLASSIFIER,
+            value="COMPLETED",
+            elapsed_ms=int((perf_counter() - classifier_started_at) * 1000),
+        )
+        emit_runtime_event(RuntimeEventKind.INTENT, value=classification.intent.value)
+        decision = SemanticIntentMapper.map(
             classification,
             SemanticRoutingContext(
-                has_authorized_protocol_context=request.has_authorized_protocol_context
+                ops_read_authorized=request.ops_read_authorized
             )
         )
+        decision = decision.model_copy(update={"semantic_intent": classification.intent})
+        return decision
 
     @staticmethod
     def _decision(

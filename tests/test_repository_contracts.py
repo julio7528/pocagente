@@ -48,6 +48,7 @@ OPERATIONAL_METHODS = {
     "list_execution_timeline_for_request",
     "get_protocol_status_facts",
     "get_execution_failure_facts",
+    "list_recent_service_requests",
 }
 AUDIT_METHODS = {
     "write_sanitized_security_event",

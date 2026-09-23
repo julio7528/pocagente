@@ -14,10 +14,13 @@ import argparse
 import asyncio
 import os
 import sys
+from time import perf_counter
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
+
+from apps.agent_api.app.telemetry import RuntimeEventKind, RuntimeTelemetryEvent, RuntimeTelemetrySink
 
 # Suppress deprecation warning for WindowsSelectorEventLoopPolicy on Python 3.14+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -93,6 +96,7 @@ def format_chat_response(data: Mapping[str, Any]) -> str:
     citations = data.get("citations", ())
     cs_data = data.get("customer_support")
     kn_data = data.get("knowledge")
+    human_data = data.get("human")
 
     lines: list[str] = [
         "",
@@ -101,6 +105,21 @@ def format_chat_response(data: Mapping[str, Any]) -> str:
         f"  STATUS:  {status} (Motivo: {reason})",
         "-" * 70,
     ]
+
+    intent = data.get("intent")
+    if intent:
+        lines.append(f"  INTENÇÃO: {intent}")
+    if cs_data and isinstance(cs_data, dict):
+        plan = cs_data.get("operational_plan")
+        if isinstance(plan, dict):
+            lines.append(f"  PLANO OPS: {plan.get('intent', 'UNKNOWN')}")
+            selectors = {
+                key: plan[key]
+                for key in ("protocol_number", "run_id", "limit")
+                if plan.get(key) is not None
+            }
+            if selectors:
+                lines.append(f"    Seletores validados: {selectors}")
 
     is_combined = route == "KNOWLEDGE_AND_CUSTOMER_SUPPORT" or (kn_data and cs_data)
 
@@ -204,6 +223,15 @@ def format_chat_response(data: Mapping[str, Any]) -> str:
                     stmt = inf.get("statement", "")
                     lines.append(f"      - {stmt}")
 
+    if human_data and isinstance(human_data, dict):
+        lines.append("")
+        lines.append("  [ATENDIMENTO HUMANO]")
+        lines.append(f"    Estado: {human_data.get('state', 'UNKNOWN')}")
+        if human_data.get("conversation_id"):
+            lines.append(f"    Conversa: {human_data['conversation_id']}")
+        if human_data.get("state") == "WAITING_CONFIRMATION":
+            lines.append("    Aguardando confirmação explícita do usuário; ainda sem transferência para um operador.")
+
     lines.append("=" * 70)
     lines.append("")
     return "\n".join(lines)
@@ -237,6 +265,7 @@ COMANDOS DISPONÍVEIS NO TERMINAL:
                            Exemplos:
                              /ops POC-OPS-0001
                              /ops POC-OPS-0002 EXECUTION_FAILURE
+  /trace on|off            Liga ou desliga a telemetria de execução ao vivo.
   /clear-ops               Limpa o contexto de protocolo e volta ao modo CLIENT puro.
   /role <CLIENT|SUPPORT>   Alterna manualmente o papel do usuário autenticado.
 
@@ -280,11 +309,11 @@ class ChatClientProtocol:
 class InProcessChatClient(ChatClientProtocol):
     """Executes the real FastAPI boundary in-process via TestClient without opening ports."""
 
-    def __init__(self) -> None:
+    def __init__(self, telemetry_sink: RuntimeTelemetrySink | None = None) -> None:
         from fastapi.testclient import TestClient
         from apps.agent_api.app.main import create_app
 
-        self._app = create_app()
+        self._app = create_app(telemetry_sink=telemetry_sink)
         self._client = TestClient(self._app)
         self._client.__enter__()
 
@@ -323,11 +352,155 @@ class RemoteHttpChatClient(ChatClientProtocol):
         self._client.close()
 
 
-def create_chat_client(url: str | None = None) -> ChatClientProtocol:
+def create_chat_client(
+    url: str | None = None,
+    telemetry_sink: RuntimeTelemetrySink | None = None,
+) -> ChatClientProtocol:
     """Create either an in-process TestClient or a remote HTTPX client."""
     if url:
         return RemoteHttpChatClient(url)
-    return InProcessChatClient()
+    return InProcessChatClient(telemetry_sink=telemetry_sink)
+
+
+class ConsoleTraceSink:
+    """Render only validated runtime events; never derives events from input text."""
+
+    _LLM_LABELS = {
+        "conversational_response": "LLM resposta",
+        "ops_planning": "LLM planejamento OPS",
+        "ops_synthesis": "LLM síntese",
+        "grounded_generation": "LLM grounded generation",
+    }
+
+    def __init__(self, enabled: bool = True, available: bool = True) -> None:
+        self.enabled = enabled
+        self.available = available
+
+    @staticmethod
+    def _duration(event: RuntimeTelemetryEvent) -> str:
+        return f" ({event.elapsed_ms / 1000:.1f}s)" if event.elapsed_ms is not None else ""
+
+    def emit(self, event: RuntimeTelemetryEvent) -> None:
+        if not self.enabled or not self.available:
+            return
+        kind = event.kind
+        label = kind.value
+        detail = event.value or ""
+        if kind is RuntimeEventKind.SECURITY:
+            label = "Segurança"
+            detail = {
+                "PREFLIGHT_STARTED": "preflight iniciado",
+                "ALLOWED": "ALLOWED",
+                "SECURITY_BLOCK": "SECURITY_BLOCK",
+                "CONTINUATION_INTERRUPTED": "continuação interrompida",
+            }.get(event.value or "", "verificação concluída")
+        elif kind is RuntimeEventKind.CLASSIFIER:
+            label = "Classificador semântico"
+            detail = {
+                "STARTED": "iniciado",
+                "COMPLETED": "concluído",
+                "CONTROLLED_ERROR": "CONTROLLED_ERROR",
+                "NOT_CONFIGURED": "indisponível",
+            }.get(event.value or "", "")
+        elif kind is RuntimeEventKind.INTENT:
+            label = "Intenção"
+        elif kind is RuntimeEventKind.ROUTER:
+            label = "Router"
+        elif kind is RuntimeEventKind.KNOWLEDGE_SCOPE:
+            label = "KnowledgeScope"
+        elif kind is RuntimeEventKind.WEB_POLICY:
+            label = "Web policy"
+        elif kind is RuntimeEventKind.CAPABILITY:
+            label = event.name or "Capability"
+            detail = {
+                "STARTED": "iniciado",
+                "ANSWERED": "concluído",
+                "COMPLETED": "concluído",
+                "LLM_FORMULATED_RESPONSE": "concluído (LLM)",
+                "BOUNDED_CONVERSATIONAL_RESPONSE": "fallback seguro",
+                "INSUFFICIENT_EVIDENCE": "INSUFFICIENT_EVIDENCE",
+                "PROVIDER_ERROR": "CONTROLLED_ERROR",
+                "UNAUTHORIZED": "UNAUTHORIZED",
+                "OPERATIONAL_UNAVAILABLE": "CONTROLLED_ERROR",
+                "CLARIFICATION_REQUIRED": "clarificação necessária",
+            }.get(event.value or "", event.value or "")
+        elif kind is RuntimeEventKind.OPS_AUTHORIZATION:
+            label = "Autorização OPS"
+            detail = "YES" if event.value == "ALLOWED" else "NO"
+        elif kind is RuntimeEventKind.OPS_PLAN:
+            label = "Plano operacional"
+            detail = event.value or "plano validado"
+            if event.protocol_number:
+                detail += f" (protocolo={event.protocol_number})"
+            if event.limit is not None:
+                detail += f" (limit={event.limit})"
+        elif kind is RuntimeEventKind.OPS_TOOL:
+            label = f"Ferramenta OPS {event.name or ''}".strip()
+            detail = {
+                "STARTED": "iniciada",
+                "SUCCESS": "concluída",
+                "NOT_FOUND": "nenhum registro",
+                "DENIED": "DENIED",
+                "CONTROLLED_ERROR": "CONTROLLED_ERROR",
+            }.get(event.value or "", event.value or "")
+        elif kind is RuntimeEventKind.REPOSITORY:
+            label = f"OperationalRepository {event.name or ''}".strip()
+            detail = {
+                "COMPLETED": "consulta concluída",
+                "CONTROLLED_ERROR": "CONTROLLED_ERROR",
+            }.get(event.value or "", event.value or "")
+        elif kind is RuntimeEventKind.RAG:
+            label = {
+                "lexical": "RAG lexical",
+                "semantic": "RAG semântico",
+                "rrf": "RRF",
+                "hybrid_retrieval": "RAG híbrido",
+            }.get(event.name or "", "RAG")
+            detail = {
+                "COMPLETED": "concluído",
+                "SELECTED": "Top-K selecionado",
+                "INTERNAL": "INTERNAL",
+                "PUBLIC_GETNET": "PUBLIC_GETNET",
+            }.get(event.value or "", event.value or "")
+        elif kind is RuntimeEventKind.GROUNDING:
+            label = "Live grounding" if event.name == "live_web" else "Grounded context"
+            detail = event.value or "concluído"
+        elif kind is RuntimeEventKind.WEB_SEARCH:
+            label = "Web Search"
+            detail = {
+                "STARTED": "iniciado",
+                "SUCCESS": "concluído",
+                "NO_RESULTS": "nenhum resultado",
+                "CONTROLLED_ERROR": "CONTROLLED_ERROR",
+                "SKIPPED_LOCATION_REQUIRED": "ignorado; localização necessária",
+            }.get(event.value or "", event.value or "concluído")
+        elif kind is RuntimeEventKind.LLM:
+            label = self._LLM_LABELS.get(event.name or "", "LLM")
+            detail = {
+                "STARTED": "iniciado",
+                "COMPLETED": "concluído",
+                "ANSWERED": "ANSWERED",
+                "INSUFFICIENT_EVIDENCE": "INSUFFICIENT_EVIDENCE",
+                "CONTROLLED_ERROR": "CONTROLLED_ERROR",
+                "INVALID_OUTPUT": "INVALID_OUTPUT",
+            }.get(event.value or "", event.value or "")
+        elif kind is RuntimeEventKind.HUMAN:
+            label = "Human Escalation"
+        elif kind is RuntimeEventKind.SECURITY_AUDIT:
+            label = "Security audit"
+        elif kind is RuntimeEventKind.ORCHESTRATION:
+            label = "Orquestração"
+
+        if event.count is not None:
+            noun = "resultado" if event.count == 1 else "resultados"
+            if kind is RuntimeEventKind.REPOSITORY:
+                detail += f" ({event.count} {noun})"
+            elif kind in {RuntimeEventKind.RAG, RuntimeEventKind.GROUNDING, RuntimeEventKind.WEB_SEARCH}:
+                detail += f" ({event.count} {noun})"
+        if event.protocol_number and kind is RuntimeEventKind.REPOSITORY:
+            detail += f" [{event.protocol_number}]"
+        line = f"[TRACE] {label:<30} {detail}{self._duration(event)}"
+        print(_safe_console_text(line), flush=True)
 
 
 def dispatch_message(
@@ -342,7 +515,7 @@ def dispatch_message(
     try:
         status_code, data = client.send_chat(headers, payload)
     except Exception as exc:
-        print(f"\n[ERRO DE CONEXÃO] Falha ao comunicar com o runtime: {exc}\n")
+        print("\n[ERRO] Falha ao comunicar com o runtime. Detalhes omitidos.\n")
         return
 
     if status_code == 200:
@@ -360,6 +533,7 @@ def interactive_loop(
     client: ChatClientProtocol,
     token: str,
     initial_state: CLISessionState,
+    trace_sink: ConsoleTraceSink | None = None,
 ) -> None:
     """Run the main interactive read-eval-print loop in the terminal."""
     state = initial_state
@@ -367,7 +541,7 @@ def interactive_loop(
     print("           GETNET SUPPORT — CLI INTERATIVO DE TESTES")
     print("=" * 70)
     print("Digite sua mensagem para falar com o agente.")
-    print("Comandos: /help (ajuda), /ops <protocolo> (contexto OPS), exit (sair).\n")
+    print("Comandos: /help (ajuda), /ops <protocolo> (contexto OPS), /trace on|off, exit (sair).\n")
 
     # Readiness check
     try:
@@ -379,7 +553,7 @@ def interactive_loop(
             print(f"[AVISO] Dependências do runtime não estão totalmente prontas ({detail}).")
             print("        Verifique se o container PostgreSQL está em execução.\n")
     except Exception as exc:
-        print(f"[AVISO] Não foi possível verificar /ready: {exc}\n")
+        print("[AVISO] Nao foi possivel verificar /ready. Detalhes omitidos.\n")
 
     while True:
         try:
@@ -400,6 +574,18 @@ def interactive_loop(
 
         if normalized in {"help", "/help", "?"}:
             print_help()
+            continue
+
+        if normalized in {"/trace on", "/trace off"}:
+            if trace_sink is None or not trace_sink.available:
+                print("\n[AVISO] Telemetria ao vivo indisponível neste runtime.\n")
+            else:
+                trace_sink.enabled = normalized == "/trace on"
+                state_text = "ativada" if trace_sink.enabled else "desativada"
+                print(f"\n[OK] Telemetria ao vivo {state_text}.\n")
+            continue
+        if normalized == "/trace":
+            print("\n[USAGE] /trace on or /trace off\n")
             continue
 
         if normalized == "/status":
@@ -454,6 +640,8 @@ def interactive_loop(
 
 def main(argv: list[str] | None = None) -> int:
     """Main CLI entry point."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     load_env_file()
     token = os.environ.setdefault("AGENT_API_SERVICE_TOKEN", "agent-api-internal-test-token")
 
@@ -487,6 +675,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Pre-configured synthetic operational protocol number (e.g. POC-OPS-0001).",
     )
     parser.add_argument(
+        "--ops-authorized",
+        action="store_true",
+        help="Send the trusted OPS authorization claim for a local synthetic acceptance test.",
+    )
+    parser.add_argument(
+        "--no-trace",
+        action="store_true",
+        help="Disable live runtime telemetry (enabled by default for the in-process CLI).",
+    )
+    parser.add_argument(
         "--operation",
         type=str,
         default="PROTOCOL_STATUS",
@@ -506,17 +704,20 @@ def main(argv: list[str] | None = None) -> int:
     state = CLISessionState(
         user_id=args.user_id,
         role=args.role,
-        ops_authorized=bool(args.protocol),
+        ops_authorized=bool(args.protocol) or args.ops_authorized,
         protocol_number=args.protocol,
         operation=args.operation,
     )
 
-    client = create_chat_client(args.url)
+    trace_sink = ConsoleTraceSink(enabled=not args.no_trace, available=args.url is None)
+    client = create_chat_client(args.url, telemetry_sink=trace_sink)
+    if args.url and not args.no_trace:
+        print("[NOTICE] --url remote runtime does not stream telemetry; no execution stages will be inferred.")
     try:
         if args.message:
             dispatch_message(client, token, state, args.message)
         else:
-            interactive_loop(client, token, state)
+            interactive_loop(client, token, state, trace_sink=trace_sink)
     finally:
         client.close()
 

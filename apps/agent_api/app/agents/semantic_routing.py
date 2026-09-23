@@ -43,7 +43,7 @@ class SemanticRoutingContext(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    has_authorized_protocol_context: bool = False
+    ops_read_authorized: bool = False
 
 
 class SemanticIntentClassifier(Protocol):
@@ -112,8 +112,8 @@ class SemanticIntentMapper:
                 reason="SEMANTIC_CUSTOMER_SUPPORT",
             )
         if intent is SemanticIntent.EXPECTED_VS_OBSERVED:
-            if not trusted.has_authorized_protocol_context:
-                return SemanticIntentMapper.safe_failure("AUTHORIZED_PROTOCOL_CONTEXT_REQUIRED")
+            if not trusted.ops_read_authorized:
+                return SemanticIntentMapper.safe_failure("OPERATIONAL_ACCESS_DENIED")
             return RouterDecision(
                 status=RouterStatus.ROUTED,
                 route=RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT,

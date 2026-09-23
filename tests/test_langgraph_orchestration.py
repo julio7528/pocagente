@@ -162,11 +162,10 @@ class RecordingSecurityAudit:
         )
 
 
-def support_context(authorization: OpsAccessContext = AUTHORIZED) -> CustomerSupportContext:
+def support_context() -> CustomerSupportContext:
     return CustomerSupportContext(
         protocol_number="POC-OPS-0002",
         operation=CustomerSupportOperation.EXECUTION_FAILURE,
-        authorization=authorization,
         run_id=31,
     )
 
@@ -213,6 +212,7 @@ def test_knowledge_route_calls_only_knowledge_and_preserves_typed_result() -> No
 def test_customer_support_route_propagates_trusted_authorization_unchanged() -> None:
     request = OrchestrationRequest(
         message="What happened to my protocol?",
+        ops_access_context=AUTHORIZED,
         customer_support_context=support_context(),
     )
     result, knowledge, support = execute(RouterRoute.CUSTOMER_SUPPORT, request=request)
@@ -228,7 +228,7 @@ def test_customer_support_route_propagates_trusted_authorization_unchanged() -> 
 def test_cooperative_route_runs_knowledge_before_support_and_retains_both_results() -> None:
     request = OrchestrationRequest(
         message="What should have happened and what happened with my protocol?",
-        has_authorized_protocol_context=True,
+        ops_access_context=AUTHORIZED,
         customer_support_context=support_context(),
     )
     result, knowledge, support = execute(RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT, request=request)
@@ -259,8 +259,8 @@ def test_cooperative_partial_failure_preserves_both_controlled_results() -> None
         RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT,
         request=OrchestrationRequest(
             message="Compare expected and observed state.",
-            has_authorized_protocol_context=True,
-            customer_support_context=support_context(DENIED),
+            ops_access_context=DENIED,
+            customer_support_context=support_context(),
         ),
         knowledge=knowledge,
         support=support,
@@ -273,12 +273,30 @@ def test_cooperative_partial_failure_preserves_both_controlled_results() -> None
     assert result.customer_support_result.status is CustomerSupportStatus.UNAUTHORIZED
 
 
-def test_missing_trusted_operational_context_fails_closed_without_support_call() -> None:
-    result, knowledge, support = execute(RouterRoute.CUSTOMER_SUPPORT)
+def test_missing_operational_selector_does_not_replace_trusted_authorization() -> None:
+    result, knowledge, support = execute(
+        RouterRoute.CUSTOMER_SUPPORT,
+        request=OrchestrationRequest(message="What is the latest protocol?", ops_access_context=AUTHORIZED),
+    )
 
-    assert result.status is OrchestrationStatus.MISSING_OPERATIONAL_CONTEXT
+    assert result.status is OrchestrationStatus.COMPLETED
     assert result.customer_support_result is not None
-    assert result.customer_support_result.status is CustomerSupportStatus.INVALID_INPUT
+    assert result.customer_support_result.status is CustomerSupportStatus.ANSWERED
+    assert knowledge.questions == []
+    assert len(support.requests) == 1
+    assert support.requests[0].protocol_number is None
+
+
+def test_inline_selector_never_grants_ops_authorization() -> None:
+    result, knowledge, support = execute(
+        RouterRoute.CUSTOMER_SUPPORT,
+        request=OrchestrationRequest(
+            message="POC-OPS-0004 me diga o resultado",
+            customer_support_context=CustomerSupportContext(protocol_number="POC-OPS-0004"),
+        ),
+    )
+    assert result.customer_support_result is not None
+    assert result.customer_support_result.status is CustomerSupportStatus.UNAUTHORIZED
     assert knowledge.questions == []
     assert support.requests == []
 
@@ -357,6 +375,7 @@ def test_customer_support_offer_does_not_transfer_or_assign_an_operator() -> Non
     )
     result = asyncio.run(graph.execute(OrchestrationRequest(
         message="Why did the cancellation fail?",
+        ops_access_context=AUTHORIZED,
         customer_support_context=support_context(),
         human_escalation_request=HumanEscalationRequest(
             conversation=conversation, current_state=HumanEscalationState.BOT,

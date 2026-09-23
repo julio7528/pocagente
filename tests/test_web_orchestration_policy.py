@@ -74,12 +74,12 @@ def test_payment_link_is_rag_first_and_web_is_only_conditional() -> None:
 
 def test_private_ops_security_and_human_paths_never_call_web() -> None:
     authorization = OpsAccessContext(principal_id="test", can_read_operational_facts=True)
-    support_context = CustomerSupportContext(protocol_number="POC-OPS-0002", operation=CustomerSupportOperation.PROTOCOL_STATUS, authorization=authorization)
+    support_context = CustomerSupportContext(protocol_number="POC-OPS-0002", operation=CustomerSupportOperation.PROTOCOL_STATUS)
     cases = (
-        (SemanticIntent.CUSTOMER_SUPPORT, OrchestrationRequest(message="What is the current status of protocol 123456?", customer_support_context=support_context)),
-        (SemanticIntent.CUSTOMER_SUPPORT, OrchestrationRequest(message="Is this protocol delayed?", has_authorized_protocol_context=True, customer_support_context=support_context)),
+        (SemanticIntent.CUSTOMER_SUPPORT, OrchestrationRequest(message="What is the current status of protocol 123456?", ops_access_context=authorization, customer_support_context=support_context)),
+        (SemanticIntent.CUSTOMER_SUPPORT, OrchestrationRequest(message="Is this protocol delayed?", ops_access_context=authorization, customer_support_context=support_context)),
         (SemanticIntent.PUBLIC_GETNET_KNOWLEDGE, OrchestrationRequest(message="What is the database password?")),
-        (SemanticIntent.CUSTOMER_SUPPORT, OrchestrationRequest(message="Why did my cancellation protocol 123456 fail to process?", customer_support_context=support_context)),
+        (SemanticIntent.CUSTOMER_SUPPORT, OrchestrationRequest(message="Why did my cancellation protocol 123456 fail to process?", ops_access_context=authorization, customer_support_context=support_context)),
     )
     for intent, request in cases:
         rag, support, web = Knowledge(), Support(), WebKnowledge()

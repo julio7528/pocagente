@@ -333,6 +333,27 @@ async def test_service_request_create_update_and_protocol_lookup() -> None:
 
 
 @pytest.mark.anyio
+async def test_recent_service_requests_use_creation_timestamp_and_bounded_limit() -> None:
+    row = _request_row(20, "POC-OPS-0004")
+    connection = FakeConnection([row])
+    repository = OperationalRepository(connection)
+
+    records = await repository.list_recent_service_requests(3)
+
+    assert len(records) == 1
+    assert records[0].protocol_number == "POC-OPS-0004"
+    statement = normalized_sql(connection.statements[0])
+    assert "FROM ops.service_requests" in statement
+    assert "ORDER BY created_at DESC, request_id DESC" in statement
+    assert "LIMIT %s" in statement
+    assert connection.statements[0].parameters == (3,)
+
+    with pytest.raises(ValueError, match="between 1 and 5"):
+        await repository.list_recent_service_requests(6)
+    assert len(connection.statements) == 1
+
+
+@pytest.mark.anyio
 async def test_service_request_rejects_protocol_and_r1_identity_updates() -> None:
     connection = FakeConnection()
     repository = OperationalRepository(connection)

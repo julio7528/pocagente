@@ -20,7 +20,7 @@ ROUTER = RouterAgent()
 
 def route(message: str, *, protocol_context: bool = False) -> RouterDecision:
     return ROUTER.route(
-        RouterRequest(message=message, has_authorized_protocol_context=protocol_context)
+        RouterRequest(message=message, ops_read_authorized=protocol_context)
     )
 
 

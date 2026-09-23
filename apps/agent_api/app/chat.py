@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from apps.agent_api.app.agents.customer_support import CustomerSupportOperation
+from apps.agent_api.app.agents.customer_support import CustomerSupportOperation, OperationalQueryPlan
 from apps.agent_api.app.agents.human_escalation import (
     ConversationReference,
     HandoffFact,
@@ -27,9 +27,11 @@ from apps.agent_api.app.agents.orchestration import (
     OrchestrationResult,
     OrchestrationStatus,
 )
+from apps.agent_api.app.agents.semantic_routing import SemanticIntent
 from apps.agent_api.app.auth import AuthenticatedPrincipal, PrincipalRole
 from apps.agent_api.app.security.models import SecurityAuditContext
 from apps.agent_api.app.tools.ops import OpsAccessContext
+from apps.agent_api.app.telemetry import RuntimeTelemetrySink, runtime_telemetry
 
 
 class OrchestrationCapability(Protocol):
@@ -150,6 +152,7 @@ class ChatSupportPayload(BaseModel):
 
     status: str
     answer: str | None = None
+    operational_plan: OperationalQueryPlan | None = None
     facts: tuple[ChatSupportFact, ...] = ()
     inferences: tuple[ChatSupportInference, ...] = ()
 
@@ -179,6 +182,7 @@ class ChatResponse(BaseModel):
 
     status: str
     route: str
+    intent: SemanticIntent | None = None
     answer: str | None = None
     citations: tuple[ChatCitation, ...] = ()
     knowledge: ChatKnowledgePayload | None = None
@@ -239,6 +243,9 @@ def _safe_fact_source(value: str) -> str:
     return {
         "ProtocolStatusFacts": "OPS_PROTOCOL_STATUS",
         "ExecutionFailureEvidence": "OPS_EXECUTION_FAILURE",
+        "ServiceRequestRecord": "OPS_RECENT_PROTOCOLS",
+        "EstablishmentRecord": "OPS_ESTABLISHMENT_STATE",
+        "ExecutionLogRecord": "OPS_EXECUTION_TIMELINE",
     }.get(value, "OPS_EVIDENCE")
 
 
@@ -248,25 +255,33 @@ class ChatApplicationService:
     def __init__(self, orchestrator: OrchestrationCapability) -> None:
         self._orchestrator = orchestrator
 
-    async def handle(self, request: ChatRequest, principal: AuthenticatedPrincipal) -> ChatResponse:
+    async def handle(
+        self,
+        request: ChatRequest,
+        principal: AuthenticatedPrincipal,
+        *,
+        telemetry_sink: RuntimeTelemetrySink | None = None,
+    ) -> ChatResponse:
         if request.user_id != principal.user_id:
             raise ChatAuthorizationError()
         operational = self._operational_context(request, principal)
         human = self._human_context(request.human_context, principal)
-        result = await self._orchestrator.execute(
-            OrchestrationRequest(
-                message=request.message,
-                has_authorized_protocol_context=(
-                    operational is not None and operational.authorization.can_read_operational_facts
-                ),
-                customer_support_context=operational,
-                human_escalation_request=human,
-                security_audit_context=SecurityAuditContext(
-                    user_identifier=principal.user_id,
-                    request_reference=f"chat-{uuid4().hex}",
-                ),
+        with runtime_telemetry(telemetry_sink):
+            result = await self._orchestrator.execute(
+                OrchestrationRequest(
+                    message=request.message,
+                    ops_access_context=OpsAccessContext(
+                        principal_id=principal.user_id,
+                        can_read_operational_facts=principal.can_read_operational_facts,
+                    ),
+                    customer_support_context=operational,
+                    human_escalation_request=human,
+                    security_audit_context=SecurityAuditContext(
+                        user_identifier=principal.user_id,
+                        request_reference=f"chat-{uuid4().hex}",
+                    ),
+                )
             )
-        )
         if result.status in {
             OrchestrationStatus.ORCHESTRATION_ERROR,
             OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
@@ -285,10 +300,6 @@ class ChatApplicationService:
         return CustomerSupportContext(
             protocol_number=context.protocol_number,
             operation=CustomerSupportOperation(context.operation.value),
-            authorization=OpsAccessContext(
-                principal_id=principal.user_id,
-                can_read_operational_facts=principal.can_read_operational_facts,
-            ),
             run_id=context.run_id,
         )
 
@@ -379,6 +390,7 @@ class ChatApplicationService:
             support = ChatSupportPayload(
                 status=result.customer_support_result.status.value,
                 answer=_safe_text(result.customer_support_result.answer),
+                operational_plan=result.customer_support_result.plan,
                 facts=tuple(
                     ChatSupportFact(source=_safe_fact_source(item.source), statement=_safe_text(item.statement) or "Sensitive content withheld.")
                     for item in result.customer_support_result.facts
@@ -427,6 +439,7 @@ class ChatApplicationService:
         return ChatResponse(
             status=result.status.value,
             route=result.route.value,
+            intent=result.semantic_intent,
             answer=direct_answer,
             citations=citations,
             knowledge=knowledge,

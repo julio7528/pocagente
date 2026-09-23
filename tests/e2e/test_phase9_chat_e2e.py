@@ -17,6 +17,7 @@ import yaml
 from fastapi.testclient import TestClient
 
 from apps.agent_api.app.agents.customer_support import CustomerSupportAgent
+from apps.agent_api.app.agents.conversational import ConversationalAgent
 from apps.agent_api.app.agents.human_escalation import HumanEscalationAgent
 from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator
@@ -165,6 +166,13 @@ class FixedSemanticIntentProvider:
         )
 
 
+class ConversationalProvider:
+    async def generate(self, request: LLMGenerationRequest) -> LLMGenerationResult:
+        assert "You are the Getnet Support conversational assistant" in request.messages[0].content
+        assert request.response_format is None
+        return LLMGenerationResult(content="Oi! Como posso ajudar?")
+
+
 class RecordingSecurityAuditSink:
     """Deterministic sink proving the real graph invokes the audit boundary."""
 
@@ -204,6 +212,7 @@ class Phase9Runtime:
             self.web,
             HumanEscalationAgent(),
             SecurityAuditService(self.audit_sink),
+            ConversationalAgent(ConversationalProvider()),
         )
         self.app = create_app(
             chat_service=ChatApplicationService(self.orchestrator),
@@ -279,7 +288,9 @@ def test_phase9_yaml_scenarios_execute_through_authenticated_chat(
         assert payload["customer_support"]["facts"]
         assert payload["customer_support"]["inferences"]
     if scenario_id in {"challenge-003", "challenge-008"}:
-        assert payload["status"] == "MISSING_OPERATIONAL_CONTEXT"
+        assert payload["status"] == "PARTIAL"
+        assert payload["customer_support"]["status"] == "UNAUTHORIZED"
+        assert runtime.repository.protocol_calls == []
     if scenario_id == "challenge-013":
         assert payload["status"] == "SECURITY_BLOCKED"
         assert runtime.knowledge.questions == []
@@ -564,8 +575,9 @@ def test_authenticated_chat_greeting_uses_conversational_route_without_capabilit
     assert response.status_code == 200
     body = response.json()
     assert body["route"] == "CONVERSATIONAL"
+    assert body["intent"] == "CONVERSATIONAL"
     assert body["status"] == "COMPLETED"
-    assert body["answer"] and "Getnet" in body["answer"]
+    assert body["answer"] == "Oi! Como posso ajudar?"
     assert body["citations"] == []
     assert body["knowledge"] is None
     assert body["customer_support"] is None
@@ -573,3 +585,18 @@ def test_authenticated_chat_greeting_uses_conversational_route_without_capabilit
     assert runtime.knowledge.questions == []
     assert runtime.web.questions == []
     assert runtime.repository.protocol_calls == []
+
+
+def test_authenticated_human_request_without_existing_context_enters_confirmation_state() -> None:
+    runtime = Phase9Runtime(semantic_intent="HUMAN_REQUEST")
+    with TestClient(runtime.app) as http:
+        response = http.post(
+            "/chat", headers=_headers(), json={"message": "quero falar com um humano", "user_id": "cliente1988"}
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "HUMAN_ESCALATION"
+    assert body["human"]["state"] == "WAITING_CONFIRMATION"
+    assert body["intent"] == "HUMAN_REQUEST"
+    assert body["human"]["automation_suspended"] is False
+    assert body["human"]["assigned_operator_id"] is None

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from time import perf_counter
 from typing import Protocol, TypedDict
+from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -14,12 +16,14 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportResult,
     CustomerSupportStatus,
 )
-from apps.agent_api.app.agents.conversational import ConversationalResult, bounded_conversational_response
+from apps.agent_api.app.agents.conversational import ConversationalAgent, ConversationalResult, bounded_conversational_response
 from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.human_escalation import (
     HumanEscalationAction,
     HumanEscalationAgent,
+    ConversationReference,
     HumanEscalationRequest,
+    HumanEscalationReason,
     HumanEscalationResult,
     HumanEscalationState,
 )
@@ -30,6 +34,7 @@ from apps.agent_api.app.agents.router import (
     RouterRoute,
     WebSearchPolicy,
 )
+from apps.agent_api.app.agents.semantic_routing import SemanticIntent
 from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.tools.ops import OpsAccessContext
 from apps.agent_api.app.security.models import (
@@ -38,6 +43,7 @@ from apps.agent_api.app.security.models import (
     SecurityAuditStatus,
     SecurityClassification,
 )
+from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
 
 class KnowledgeCapability(Protocol):
@@ -81,13 +87,12 @@ class SecurityAuditCapability(Protocol):
 
 
 class CustomerSupportContext(BaseModel):
-    """Trusted application context needed before Customer Support can run."""
+    """Optional preselected business selectors; contains no authorization."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    protocol_number: str = Field(min_length=1)
-    operation: CustomerSupportOperation
-    authorization: OpsAccessContext
+    protocol_number: str | None = Field(default=None, min_length=1)
+    operation: CustomerSupportOperation = CustomerSupportOperation.PROTOCOL_STATUS
     run_id: int | None = Field(default=None, gt=0)
 
 
@@ -97,7 +102,7 @@ class OrchestrationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     message: str = Field(min_length=1)
-    has_authorized_protocol_context: bool = False
+    ops_access_context: OpsAccessContext | None = None
     customer_support_context: CustomerSupportContext | None = None
     human_escalation_request: HumanEscalationRequest | None = None
     security_audit_context: SecurityAuditContext | None = None
@@ -126,6 +131,7 @@ class OrchestrationResult(BaseModel):
 
     status: OrchestrationStatus
     route: RouterRoute
+    semantic_intent: SemanticIntent | None = None
     knowledge_scope: KnowledgeScope = KnowledgeScope.NONE
     conversational_result: ConversationalResult | None = None
     knowledge_result: KnowledgeResult | None = None
@@ -191,6 +197,7 @@ class LangGraphOrchestrator:
         web_knowledge_agent: WebKnowledgeCapability | None = None,
         human_escalation_agent: HumanEscalationCapability | None = None,
         security_audit_service: SecurityAuditCapability | None = None,
+        conversational_agent: ConversationalAgent | None = None,
     ) -> None:
         self._router = router
         self._knowledge_agent = knowledge_agent
@@ -198,22 +205,30 @@ class LangGraphOrchestrator:
         self._web_knowledge_agent = web_knowledge_agent
         self._human_escalation_agent = human_escalation_agent
         self._security_audit_service = security_audit_service
+        self._conversational_agent = conversational_agent
         self._graph = self._build_graph()
 
     async def execute(self, request: OrchestrationRequest) -> OrchestrationResult:
         """Run one bounded graph execution and return a framework-independent result."""
 
+        started_at = perf_counter()
         try:
             state = await self._graph.ainvoke({"request": request})
         except Exception:
+            emit_runtime_event(
+                RuntimeEventKind.ORCHESTRATION,
+                value=OrchestrationStatus.ORCHESTRATION_ERROR.value,
+                elapsed_ms=int((perf_counter() - started_at) * 1000),
+            )
             return OrchestrationResult(
                 status=OrchestrationStatus.ORCHESTRATION_ERROR,
                 route=RouterRoute.AMBIGUOUS,
                 reason="ORCHESTRATION_UNAVAILABLE",
             )
-        return OrchestrationResult(
+        result = OrchestrationResult(
             status=state["status"],
             route=state["routing_decision"].route,
+            semantic_intent=state["routing_decision"].semantic_intent,
             knowledge_scope=state["knowledge_scope"],
             conversational_result=state.get("conversational_result"),
             knowledge_result=state.get("knowledge_result"),
@@ -226,6 +241,12 @@ class LangGraphOrchestrator:
             human_escalation_result=state.get("human_escalation_result"),
             reason=state["reason"],
         )
+        emit_runtime_event(
+            RuntimeEventKind.ORCHESTRATION,
+            value=result.status.value,
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
+        return result
 
     def _build_graph(self):
         graph = StateGraph(OrchestrationState)
@@ -280,7 +301,10 @@ class LangGraphOrchestrator:
         request = state["request"]
         router_request = RouterRequest(
             message=request.message,
-            has_authorized_protocol_context=request.has_authorized_protocol_context,
+            ops_read_authorized=(
+                request.ops_access_context is not None
+                and request.ops_access_context.can_read_operational_facts
+            ),
         )
         route_async = getattr(self._router, "route_async", None)
         if route_async is None:
@@ -289,6 +313,10 @@ class LangGraphOrchestrator:
             decision = self._router.route(router_request)
         else:
             decision = await route_async(router_request)
+        emit_runtime_event(RuntimeEventKind.ROUTER, value=decision.route.value)
+        emit_runtime_event(RuntimeEventKind.KNOWLEDGE_SCOPE, value=decision.knowledge_scope.value)
+        if decision.web_search_policy is not WebSearchPolicy.NONE:
+            emit_runtime_event(RuntimeEventKind.WEB_POLICY, value=decision.web_search_policy.value)
         return {"routing_decision": decision, "knowledge_scope": decision.knowledge_scope}
 
     @staticmethod
@@ -332,6 +360,8 @@ class LangGraphOrchestrator:
         return "assembly"
 
     async def _knowledge_node(self, state: OrchestrationState) -> dict[str, KnowledgeResult]:
+        started_at = perf_counter()
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="KnowledgeAgent", value="STARTED")
         try:
             result = await self._knowledge_agent.answer(
                 KnowledgeRequest(
@@ -345,16 +375,34 @@ class LangGraphOrchestrator:
                 status=KnowledgeResultStatus.PROVIDER_ERROR,
                 reason="KNOWLEDGE_CAPABILITY_UNAVAILABLE",
             )
+        emit_runtime_event(
+            RuntimeEventKind.CAPABILITY,
+            name="KnowledgeAgent",
+            value=result.status.value,
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
         return {"knowledge_result": result, "persistent_knowledge_result": result}
 
-    @staticmethod
-    def _conversational_node(state: OrchestrationState) -> dict[str, ConversationalResult]:
-        del state
-        return {"conversational_result": bounded_conversational_response()}
+    async def _conversational_node(self, state: OrchestrationState) -> dict[str, ConversationalResult]:
+        started_at = perf_counter()
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="ConversationalAgent", value="STARTED")
+        if self._conversational_agent is None:
+            result = bounded_conversational_response()
+        else:
+            result = await self._conversational_agent.respond(state["request"].message)
+        emit_runtime_event(
+            RuntimeEventKind.CAPABILITY,
+            name="ConversationalAgent",
+            value=result.reason,
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
+        return {"conversational_result": result}
 
     async def _web_knowledge_node(
         self, state: OrchestrationState
     ) -> dict[str, KnowledgeResult | OrchestrationStatus | str | bool]:
+        started_at = perf_counter()
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="WebKnowledgeAgent", value="STARTED")
         if self._web_knowledge_agent is None:
             return {
                 "status": OrchestrationStatus.WEB_FALLBACK_PENDING,
@@ -369,6 +417,12 @@ class LangGraphOrchestrator:
                 status=KnowledgeResultStatus.PROVIDER_ERROR,
                 reason="WEB_KNOWLEDGE_CAPABILITY_UNAVAILABLE",
             )
+        emit_runtime_event(
+            RuntimeEventKind.CAPABILITY,
+            name="WebKnowledgeAgent",
+            value=result.status.value,
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
         return {
             "knowledge_result": result,
             "web_knowledge_result": result,
@@ -379,23 +433,26 @@ class LangGraphOrchestrator:
         self, state: OrchestrationState
     ) -> dict[str, CustomerSupportResult | OrchestrationStatus | str]:
         context = state["request"].customer_support_context
-        if context is None:
+        authorization = state["request"].ops_access_context
+        if authorization is None or not authorization.can_read_operational_facts:
+            emit_runtime_event(RuntimeEventKind.OPS_AUTHORIZATION, value="DENIED")
             return {
                 "customer_support_result": CustomerSupportResult(
-                    status=CustomerSupportStatus.INVALID_INPUT,
-                    reason="MISSING_TRUSTED_OPERATIONAL_CONTEXT",
+                    status=CustomerSupportStatus.UNAUTHORIZED,
+                    reason="OPERATIONAL_ACCESS_DENIED",
                 ),
-                "status": OrchestrationStatus.MISSING_OPERATIONAL_CONTEXT,
-                "reason": "MISSING_TRUSTED_OPERATIONAL_CONTEXT",
             }
+        emit_runtime_event(RuntimeEventKind.OPS_AUTHORIZATION, value="ALLOWED")
+        started_at = perf_counter()
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="CustomerSupportAgent", value="STARTED")
         try:
             result = await self._customer_support_agent.answer(
                 CustomerSupportRequest(
                     question=state["request"].message,
-                    protocol_number=context.protocol_number,
-                    operation=context.operation,
-                    authorization=context.authorization,
-                    run_id=context.run_id,
+                    protocol_number=context.protocol_number if context else None,
+                    operation=context.operation if context else None,
+                    authorization=authorization,
+                    run_id=context.run_id if context else None,
                 )
             )
         except Exception:
@@ -403,13 +460,21 @@ class LangGraphOrchestrator:
                 status=CustomerSupportStatus.OPERATIONAL_UNAVAILABLE,
                 reason="CUSTOMER_SUPPORT_CAPABILITY_UNAVAILABLE",
             )
+        emit_runtime_event(
+            RuntimeEventKind.CAPABILITY,
+            name="CustomerSupportAgent",
+            value=result.status.value,
+            elapsed_ms=int((perf_counter() - started_at) * 1000),
+        )
         return {"customer_support_result": result}
 
     async def _security_terminal(
         self, state: OrchestrationState
     ) -> dict[str, OrchestrationStatus | str]:
         context = state["request"].security_audit_context
+        emit_runtime_event(RuntimeEventKind.SECURITY_AUDIT, value="STARTED")
         if self._security_audit_service is None or context is None:
+            emit_runtime_event(RuntimeEventKind.SECURITY_AUDIT, value="UNAVAILABLE")
             return {
                 "status": OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
                 "reason": "SECURITY_AUDIT_UNAVAILABLE",
@@ -419,11 +484,16 @@ class LangGraphOrchestrator:
             context=context,
             security_semantics=state["routing_decision"].security_semantics,
         )
+        emit_runtime_event(
+            RuntimeEventKind.SECURITY_AUDIT,
+            value="RECORDED" if result.status is SecurityAuditStatus.RECORDED else "UNAVAILABLE",
+        )
         if result.status is not SecurityAuditStatus.RECORDED:
             return {
                 "status": OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE,
                 "reason": "SECURITY_AUDIT_UNAVAILABLE",
             }
+        emit_runtime_event(RuntimeEventKind.SECURITY, value="CONTINUATION_INTERRUPTED")
         return {"status": OrchestrationStatus.SECURITY_BLOCKED, "reason": "SECURITY_POLICY_ROUTE"}
 
     @staticmethod
@@ -436,14 +506,23 @@ class LangGraphOrchestrator:
     def _human_escalation_node(
         self, state: OrchestrationState
     ) -> dict[str, HumanEscalationResult | OrchestrationStatus | str | bool]:
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="HumanEscalationAgent", value="STARTED")
         request = state["request"].human_escalation_request
-        if self._human_escalation_agent is None or request is None:
+        if self._human_escalation_agent is None:
             return {
                 "status": OrchestrationStatus.HUMAN_ESCALATION_REQUIRED,
                 "reason": "HUMAN_ESCALATION_CAPABILITY_OR_TRUSTED_CONTEXT_UNAVAILABLE",
                 "human_escalation_required": True,
             }
+        if request is None:
+            request = HumanEscalationRequest(
+                conversation=ConversationReference(conversation_id=f"chat-{uuid4().hex}"),
+                current_state=HumanEscalationState.BOT,
+                action=HumanEscalationAction.OFFER,
+                reason=HumanEscalationReason.USER_REQUESTED_HUMAN,
+            )
         result = self._human_escalation_agent.transition(request)
+        emit_runtime_event(RuntimeEventKind.HUMAN, value=result.state.value)
         if result.status.value == "REJECTED":
             return {
                 "human_escalation_result": result,

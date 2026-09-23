@@ -12,8 +12,9 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportOperation,
     CustomerSupportRequest,
     CustomerSupportStatus,
+    OperationalQueryPlan,
 )
-from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts
+from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts, ServiceRequestRecord
 from apps.agent_api.app.llm.errors import LLMProviderTimeoutError
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult
 from apps.agent_api.app.tools.ops import (
@@ -21,6 +22,7 @@ from apps.agent_api.app.tools.ops import (
     OpsAccessContext,
     OpsToolStatus,
     ProtocolStatusToolResult,
+    RecentProtocolsToolResult,
 )
 
 
@@ -75,6 +77,8 @@ class FakeTools:
         )
         self.lookup_calls: list[tuple[str, OpsAccessContext]] = []
         self.failure_calls: list[tuple[str, OpsAccessContext, int | None]] = []
+        self.recent_result = RecentProtocolsToolResult(status=OpsToolStatus.NOT_FOUND, reason="NO_PROTOCOLS_FOUND")
+        self.recent_calls: list[tuple[int, OpsAccessContext]] = []
 
     async def lookup_protocol_status(
         self, protocol_number: str, authorization: OpsAccessContext
@@ -92,17 +96,22 @@ class FakeTools:
         self.failure_calls.append((protocol_number, authorization, run_id))
         return self.failure
 
+    async def list_recent_protocols(self, limit: int, authorization: OpsAccessContext) -> RecentProtocolsToolResult:
+        self.recent_calls.append((limit, authorization))
+        return self.recent_result
+
 
 class RecordingProvider:
-    def __init__(self, response: LLMGenerationResult | Exception) -> None:
-        self.response = response
+    def __init__(self, response: LLMGenerationResult | Exception | list[LLMGenerationResult | Exception]) -> None:
+        self.response = list(response) if isinstance(response, list) else [response]
         self.requests: list[LLMGenerationRequest] = []
 
     async def generate(self, request: LLMGenerationRequest) -> LLMGenerationResult:
         self.requests.append(request)
-        if isinstance(self.response, Exception):
-            raise self.response
-        return self.response
+        response = self.response[(len(self.requests) - 1) % len(self.response)]
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def request(
@@ -144,6 +153,7 @@ def test_protocol_status_uses_authorized_tool_and_returns_deterministic_facts() 
     result = asyncio.run(CustomerSupportAgent(tools, provider).answer(request()))
 
     assert result.status is CustomerSupportStatus.ANSWERED
+    assert result.plan is not None and result.plan.intent.value == "PROTOCOL_STATUS"
     assert result.facts[0].source == "ProtocolStatusFacts"
     assert "FAILED" in result.facts[0].statement
     assert result.inferences[0].statement.startswith("A falha pode")
@@ -221,6 +231,7 @@ def test_execution_failure_uses_both_approved_tools_and_labels_inference() -> No
     )
 
     assert result.status is CustomerSupportStatus.ANSWERED
+    assert result.plan is not None and result.plan.protocol_number == "POC-OPS-0002"
     assert {fact.source for fact in result.facts} == {
         "ProtocolStatusFacts",
         "ExecutionFailureEvidence",
@@ -271,7 +282,90 @@ def test_user_prompt_cannot_override_authorization_or_trigger_llm_workaround() -
 
     assert result.status is CustomerSupportStatus.UNAUTHORIZED
     assert result.facts == ()
-    assert tools.lookup_calls == [("POC-OPS-0002", DENIED)]
+    assert tools.lookup_calls == []
+    assert provider.requests == []
+
+
+def test_operational_plan_is_closed_and_validates_selector_and_limits() -> None:
+    plan = OperationalQueryPlan.model_validate_json('{"intent":"RECENT_PROTOCOLS","limit":3}')
+    assert plan.intent.value == "RECENT_PROTOCOLS"
+    assert plan.limit == 3
+
+    for invalid in (
+        '{"intent":"LATEST_PROTOCOL","sql":"SELECT 1"}',
+        '{"intent":"PROTOCOL_STATUS"}',
+        '{"intent":"RECENT_PROTOCOLS","limit":50}',
+        '{"intent":"PROTOCOL_STATUS","protocol_number":"anything"}',
+    ):
+        with pytest.raises(Exception):
+            OperationalQueryPlan.model_validate_json(invalid)
+
+
+def test_latest_protocol_plan_uses_authorized_typed_discovery_then_synthesis() -> None:
+    recent = ServiceRequestRecord(
+        request_id=14,
+        protocol_number="POC-OPS-0004",
+        email_id=40,
+        r1_run_id=13,
+        created_at=NOW,
+        updated_at=NOW,
+        status="FAILED",
+        result="Erro observado no R2",
+    )
+    tools = FakeTools(lookup=lookup_success())
+    tools.recent_result = RecentProtocolsToolResult(
+        status=OpsToolStatus.SUCCESS,
+        records=(recent,),
+        reason="OBSERVED_RECENT_PROTOCOLS",
+    )
+    provider = RecordingProvider([
+        LLMGenerationResult(content='{"intent":"LATEST_PROTOCOL"}'),
+        generated(),
+    ])
+
+    result = asyncio.run(CustomerSupportAgent(tools, provider).answer(CustomerSupportRequest(
+        question="quero saber do suporte qual o protocolo mais recente",
+        authorization=AUTHORIZED,
+    )))
+
+    assert result.status is CustomerSupportStatus.ANSWERED
+    assert result.plan is not None and result.plan.intent.value == "LATEST_PROTOCOL"
+    assert "POC-OPS-0004" in result.facts[0].statement
+    assert tools.recent_calls == [(1, AUTHORIZED)]
+    assert tools.lookup_calls == []
+    assert provider.requests[0].response_format == "json_object"
+    assert "SELECT" not in provider.requests[0].messages[0].content
+    assert "POC-OPS-0004" in provider.requests[1].messages[1].content
+
+
+def test_inline_protocol_plan_uses_message_selector_after_authorization() -> None:
+    tools = FakeTools(lookup=lookup_success())
+    provider = RecordingProvider([
+        LLMGenerationResult(content='{"intent":"PROTOCOL_EXECUTION_RESULT","protocol_number":"POC-OPS-0004"}'),
+        generated(),
+    ])
+    request_without_preselection = CustomerSupportRequest(
+        question="POC-OPS-0004 preciso saber o resultado desse protocolo",
+        authorization=AUTHORIZED,
+    )
+
+    result = asyncio.run(CustomerSupportAgent(tools, provider).answer(request_without_preselection))
+
+    assert result.status is CustomerSupportStatus.ANSWERED
+    assert result.plan is not None and result.plan.protocol_number == "POC-OPS-0004"
+    assert tools.lookup_calls == [("POC-OPS-0004", AUTHORIZED)]
+    assert provider.requests[0].response_format == "json_object"
+
+
+def test_discovery_plan_does_not_authorize_unauthorized_caller() -> None:
+    tools = FakeTools(lookup=lookup_success())
+    provider = RecordingProvider(generated())
+    result = asyncio.run(CustomerSupportAgent(tools, provider).answer(CustomerSupportRequest(
+        question="qual o protocolo mais recente?",
+        authorization=DENIED,
+    )))
+    assert result.status is CustomerSupportStatus.UNAUTHORIZED
+    assert tools.recent_calls == []
     assert provider.requests == []
 
 

@@ -26,6 +26,7 @@ from apps.agent_api.app.chat import (
     SafeErrorResponse,
 )
 from apps.agent_api.app.composition import RuntimeComposition, compose_runtime
+from apps.agent_api.app.telemetry import RuntimeTelemetrySink
 
 
 class HealthResponse(BaseModel):
@@ -62,6 +63,7 @@ def create_app(
     *,
     chat_service: ChatApplicationService | None = None,
     auth_config: ServiceAuthConfig | None = None,
+    telemetry_sink: RuntimeTelemetrySink | None = None,
 ) -> FastAPI:
     """Build an app without opening database/provider resources at import time."""
 
@@ -70,6 +72,7 @@ def create_app(
         runtime: RuntimeComposition | None = None
         application.state.chat_service = chat_service
         application.state.auth_config = auth_config
+        application.state.telemetry_sink = telemetry_sink
         application.state.readiness_detail = "Application dependencies are not configured."
         if application.state.auth_config is None:
             try:
@@ -139,12 +142,17 @@ def create_app(
         },
     )
     async def chat(
-        request: ChatRequest,
+        http_request: Request,
+        chat_request: ChatRequest,
         principal: Principal,
         service: ChatService,
     ) -> ChatResponse:
         try:
-            return await service.handle(request, principal)
+            return await service.handle(
+                chat_request,
+                principal,
+                telemetry_sink=getattr(http_request.app.state, "telemetry_sink", None),
+            )
         except ChatAuthorizationError:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

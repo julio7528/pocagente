@@ -77,7 +77,6 @@ def test_real_langgraph_executes_approved_agent_paths(
                 support_context = CustomerSupportContext(
                     protocol_number="POC-OPS-0002",
                     operation=CustomerSupportOperation.EXECUTION_FAILURE,
-                    authorization=AUTHORIZED,
                 )
 
                 knowledge = await graph.execute(
@@ -92,7 +91,7 @@ def test_real_langgraph_executes_approved_agent_paths(
                 cooperative = await graph.execute(
                     OrchestrationRequest(
                         message="O protocolo está atrasado? O que deveria ter acontecido?",
-                        has_authorized_protocol_context=True,
+                        ops_access_context=AUTHORIZED,
                         customer_support_context=support_context,
                     )
                 )

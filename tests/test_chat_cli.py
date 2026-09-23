@@ -19,6 +19,13 @@ from scripts.chat_cli import (
     interactive_loop,
     load_env_file,
     _safe_console_text,
+    ConsoleTraceSink,
+)
+from apps.agent_api.app.telemetry import (
+    RuntimeEventKind,
+    RuntimeTelemetryEvent,
+    emit_runtime_event,
+    runtime_telemetry,
 )
 
 
@@ -109,6 +116,24 @@ def test_format_chat_response_conversational_route_shows_safe_top_level_answer()
     })
     assert "ROTA:    CONVERSATIONAL" in output
     assert "Olá! Posso ajudar com produtos Getnet." in output
+
+
+def test_format_chat_response_shows_human_state_without_claiming_transfer() -> None:
+    output = format_chat_response({
+        "status": "HUMAN_ESCALATION_REQUIRED",
+        "route": "HUMAN_ESCALATION",
+        "answer": None,
+        "human": {
+            "state": "WAITING_CONFIRMATION",
+            "conversation_id": "chat-test-reference",
+            "automation_suspended": False,
+            "assigned_operator_id": None,
+        },
+        "reason": "HUMAN_ESCALATION_OFFERED",
+    })
+    assert "Estado: WAITING_CONFIRMATION" in output
+    assert "chat-test-reference" in output
+    assert "ainda sem transferência" in output
 
 
 def test_chat_output_replaces_characters_unavailable_in_legacy_console_codepages() -> None:
@@ -244,6 +269,55 @@ def test_dispatch_message_error(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr().out
     assert "HTTP 503" in captured
     assert "SERVICE_DOWN" in captured
+
+
+def test_trace_sink_prints_only_allowlisted_fields_and_flushes(capsys: pytest.CaptureFixture[str]) -> None:
+    sink = ConsoleTraceSink()
+    sink.emit(RuntimeTelemetryEvent(
+        kind=RuntimeEventKind.REPOSITORY,
+        name="list_recent_protocols",
+        value="COMPLETED",
+        count=3,
+        elapsed_ms=1200,
+    ))
+    rendered = capsys.readouterr().out
+    assert "[TRACE]" in rendered
+    assert "OperationalRepository list_recent_protocols" in rendered
+    assert "3 resultados" in rendered and "1.2s" in rendered
+    assert "SELECT" not in rendered and "password" not in rendered and "prompt" not in rendered
+
+
+def test_trace_sink_disabled_emits_nothing(capsys: pytest.CaptureFixture[str]) -> None:
+    sink = ConsoleTraceSink(enabled=False)
+    sink.emit(RuntimeTelemetryEvent(kind=RuntimeEventKind.SECURITY, value="ALLOWED"))
+    assert "[TRACE]" not in capsys.readouterr().out
+
+
+def test_trace_stays_before_final_result(capsys: pytest.CaptureFixture[str]) -> None:
+    sink = ConsoleTraceSink()
+    sink.emit(RuntimeTelemetryEvent(kind=RuntimeEventKind.INTENT, value="CONVERSATIONAL"))
+    print(format_chat_response({"route": "CONVERSATIONAL", "status": "COMPLETED", "answer": "Olá", "citations": []}))
+    output = capsys.readouterr().out
+    assert output.index("[TRACE]") < output.index("ROTA:")
+
+
+def test_runtime_event_rejects_secret_or_prompt_content() -> None:
+    from pydantic import ValidationError
+
+    for value in ("Bearer_secret", "SELECT_PASSWORD", "SYSTEM_PROMPT"):
+        with pytest.raises(ValidationError):
+            RuntimeTelemetryEvent(kind=RuntimeEventKind.LLM, value=value)
+    with pytest.raises(ValidationError):
+        RuntimeTelemetryEvent(kind=RuntimeEventKind.LLM, prompt="hidden prompt")
+
+
+def test_observer_failure_does_not_escape_into_runtime() -> None:
+    class BrokenSink:
+        def emit(self, event: RuntimeTelemetryEvent) -> None:
+            raise RuntimeError("observer failure")
+
+    with runtime_telemetry(BrokenSink()):
+        emit_runtime_event(RuntimeEventKind.SECURITY, value="ALLOWED")
 
 
 def test_interactive_loop_commands_and_exit(capsys: pytest.CaptureFixture[str]) -> None:

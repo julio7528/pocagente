@@ -312,6 +312,24 @@ class OperationalRepository(BaseRepository):
             row = await cursor.fetchone()
         return map_service_request(row) if row is not None else None
 
+    async def list_recent_service_requests(self, limit: int) -> Sequence[ServiceRequestRecord]:
+        """Order protocols by request creation time, with stable identity tie-breaking."""
+
+        if not 1 <= limit <= 5:
+            raise ValueError("Recent service request limit must be between 1 and 5")
+        statement = """
+            SELECT request_id, protocol_number, email_id, r1_run_id, created_at,
+                   updated_at, status, result, failure_reason, completed_at,
+                   return_email_at
+            FROM ops.service_requests
+            ORDER BY created_at DESC, request_id DESC
+            LIMIT %s
+        """
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, (limit,))
+            rows = await cursor.fetchall()
+        return tuple(map_service_request(row) for row in rows)
+
     async def upsert_establishment(self, establishment: RepositoryRecord) -> int:
         columns = _validate_record(
             establishment,

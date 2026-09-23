@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Sequence
 
 from apps.agent_api.app.agents.customer_support import CustomerSupportAgent
+from apps.agent_api.app.agents.conversational import ConversationalAgent
 from apps.agent_api.app.agents.human_escalation import HumanEscalationAgent
 from apps.agent_api.app.agents.knowledge import KnowledgeAgent
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator
@@ -15,7 +16,7 @@ from apps.agent_api.app.agents.web_knowledge import WebKnowledgeAgent
 from apps.agent_api.app.chat import ChatApplicationService
 from apps.agent_api.app.database.config import load_database_config
 from apps.agent_api.app.database.connection import PostgresDatabase
-from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts
+from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolStatusFacts, ServiceRequestRecord
 from apps.agent_api.app.security.audit import PostgresSecurityAuditSink, SecurityAuditService
 from apps.agent_api.app.database.repositories.operational import OperationalRepository
 from apps.agent_api.app.llm.errors import LLMConfigurationError, LLMProviderError
@@ -58,6 +59,10 @@ class _PooledOperationalFactsRepository:
     async def get_protocol_status_facts(self, protocol_number: str) -> Sequence[ProtocolStatusFacts]:
         async with self._database.connection() as connection:
             return await OperationalRepository(connection).get_protocol_status_facts(protocol_number)
+
+    async def list_recent_service_requests(self, limit: int) -> Sequence[ServiceRequestRecord]:
+        async with self._database.connection() as connection:
+            return await OperationalRepository(connection).list_recent_service_requests(limit)
 
     async def get_execution_failure_facts(
         self,
@@ -114,6 +119,7 @@ async def compose_runtime() -> RuntimeComposition:
             web_knowledge,
             HumanEscalationAgent(),
             SecurityAuditService(PostgresSecurityAuditSink(database)),
+            ConversationalAgent(llm_provider),
         )
         return RuntimeComposition(ChatApplicationService(orchestrator), database)
     except Exception:

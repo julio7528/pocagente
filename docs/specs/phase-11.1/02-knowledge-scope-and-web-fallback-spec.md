@@ -64,6 +64,7 @@ Keep `KnowledgeResult` as the public-safe result shape but derive its status fro
 * `REQ-P11R-KNOW-008`: public-corpus availability is proven from trusted published public chunks; absent content requires visible controlled behavior and explicit owner approval before acquisition/publication.
 * `REQ-P11R-WEB-001`: stable public Getnet uses public RAG first and falls back only on typed insufficiency.
 * `REQ-P11R-WEB-002`: current public information requires existing Web capability.
+* A location-dependent current question such as a weather forecast must request the missing city/region before searching; it must not silently assume a location from search ranking or deployment defaults.
 * `REQ-P11R-WEB-003`: general public information uses bounded Web rather than ambiguous/internal RAG.
 * `REQ-P11R-WEB-004`: public Web never replaces internal rules or authorized private observations.
 * `REQ-P11R-WEB-005`: Web fallback preserves transient/non-persistent live evidence.

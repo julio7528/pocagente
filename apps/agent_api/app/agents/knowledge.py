@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from enum import StrEnum
+from time import perf_counter
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -22,6 +23,7 @@ from apps.agent_api.app.rag.grounding.context_builder import (
 )
 from apps.agent_api.app.rag.models import RetrievedChunk
 from apps.agent_api.app.rag.scope import KnowledgeScope
+from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
 
 class KnowledgeRequest(BaseModel):
@@ -105,8 +107,21 @@ class KnowledgeAgent:
 
         question = request.question
 
+        retrieval_started_at = perf_counter()
         retrieved_chunks = await self._retrieval.search(question, request.knowledge_scope)
+        emit_runtime_event(
+            RuntimeEventKind.RAG,
+            name="hybrid_retrieval",
+            value=request.knowledge_scope.value,
+            count=len(retrieved_chunks),
+            elapsed_ms=int((perf_counter() - retrieval_started_at) * 1000),
+        )
         context = self._context_builder.build(question, retrieved_chunks)
+        emit_runtime_event(
+            RuntimeEventKind.GROUNDING,
+            value=context.evidence_status.value,
+            count=len(context.evidence),
+        )
         if context.evidence_status is EvidenceStatus.INSUFFICIENT_EVIDENCE:
             return KnowledgeResult(
                 question=question,

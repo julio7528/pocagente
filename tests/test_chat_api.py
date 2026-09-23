@@ -8,6 +8,7 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportResult,
     CustomerSupportStatus,
     ObservedOperationalFact,
+    OperationalQueryPlan,
     OperationalInference,
 )
 from apps.agent_api.app.agents.human_escalation import (
@@ -113,10 +114,24 @@ def test_trusted_ops_claim_is_translated_without_body_authorization_flags() -> N
     with client(orchestrator) as http:
         response = http.post("/chat", headers=headers(ops=True), json=payload)
     assert response.status_code == 200
-    context = orchestrator.requests[0].customer_support_context
+    context = orchestrator.requests[0].ops_access_context
     assert context is not None
-    assert context.authorization.principal_id == "client-1"
-    assert context.authorization.can_read_operational_facts is True
+    assert context.principal_id == "client-1"
+    assert context.can_read_operational_facts is True
+
+
+def test_ops_authorization_is_translated_without_preselected_protocol() -> None:
+    orchestrator = RecordingOrchestrator(result(route=RouterRoute.CUSTOMER_SUPPORT))
+    with client(orchestrator) as http:
+        response = http.post(
+            "/chat",
+            headers=headers(ops=True),
+            json={"message": "latest protocol", "user_id": "client-1"},
+        )
+    assert response.status_code == 200
+    assert orchestrator.requests[0].customer_support_context is None
+    assert orchestrator.requests[0].ops_access_context is not None
+    assert orchestrator.requests[0].ops_access_context.can_read_operational_facts is True
 
 
 def test_knowledge_and_live_web_results_expose_only_safe_answer_and_citations() -> None:
@@ -141,6 +156,7 @@ def test_customer_support_and_cooperative_results_preserve_fact_inference_bounda
         answer="Observed evidence and a labeled interpretation.",
         facts=(ObservedOperationalFact(source="OPS", statement="Protocol POC-OPS-0002 is FAILED."),),
         inferences=(OperationalInference(statement="The evidence may indicate a retry issue."),),
+        plan=OperationalQueryPlan(intent="PROTOCOL_STATUS", protocol_number="POC-OPS-0002"),
         reason="OBSERVED_OPS_EVIDENCE_INTERPRETED",
     )
     knowledge = KnowledgeResult(question="question", status=KnowledgeResultStatus.ANSWERED, answer="Expected documented behavior.", reason="OK")
@@ -154,6 +170,8 @@ def test_customer_support_and_cooperative_results_preserve_fact_inference_bounda
     assert body["knowledge"]["answer"] == "Expected documented behavior."
     assert body["customer_support"]["facts"][0]["statement"].endswith("FAILED.")
     assert body["customer_support"]["inferences"][0]["statement"].startswith("The evidence may")
+    assert body["customer_support"]["operational_plan"]["intent"] == "PROTOCOL_STATUS"
+    assert "sql" not in str(body["customer_support"]["operational_plan"]).lower()
 
 
 def test_human_states_are_allowlisted_without_weakening_ownership() -> None:
@@ -270,8 +288,9 @@ def test_security_block_and_failures_are_sanitized() -> None:
         assert internal not in rendered
     assert set(body) == {
         "status", "route", "answer", "citations", "knowledge", "customer_support",
-        "requires_human", "human", "reason",
+        "requires_human", "human", "intent", "reason",
     }
+    assert body["intent"] is None
 
     failing = RecordingOrchestrator(RuntimeError("postgresql://user:password@host/db sk-proj-secret SELECT * FROM audit.security_events C:\\secret\\config Traceback"))
     with client(failing) as http:
