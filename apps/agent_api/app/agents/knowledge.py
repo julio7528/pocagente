@@ -16,6 +16,7 @@ from apps.agent_api.app.agents.grounded_generation import (
     GroundedGenerationStatus,
     generate_grounded_outcome,
 )
+from apps.agent_api.app.agents.search_query_formulation import SearchQueryFormulation
 from apps.agent_api.app.rag.grounding.context_builder import (
     Citation,
     EvidenceStatus,
@@ -79,6 +80,7 @@ class KnowledgeResult(BaseModel):
     answer: str | None = None
     citations: tuple[Citation, ...] = ()
     reason: str = Field(min_length=1)
+    retrieval_query: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def result_fields_match_status(self) -> KnowledgeResult:
@@ -97,18 +99,29 @@ class KnowledgeAgent:
         retrieval: RetrievalBoundary,
         context_builder: GroundingBoundary,
         llm_provider: LLMProvider,
+        query_formulator: SearchQueryFormulation | None = None,
     ) -> None:
         self._retrieval = retrieval
         self._context_builder = context_builder
         self._llm_provider = llm_provider
+        self._query_formulator = query_formulator
 
     async def answer(self, request: KnowledgeRequest) -> KnowledgeResult:
         """Answer only from structurally sufficient approved grounded context."""
 
         question = request.question
 
+        retrieval_query = question
+        if request.knowledge_scope is KnowledgeScope.PUBLIC_GETNET and self._query_formulator is not None:
+            try:
+                formulated = await self._query_formulator.formulate(question)
+            except Exception:
+                formulated = None
+            if isinstance(formulated, str) and formulated.strip():
+                retrieval_query = formulated.strip()[:200]
+
         retrieval_started_at = perf_counter()
-        retrieved_chunks = await self._retrieval.search(question, request.knowledge_scope)
+        retrieved_chunks = await self._retrieval.search(retrieval_query, request.knowledge_scope)
         emit_runtime_event(
             RuntimeEventKind.RAG,
             name="hybrid_retrieval",
@@ -128,6 +141,7 @@ class KnowledgeAgent:
                 status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
                 citations=(),
                 reason=context.reason,
+                retrieval_query=retrieval_query if retrieval_query != question else None,
             )
 
         try:
@@ -146,6 +160,7 @@ class KnowledgeAgent:
                 question=question,
                 status=KnowledgeResultStatus.PROVIDER_ERROR,
                 reason=getattr(error, "error_code", "invalid_grounded_generation"),
+                retrieval_query=retrieval_query if retrieval_query != question else None,
             )
         if generated.status is GroundedGenerationStatus.INSUFFICIENT_EVIDENCE:
             return KnowledgeResult(
@@ -153,6 +168,7 @@ class KnowledgeAgent:
                 status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
                 citations=(),
                 reason="GENERATION_INSUFFICIENT_EVIDENCE",
+                retrieval_query=retrieval_query if retrieval_query != question else None,
             )
         citations_by_id = {citation.id: citation for citation in context.citations}
         return KnowledgeResult(

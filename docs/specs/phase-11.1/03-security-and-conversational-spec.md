@@ -24,6 +24,32 @@ Clearly abusive or prohibited inappropriate content may be blocked under organiz
 
 ## Conversational capability
 
+Safe, stable general questions outside the Getnet domain use a distinct
+`DIRECT_GENERAL` capability after both security layers allow the request. It
+has no retrieval or tool authority. Changing/current facts retain the Web
+capability. Genuine ambiguous requests receive a natural bounded LLM-formulated
+clarification from safe context, with a deterministic fallback if generation
+fails; off-domain simplicity alone is not ambiguity.
+
+For a safe off-domain direct answer, the LLM answers briefly and naturally adds
+a concise, varied invitation to ask about Getnet products/services or
+cancellation support. This is response guidance, not a fixed application
+sentence and does not grant any capability. Semantic classification and public
+Getnet retrieval formulation tolerate high-confidence ordinary spelling and
+informal-language variation without a product-specific correction dictionary;
+uncertain interpretations remain eligible for clarification. A retrieval
+query is a bounded search aid only: the original user request remains the
+grounding question and the source of intent, while trusted scope, Web policy,
+authorization, and security remain unchanged.
+
+Typed `INSUFFICIENT_EVIDENCE`, provider-unavailable, and genuine clarification
+outcomes must not render an empty-answer placeholder in normal chat. A narrow
+LLM recovery response may use only the safe original question, typed route and
+failure category, and a high-confidence normalized interpretation when one is
+available. It asks the user to reformulate or confirm when evidence is lacking;
+it must not invent an answer or receive retrieved evidence, prompts, secrets,
+or provider error details. Existing output security validation still applies.
+
 Add a narrow conversational capability for greetings, thanks, basic orientation, and “what can you do?” messages. On normal provider success, `ConversationalAgent` uses the shared provider-neutral LLM boundary to formulate a natural, brief response in the user's language. It has no tools, RAG, OPS, Web, authorization, routing, or handoff authority and does not independently answer knowledge-intensive, protected, operational, or customer-specific requests. The existing deterministic orientation response is only the safe fallback when generation fails or returns invalid output. Bound and validate generated output; do not require JSON for this user-facing generation.
 
 It may be implemented as an additive controlled route/node or an equivalent current-contract extension, but must be observable as `CONVERSATIONAL`, must not be reported as `AMBIGUOUS`, and must preserve safe public response boundaries.
@@ -50,3 +76,8 @@ It may be implemented as an additive controlled route/node or an equivalent curr
 * `REQ-P11R-CONV-003`: greeting prefixes do not override dominant substantive intent.
 * `REQ-P11R-CONV-004`: conversational responses remain public-safe and do not expose implementation detail.
 * `REQ-P11R-CONV-005`: normal conversational responses are naturally formulated through the approved provider-neutral LLM boundary without tools/RAG/OPS/Web authority; deterministic orientation is a safe generation-failure fallback.
+* `REQ-P11R-DIRECT-004`: the real CLI matrix and unseen paraphrases prove that direct answers occur after security, use no tools, and cross outbound validation.
+* `REQ-P11R-DIRECT-005`: genuinely ambiguous requests receive a natural bounded clarification without tools; deterministic clarification is fallback-only.
+* `REQ-P11R-DIRECT-006`: safe off-domain direct answers are concise and add a naturally varied LLM-formulated Getnet/support orientation without granting tools or retrieval authority.
+* `REQ-P11R-KNOW-009`: Public Getnet retrieval may use a bounded semantic search-query formulation that preserves intent and trusted policy, while original user text remains authoritative for grounding; low-confidence or failed formulation falls back safely.
+* `REQ-P11R-CONV-006`: semantic classification tolerates high-confidence minor spelling/informal-language variation, while typed insufficient-evidence/provider failures receive concise safe natural recovery instead of an empty response; genuinely unclear requests still ask for clarification.

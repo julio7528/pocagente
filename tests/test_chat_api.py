@@ -11,6 +11,7 @@ from apps.agent_api.app.agents.customer_support import (
     OperationalQueryPlan,
     OperationalInference,
 )
+from apps.agent_api.app.agents.conversational import ConversationalAgent
 from apps.agent_api.app.agents.human_escalation import (
     ConversationReference,
     HumanEscalationResult,
@@ -148,6 +149,43 @@ def test_knowledge_and_live_web_results_expose_only_safe_answer_and_citations() 
         assert body["citations"][0]["id"] == "C1"
         rendered = str(body).lower()
         assert "provenance" not in rendered and "tavily_api_key" not in rendered
+
+
+def test_insufficient_evidence_gets_natural_recovery_without_changing_typed_status() -> None:
+    class RecoveryProvider:
+        def __init__(self):
+            self.requests = []
+
+        async def generate(self, request):
+            from apps.agent_api.app.llm.models import LLMGenerationResult
+            self.requests.append(request)
+            return LLMGenerationResult(content="Entendi que você quer trocar uma maquininha Getnet com defeito, mas não encontrei evidências suficientes para orientar com segurança. Pode confirmar se é isso?")
+
+    knowledge = KnowledgeResult(
+        question="quero trocar uma maquinha Getnet com defeito",
+        status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
+        reason="NO_APPROVED_EVIDENCE",
+        retrieval_query="troca de maquininha Getnet com defeito suporte",
+    )
+    provider = RecoveryProvider()
+    service = ChatApplicationService(
+        RecordingOrchestrator(result(knowledge_result=knowledge)),
+        recovery_agent=ConversationalAgent(provider),
+    )
+    with client_with_service(service) as http:
+        body = http.post(
+            "/chat", headers=headers(),
+            json={"message": knowledge.question, "user_id": "client-1"},
+        ).json()
+    assert body["status"] == OrchestrationStatus.COMPLETED.value
+    assert body["knowledge"]["status"] == KnowledgeResultStatus.INSUFFICIENT_EVIDENCE.value
+    assert "evidências suficientes" in body["answer"]
+    assert "troca de maquininha Getnet com defeito suporte" in provider.requests[0].messages[1].content
+
+
+def client_with_service(service: ChatApplicationService) -> TestClient:
+    app = create_app(chat_service=service, auth_config=ServiceAuthConfig(service_token=TOKEN))
+    return TestClient(app)
 
 
 def test_customer_support_and_cooperative_results_preserve_fact_inference_boundaries() -> None:

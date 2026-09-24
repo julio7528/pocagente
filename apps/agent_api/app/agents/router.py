@@ -43,6 +43,7 @@ class RouterCapability(StrEnum):
     WEB_FALLBACK = "WEB_FALLBACK"
     SECURITY_GUARDRAIL = "SECURITY_GUARDRAIL"
     CONVERSATIONAL = "CONVERSATIONAL"
+    DIRECT_GENERAL = "DIRECT_GENERAL"
 
 
 class RouterRoute(StrEnum):
@@ -56,6 +57,7 @@ class RouterRoute(StrEnum):
     SECURITY_BLOCK = "SECURITY_BLOCK"
     AMBIGUOUS = "AMBIGUOUS"
     CONVERSATIONAL = "CONVERSATIONAL"
+    DIRECT_GENERAL = "DIRECT_GENERAL"
 
 
 class RouterStatus(StrEnum):
@@ -123,6 +125,7 @@ class RouterDecision(BaseModel):
             ),
             RouterRoute.AMBIGUOUS: (RouterStatus.AMBIGUOUS, ()),
             RouterRoute.CONVERSATIONAL: (RouterStatus.ROUTED, (RouterCapability.CONVERSATIONAL,)),
+            RouterRoute.DIRECT_GENERAL: (RouterStatus.ROUTED, (RouterCapability.DIRECT_GENERAL,)),
         }
         status, capabilities = expected[self.route]
         if self.status is not status or self.capabilities != capabilities:
@@ -481,6 +484,7 @@ class RouterAgent:
             ),
             RouterRoute.AMBIGUOUS: (RouterStatus.AMBIGUOUS, ()),
             RouterRoute.CONVERSATIONAL: (RouterStatus.ROUTED, (RouterCapability.CONVERSATIONAL,)),
+            RouterRoute.DIRECT_GENERAL: (RouterStatus.ROUTED, (RouterCapability.DIRECT_GENERAL,)),
         }
         status, capabilities = routes[route]
         if route is RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK:

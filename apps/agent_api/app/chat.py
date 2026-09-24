@@ -10,6 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from apps.agent_api.app.agents.customer_support import CustomerSupportOperation, OperationalQueryPlan
+from apps.agent_api.app.agents.conversational import ConversationalAgent
 from apps.agent_api.app.agents.human_escalation import (
     ConversationReference,
     HandoffFact,
@@ -357,10 +358,12 @@ class ChatApplicationService:
         orchestrator: OrchestrationCapability,
         security_response_agent: SecurityResponseAgent | None = None,
         output_security_gate: OutputSecurityGate | None = None,
+        recovery_agent: ConversationalAgent | None = None,
     ) -> None:
         self._orchestrator = orchestrator
         self._security_response_agent = security_response_agent
         self._output_security_gate = output_security_gate
+        self._recovery_agent = recovery_agent
 
     async def handle(
         self,
@@ -405,6 +408,24 @@ class ChatApplicationService:
                     security_answer = _SECURITY_BLOCK_FALLBACK
                     emit_runtime_event(RuntimeEventKind.SECURITY_OUTPUT, value="CONTROLLED_ERROR")
             response = self._response(result, security_answer=security_answer)
+            recovery_kind = self._recovery_kind(result)
+            if response.answer is None and recovery_kind is not None and self._recovery_agent is not None:
+                recovery = await self._recovery_agent.recover(
+                    request.message,
+                    route=result.route.value,
+                    failure_kind=recovery_kind,
+                    interpretation=(
+                        result.knowledge_result.retrieval_query
+                        if result.knowledge_result is not None
+                        else None
+                    ),
+                )
+                response = response.model_copy(update={"answer": recovery.answer})
+                emit_runtime_event(
+                    RuntimeEventKind.CAPABILITY,
+                    name="RecoveryResponseAgent",
+                    value=recovery.reason,
+                )
             output_block_category = None
             output_action = None
             if self._output_security_gate is not None:
@@ -429,6 +450,30 @@ class ChatApplicationService:
         }:
             raise ChatUnavailableError()
         return response
+
+    @staticmethod
+    def _recovery_kind(result: OrchestrationResult) -> str | None:
+        if result.status in {OrchestrationStatus.SECURITY_BLOCKED, OrchestrationStatus.ORCHESTRATION_ERROR, OrchestrationStatus.SECURITY_AUDIT_UNAVAILABLE}:
+            return None
+        knowledge = result.knowledge_result
+        if knowledge is not None:
+            if knowledge.status.value == "INSUFFICIENT_EVIDENCE":
+                return "INSUFFICIENT_EVIDENCE"
+            if knowledge.status.value == "PROVIDER_ERROR":
+                return "PROVIDER_UNAVAILABLE"
+        support = result.customer_support_result
+        if support is not None:
+            if support.status.value == "CLARIFICATION_REQUIRED":
+                return "CLARIFICATION_REQUIRED"
+            if support.status.value in {"NOT_FOUND", "INVALID_INPUT"}:
+                return "NOT_FOUND"
+            if support.status.value in {"OPERATIONAL_UNAVAILABLE", "PROVIDER_ERROR"}:
+                return "PROVIDER_UNAVAILABLE"
+        if result.status is OrchestrationStatus.WEB_FALLBACK_PENDING:
+            return "PROVIDER_UNAVAILABLE"
+        if result.status is OrchestrationStatus.MISSING_OPERATIONAL_CONTEXT:
+            return "CLARIFICATION_REQUIRED"
+        return None
 
     @staticmethod
     def _operational_context(
@@ -582,6 +627,10 @@ class ChatApplicationService:
             citations = knowledge.citations
         elif result.conversational_result is not None and knowledge is None and support is None:
             direct_answer = _safe_text(result.conversational_result.answer)
+        elif result.direct_general_result is not None and result.direct_general_result.status == "ANSWERED" and knowledge is None and support is None:
+            direct_answer = _safe_text(result.direct_general_result.answer)
+        elif result.ambiguous_response is not None and knowledge is None and support is None:
+            direct_answer = _safe_text(result.ambiguous_response.answer)
         return ChatResponse(
             status=result.status.value,
             route=result.route.value,

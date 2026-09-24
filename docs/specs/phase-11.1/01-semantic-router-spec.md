@@ -28,9 +28,18 @@ The v1 intent vocabulary is closed:
 | `CUSTOMER_SUPPORT` | `CUSTOMER_SUPPORT`; OPS remains subject to trusted auth/context |
 | `EXPECTED_VS_OBSERVED` | `KNOWLEDGE_AND_CUSTOMER_SUPPORT`, internal rules plus authorized controlled observation |
 | `GENERAL_PUBLIC_INFORMATION` | bounded existing Web path, no internal/public Getnet RAG substitution |
+| `DIRECT_GENERAL` | direct no-tool LLM answer for stable, safe, self-contained questions; no RAG, Web, OPS, or database |
 | `CURRENT_PUBLIC_INFORMATION` | existing Web route with `REQUIRED` freshness policy |
 | `HUMAN_REQUEST` | existing Human Escalation route/state machine |
 | `AMBIGUOUS` | current bounded clarification behavior |
+
+Stable, safe, self-contained general questions are not ambiguous merely
+because they are simple or outside the Getnet domain. They use `DIRECT_GENERAL`
+only when freshness or external/private evidence is unnecessary. Questions
+depending on changing public facts retain the current Web route. Getnet,
+internal-process, and operational questions retain their respective
+capabilities. Genuine ambiguity is reserved for requests whose meaning or
+required capability cannot reasonably be determined.
 
 ### Cooperative capability needs
 
@@ -38,13 +47,20 @@ Customer Support cooperation must not add a new top-level intent for each
 question shape. The semantic result may carry a closed `capability_needs`
 collection alongside the existing primary intent, using only
 `INTERNAL_KNOWLEDGE`, `PUBLIC_GETNET`, `OPERATIONAL_FACTS`, `CURRENT_WEB`,
-`HUMAN`, and `CONVERSATIONAL`. It contains no tool names, repository names,
+`HUMAN`, `CONVERSATIONAL`, and `DIRECT_GENERAL`. It contains no tool names, repository names,
 selectors, authority, or free-text rationale. The deterministic mapper
 validates compatible combinations and maps `OPERATIONAL_FACTS` plus
 `INTERNAL_KNOWLEDGE` to the existing cooperative route/capability shape.
 Capability needs describe what evidence may be relevant; they never grant
 authorization. `ChatApplicationService` and the OPS boundary continue to gate
 operational reads from the authenticated principal.
+
+`DIRECT_GENERAL` maps to a bounded provider-neutral response boundary with no
+tool authority. If that boundary determines that current external evidence is
+required, it returns a typed handoff signal; application orchestration may then
+use the existing Web capability. The output security gate remains mandatory.
+Direct assistance may naturally orient the user toward Getnet and support
+topics, but that wording is generated, brief, and optional.
 
 The mapper, not the model, rejects impossible combinations. `EXPECTED_VS_OBSERVED` without trusted operational context degrades safely; it cannot unlock OPS. The mapper may use authenticated context supplied by the application, never model output.
 
@@ -76,3 +92,6 @@ Security preflight always runs first. On timeout, provider error, malformed JSON
 * `REQ-P11R-ROUTER-008`: mappings are auditable and reject unsupported intent/policy combinations.
 * `REQ-P11R-ROUTER-009`: route state changes occur only after structured output validation and mapping.
 * `REQ-P11R-ROUTER-010`: semantic intent classification uses a native async FastAPI/LangGraph-compatible path; sync-over-async event-loop workarounds are prohibited.
+* `REQ-P11R-DIRECT-001`: stable self-contained general questions map to a distinct direct capability and are not treated as ambiguous or Web-dependent.
+* `REQ-P11R-DIRECT-002`: direct general has no retrieval, external, operational, database, or tool authority; application output security remains in force.
+* `REQ-P11R-DIRECT-003`: current/changing information and Getnet/internal/OPS domains retain their existing routes.

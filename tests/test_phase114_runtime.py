@@ -14,6 +14,7 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportResult,
     CustomerSupportStatus,
 )
+from apps.agent_api.app.agents.conversational import ConversationalAgent
 from apps.agent_api.app.agents.human_escalation import (
     HumanEscalationAgent,
     HumanEscalationState,
@@ -45,15 +46,20 @@ from scripts.chat_cli import ConsoleTraceSink, format_chat_response
 
 
 class ClassificationProvider:
-    def __init__(self, intent: str, *, failure: Exception | None = None) -> None:
+    def __init__(self, intent: str, *, failure: Exception | None = None, direct_content: str = '{"status":"ANSWERED","answer":"1 + 1 = 2. Posso também ajudar com produtos Getnet."}') -> None:
         self.intent = intent
         self.failure = failure
+        self.direct_content = direct_content
         self.requests: list[LLMGenerationRequest] = []
 
     async def generate(self, request: LLMGenerationRequest) -> LLMGenerationResult:
         self.requests.append(request)
         if self.failure is not None:
             raise self.failure
+        if request.messages[0].content.startswith("Answer a safe"):
+            return LLMGenerationResult(content=self.direct_content)
+        if request.messages[0].content.startswith("You are the Getnet Support assistant."):
+            return LLMGenerationResult(content="Pode me dar um pouco mais de contexto?")
         return LLMGenerationResult(
             content=json.dumps({"schema_version": "1.0", "intent": self.intent})
         )
@@ -108,13 +114,13 @@ class RecordingAudit:
         return SecurityAuditResult(status=SecurityAuditStatus.RECORDED, event_ids=(1,), reason="RECORDED")
 
 
-def runtime(intent: str, *, provider_failure: Exception | None = None, knowledge_status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE):
-    provider = ClassificationProvider(intent, failure=provider_failure)
+def runtime(intent: str, *, provider_failure: Exception | None = None, knowledge_status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE, with_conversational_agent: bool = False, direct_content: str | None = None):
+    provider = ClassificationProvider(intent, failure=provider_failure, direct_content=direct_content or '{"status":"ANSWERED","answer":"1 + 1 = 2. Posso também ajudar com produtos Getnet."}')
     knowledge, web, support, human, audit = (
         RecordingKnowledge(knowledge_status), RecordingWeb(), RecordingSupport(), RecordingHuman(), RecordingAudit()
     )
     router = RouterAgent(ProviderSemanticIntentClassifier(provider))
-    orchestrator = LangGraphOrchestrator(router, knowledge, support, web, human, audit)
+    orchestrator = LangGraphOrchestrator(router, knowledge, support, web, human, audit, ConversationalAgent(provider) if with_conversational_agent else None)
     service = ChatApplicationService(orchestrator)
     return service, provider, knowledge, web, support, human, audit
 
@@ -233,7 +239,7 @@ def test_human_escalation_trace_reports_actual_waiting_state() -> None:
         ("O que aconteceu no protocolo 123?", "CUSTOMER_SUPPORT", RouterRoute.CUSTOMER_SUPPORT, KnowledgeScope.NONE),
         ("Bom dia, consulte o protocolo 123 e me diga o status", "CUSTOMER_SUPPORT", RouterRoute.CUSTOMER_SUPPORT, KnowledgeScope.NONE),
         ("Oi, qual a previsão do tempo para amanhã?", "CURRENT_PUBLIC_INFORMATION", RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK, KnowledgeScope.NONE),
-        ("What is a stable public fact unrelated to Getnet?", "GENERAL_PUBLIC_INFORMATION", RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK, KnowledgeScope.NONE),
+        ("What is a stable public fact unrelated to Getnet?", "DIRECT_GENERAL", RouterRoute.DIRECT_GENERAL, KnowledgeScope.NONE),
         ("Oi, quero falar com um atendente", "HUMAN_REQUEST", RouterRoute.HUMAN_ESCALATION, KnowledgeScope.NONE),
         ("Hi, I want a human agent", "HUMAN_REQUEST", RouterRoute.HUMAN_ESCALATION, KnowledgeScope.NONE),
         ("asdf xyz", "AMBIGUOUS", RouterRoute.AMBIGUOUS, KnowledgeScope.NONE),
@@ -264,6 +270,38 @@ def test_semantic_intent_matrix_reaches_only_its_mapped_route(message, intent, r
         assert knowledge.requests == [] and support.requests == [] and web.questions == []
     if route is not RouterRoute.HUMAN_ESCALATION:
         assert human.requests == []
+
+
+def test_direct_general_answers_without_rag_web_ops_or_human() -> None:
+    service, provider, knowledge, web, support, human, _ = runtime("DIRECT_GENERAL", with_conversational_agent=True)
+    response = chat(service, "quanto é 1 + 1?")
+    assert response.route == RouterRoute.DIRECT_GENERAL.value
+    assert response.status == OrchestrationStatus.COMPLETED.value
+    assert response.answer == "1 + 1 = 2. Posso também ajudar com produtos Getnet."
+    assert len(provider.requests) == 2
+    assert knowledge.requests == [] and web.questions == []
+    assert support.requests == [] and human.requests == []
+
+
+def test_direct_general_typed_currentness_signal_hands_off_to_web_only() -> None:
+    service, _, knowledge, web, support, human, _ = runtime(
+        "DIRECT_GENERAL", with_conversational_agent=True,
+        direct_content='{"status":"REQUIRES_CURRENT_EVIDENCE","answer":null}',
+    )
+    response = chat(service, "quem é presidente atualmente?")
+    assert response.answer == "Web double answer."
+    assert knowledge.requests == [] and len(web.questions) == 1
+    assert support.requests == [] and human.requests == []
+
+
+def test_genuine_ambiguity_uses_natural_clarification_without_tools() -> None:
+    service, _, knowledge, web, support, human, _ = runtime("AMBIGUOUS", with_conversational_agent=True)
+    response = chat(service, "e aquele negócio?")
+    assert response.route == RouterRoute.AMBIGUOUS.value
+    assert response.status == OrchestrationStatus.AMBIGUOUS.value
+    assert response.answer == "Pode me dar um pouco mais de contexto?"
+    assert knowledge.requests == [] and web.questions == []
+    assert support.requests == [] and human.requests == []
 
 
 def test_public_scope_absence_uses_existing_insufficient_to_web_transition() -> None:

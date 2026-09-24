@@ -106,6 +106,32 @@ def test_successful_grounded_answer_preserves_only_safe_citations() -> None:
     assert "internal-process" not in serialized
 
 
+def test_public_getnet_uses_normalized_search_phrase_but_preserves_original_question() -> None:
+    class PublicRetrieval:
+        def __init__(self) -> None:
+            self.query = None
+
+        async def search(self, query, knowledge_scope):
+            self.query = query
+            assert knowledge_scope is KnowledgeScope.PUBLIC_GETNET
+            return ()
+
+    class Formulator:
+        async def formulate(self, question):
+            assert question == "quero trocar uma maquinha Getnet com defeito"
+            return "troca de maquininha Getnet com defeito suporte"
+
+    retrieval = PublicRetrieval()
+    agent = KnowledgeAgent(retrieval, ContextBuilder(), RecordingProvider(LLMGenerationResult(content="unused")), Formulator())
+    original = "quero trocar uma maquinha Getnet com defeito"
+    result = asyncio.run(agent.answer(KnowledgeRequest(question=original, knowledge_scope=KnowledgeScope.PUBLIC_GETNET)))
+
+    assert retrieval.query == "troca de maquininha Getnet com defeito suporte"
+    assert result.status is KnowledgeResultStatus.INSUFFICIENT_EVIDENCE
+    assert result.question == original
+    assert result.retrieval_query == retrieval.query
+
+
 def test_answer_returns_only_the_trusted_citation_ids_selected_by_generation() -> None:
     retrieval = StaticRetrieval((
         retrieved_chunk(chunk_id=1, content="First evidence."),

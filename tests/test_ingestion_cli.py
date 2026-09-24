@@ -4,6 +4,8 @@ import asyncio
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+
 from apps.agent_api.app.rag.ingestion import cli
 from apps.agent_api.app.rag.ingestion.loader import InternalMarkdownLoader
 from apps.agent_api.app.rag.models import SourceMetadata
@@ -59,7 +61,8 @@ def test_internal_cli_delegates_to_preparation_service(monkeypatch, tmp_path: Pa
     assert "publication=deferred_to_phase_6" in result
 
 
-def test_public_cli_reports_validation_errors_without_network(tmp_path: Path) -> None:
+def test_public_cli_rejects_incomplete_registry_without_network(tmp_path: Path) -> None:
     registry = tmp_path / "invalid.yaml"
     registry.write_text("sources: []", encoding="utf-8")
-    assert cli.validate_public_registry(registry).startswith("VALIDATED_PUBLIC_REGISTRY:")
+    with pytest.raises(ValueError, match="version"):
+        cli.validate_public_registry(registry)

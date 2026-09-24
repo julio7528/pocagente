@@ -154,6 +154,28 @@ def test_deterministic_output_redaction_is_typed_for_audit() -> None:
     asyncio.run(scenario())
 
 
+def test_vague_colloquial_input_is_not_a_security_violation_and_reaches_business_clarification() -> None:
+    async def scenario() -> None:
+        provider = ScriptedProvider([json.dumps({
+            "action": "ALLOW", "category": "SAFE_FUNCTIONAL", "audit_required": False,
+        })])
+
+        class AmbiguousBusinessClassifier:
+            async def classify(self, message: str):
+                assert message == "quero mexer naquele negócio"
+                from apps.agent_api.app.agents.semantic_routing import SemanticClassification, SemanticIntent
+                return SemanticClassification(schema_version="1.0", intent=SemanticIntent.AMBIGUOUS)
+
+        decision = await RouterAgent(AmbiguousBusinessClassifier(), SemanticSecurityClassifier(provider)).route_async(
+            RouterRequest(message="quero mexer naquele negócio")
+        )
+        assert decision.route is RouterRoute.AMBIGUOUS
+        assert decision.reason == "SEMANTIC_AMBIGUOUS"
+        assert "Vague or colloquial wording alone" in provider.requests[0].messages[0].content
+
+    asyncio.run(scenario())
+
+
 def test_retrieved_sensitive_candidate_is_redacted_and_audited_before_chat_response() -> None:
     async def scenario() -> None:
         path = r"\\internal-test\restricted\folder"

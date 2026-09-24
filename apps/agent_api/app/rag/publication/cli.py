@@ -13,12 +13,15 @@ from typing import TypeVar
 from uuid import UUID
 
 import numpy as np
+import httpx
 
 from apps.agent_api.app.database.config import load_database_config
 from apps.agent_api.app.database.connection import PostgresDatabase
 from apps.agent_api.app.database.repositories.rag import RAGRepository
 from apps.agent_api.app.rag.embeddings.fastembed import FastEmbedAdapter
 from apps.agent_api.app.rag.ingestion.loader import InternalMarkdownLoader
+from apps.agent_api.app.rag.ingestion.loader import PublicSourceRegistryLoader
+from apps.agent_api.app.rag.ingestion.publication import publish_public_registry_source
 from apps.agent_api.app.rag.ingestion.service import IngestionPreparationService
 from apps.agent_api.app.rag.models import SourceMetadata
 from apps.agent_api.app.rag.publication.models import PublicationResult
@@ -291,11 +294,66 @@ def main() -> None:
     curated_r2 = subparsers.add_parser("publish-r2-curated")
     curated_r2.description = "Publish the separate Robot 02 / R2 curated corpus into PostgreSQL"
 
+    public = subparsers.add_parser("publish-public-registry")
+    public.add_argument(
+        "--registry",
+        type=Path,
+        default=Path("knowledge/internal/cancellation-process/public/sources.yaml"),
+    )
+    public_target = public.add_mutually_exclusive_group(required=True)
+    public_target.add_argument("--source-id")
+    public_target.add_argument("--all", action="store_true")
+
     smoke = subparsers.add_parser("smoke-test")
     smoke.add_argument("--query", default="cancelamento de venda Robô R1", help="Search query")
     smoke.add_argument("--limit", type=int, default=5, help="Result limit")
 
     args = parser.parse_args()
+    if args.command == "publish-public-registry":
+        from scripts.chat_cli import load_env_file
+
+        load_env_file()
+        registered = PublicSourceRegistryLoader().load_records(args.registry)
+        eligible = tuple(
+            source for source in registered
+            if source.approved and source.active and source.ingestion_enabled
+        )
+        if args.source_id:
+            selected = tuple(source for source in eligible if source.source_id == args.source_id)
+            if not selected:
+                parser.error("--source-id must identify an approved ingestion-enabled registry record")
+        else:
+            selected = eligible
+
+        db = PostgresDatabase(load_database_config())
+        failures = 0
+        async def publish_public() -> None:
+            nonlocal failures
+            await db.open()
+            timeout = httpx.Timeout(30.0, connect=10.0, read=20.0, write=10.0, pool=10.0)
+            limits = httpx.Limits(max_connections=2, max_keepalive_connections=1)
+            try:
+                async with httpx.AsyncClient(timeout=timeout, limits=limits, follow_redirects=False) as client:
+                    for source in selected:
+                        try:
+                            result = await publish_public_registry_source(db, source, client)
+                        except Exception:
+                            failures += 1
+                            print(f"PUBLIC_SOURCE: key={source.source_id}; status=CONTROLLED_FAILURE")
+                            continue
+                        print(
+                            f"PUBLIC_SOURCE: key={source.source_id}; status={result.status}; "
+                            f"operation={result.operation}; chunks={result.chunks_published}; "
+                            f"checksum=validated"
+                        )
+            finally:
+                await db.close()
+
+        _run_async(publish_public())
+        if failures:
+            raise SystemExit(1)
+        return
+
     db = PostgresDatabase(load_database_config())
 
     async def execute() -> None:

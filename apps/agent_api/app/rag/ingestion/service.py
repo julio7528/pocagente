@@ -132,6 +132,11 @@ class IngestionPreparationService:
                     "chunk_order": order,
                     "reference": str(chunk.metadata.url) if chunk.metadata.url else None,
                     "domain": chunk.metadata.domain,
+                    "retrieved_at": (
+                        chunk.metadata.retrieved_at.isoformat()
+                        if chunk.metadata.retrieved_at is not None
+                        else None
+                    ),
                 },
             )
             for order, chunk in enumerate(structural_chunks)

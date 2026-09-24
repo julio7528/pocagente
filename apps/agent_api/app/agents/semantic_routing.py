@@ -24,6 +24,7 @@ class SemanticIntent(StrEnum):
     CUSTOMER_SUPPORT = "CUSTOMER_SUPPORT"
     EXPECTED_VS_OBSERVED = "EXPECTED_VS_OBSERVED"
     GENERAL_PUBLIC_INFORMATION = "GENERAL_PUBLIC_INFORMATION"
+    DIRECT_GENERAL = "DIRECT_GENERAL"
     CURRENT_PUBLIC_INFORMATION = "CURRENT_PUBLIC_INFORMATION"
     HUMAN_REQUEST = "HUMAN_REQUEST"
     AMBIGUOUS = "AMBIGUOUS"
@@ -33,6 +34,7 @@ class SemanticCapabilityNeed(StrEnum):
     """Semantic capability needs; none of these values conveys authority."""
 
     CONVERSATIONAL = "CONVERSATIONAL"
+    DIRECT_GENERAL = "DIRECT_GENERAL"
     INTERNAL_KNOWLEDGE = "INTERNAL_KNOWLEDGE"
     PUBLIC_GETNET = "PUBLIC_GETNET"
     OPERATIONAL_FACTS = "OPERATIONAL_FACTS"
@@ -60,6 +62,7 @@ class SemanticClassification(BaseModel):
                 SemanticCapabilityNeed.INTERNAL_KNOWLEDGE, SemanticCapabilityNeed.OPERATIONAL_FACTS,
             ),
             SemanticIntent.GENERAL_PUBLIC_INFORMATION: (SemanticCapabilityNeed.CURRENT_WEB,),
+            SemanticIntent.DIRECT_GENERAL: (SemanticCapabilityNeed.DIRECT_GENERAL,),
             SemanticIntent.CURRENT_PUBLIC_INFORMATION: (SemanticCapabilityNeed.CURRENT_WEB,),
             SemanticIntent.HUMAN_REQUEST: (SemanticCapabilityNeed.HUMAN,),
             SemanticIntent.AMBIGUOUS: (),
@@ -107,6 +110,8 @@ class SemanticIntentMapper:
         trusted = context or SemanticRoutingContext()
         intent = classification.intent
         needs = classification.capability_needs or SemanticClassification.default_needs(intent)
+        if intent is SemanticIntent.AMBIGUOUS:
+            return SemanticIntentMapper.safe_failure("SEMANTIC_AMBIGUOUS")
         if len(set(needs)) != len(needs):
             return SemanticIntentMapper.safe_failure("SEMANTIC_CAPABILITY_NEEDS_INVALID")
         need_set = frozenset(needs)
@@ -125,6 +130,14 @@ class SemanticIntentMapper:
                 capabilities=(RouterCapability.CONVERSATIONAL,),
                 knowledge_scope=KnowledgeScope.NONE,
                 reason="SEMANTIC_CONVERSATIONAL",
+            )
+        if need_set == {SemanticCapabilityNeed.DIRECT_GENERAL}:
+            return RouterDecision(
+                status=RouterStatus.ROUTED,
+                route=RouterRoute.DIRECT_GENERAL,
+                capabilities=(RouterCapability.DIRECT_GENERAL,),
+                knowledge_scope=KnowledgeScope.NONE,
+                reason="SEMANTIC_DIRECT_GENERAL",
             )
         if need_set == {SemanticCapabilityNeed.INTERNAL_KNOWLEDGE}:
             return RouterDecision(

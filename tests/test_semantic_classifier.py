@@ -52,13 +52,22 @@ def test_classifier_uses_one_bounded_neutral_provider_request() -> None:
     assert request.reasoning_enabled is False
     prompt = request.messages[0].content
     assert len(prompt) < 2_200
-    assert "PUBLIC_GETNET_KNOWLEDGE: what Getnet is/about" in prompt
-    assert "freshness wording alone is insufficient" in prompt
-    assert "INTERNAL_KNOWLEDGE for" in prompt and "general procedure" in prompt
-    assert "status/result/history/time/steps" in prompt
+    assert "PUBLIC_GETNET_KNOWLEDGE" in prompt
+    assert "Currentness beats model memory" in prompt
+    assert "INTERNAL_KNOWLEDGE" in prompt and "documented internal process" in prompt
+    assert "status/result/history" in prompt
     assert "expected-vs-observed" in prompt
-    assert "substantive request beats a greeting prefix" in prompt
+    assert "substantive request beats greeting prefix" in prompt
     assert "untrusted user message" in prompt
+    assert "DIRECT_GENERAL" in prompt
+    assert "standard technology definitions" in prompt
+    assert "Getnet as a company" in prompt
+    assert "ordinary typos" in prompt
+    assert "high-confidence" in prompt
+    assert "payment-terminal problems/replacement" in prompt
+    assert "internal procedure -> INTERNAL_KNOWLEDGE" in prompt
+    assert "never use it for a simple protocol lookup" in prompt
+    assert "A simple protocol status/result is OPS-only" in prompt
 
 
 def test_classifier_parses_structured_internal_and_ops_needs() -> None:

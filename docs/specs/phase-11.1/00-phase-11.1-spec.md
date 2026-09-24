@@ -57,22 +57,23 @@ Implementation must not add one regex per failed sentence, hardcode Challenge an
 |---|---:|---|
 | `CORE` | 6 | ownership, safety, versioning, dependency direction |
 | `ROUTER` | 10 | semantic intent and deterministic mapping |
-| `KNOW` | 8 | scope, public-corpus prerequisite, and typed knowledge outcomes |
-| `WEB` | 6 | deterministic Web policy and fallback |
+| `KNOW` | 14 | scope, public-corpus prerequisite, typed knowledge outcomes, safe query formulation, and controlled public publication |
+| `WEB` | 7 | deterministic Web policy and preserved live fallback |
 | `SEC` | 15 | deterministic and semantic defense-in-depth security, audit, and output protection |
-| `CONV` | 5 | bounded conversational experience |
+| `CONV` | 6 | bounded conversational experience and natural typed-failure recovery |
 | `INTEG` | 9 | application/graph/API/CLI integration |
 | `SUPPORT` | 10 | cooperative capability selection, bounded evidence investigation, OPS correlation, internal-procedure grounding, and local CLI principal |
-| `VAL` | 7 | evidence and regression gates |
+| `VAL` | 8 | evidence and regression gates |
 | `ANALYTICS` | 9 | composable temporal, grain-aware OPS analytics and deterministic time resolution |
-| **Total** | **85** | individually traced in `05-validation-spec.md`, `06-cooperative-support-spec.md`, and `07-temporal-ops-analytics-spec.md` |
+| `DIRECT` | 6 | safe self-contained general assistance, currentness boundary, no-tool execution, and domain orientation |
+| **Total** | **100** | individually traced in `05-validation-spec.md`, `06-cooperative-support-spec.md`, and `07-temporal-ops-analytics-spec.md` |
 
 ## Implementation order after approval
 
 1. Freeze the async typed contracts, structured capability-needs mapper, scope propagation policy, bounded evidence-plan contracts, and safe failure behavior with unit tests.
 2. Harden the existing deterministic Phase 10 security classifier and prove precedence/non-overblocking.
 3. Add semantic classifier adapter and deterministic Router mapping; add conversational route only through the current Router/graph contracts.
-4. Inspect the real local public corpus; if absent, stop persistent-public-RAG publication work pending the owner decision defined in `02`.
+4. Inspect the real local public corpus. The owner has authorized controlled acquisition only from exact active ingestion-enabled URLs in the single approved registry; validate the registry and source content before publication. No crawling, discovered-link ingestion, or search-result ingestion is authorized.
 5. Add scoped retrieval predicates and prove identical scope propagation through both channels before RRF, without a second retriever.
 6. Add typed generation sufficiency and wire existing LangGraph fallback transitions.
 7. Integrate safely through application/API/CLI presentation, then run unit, integration, E2E, manual CLI, and Phase 11 regression evidence.

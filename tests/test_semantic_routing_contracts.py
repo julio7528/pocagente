@@ -52,10 +52,20 @@ def test_semantic_contract_requires_schema_version_explicitly() -> None:
         SemanticClassification(intent=SemanticIntent.AMBIGUOUS)  # type: ignore[call-arg]
 
 
+def test_ambiguous_intent_cannot_smuggle_a_capability_need() -> None:
+    value = SemanticClassification(
+        schema_version="1.0",
+        intent=SemanticIntent.AMBIGUOUS,
+        capability_needs=(SemanticCapabilityNeed.CONVERSATIONAL,),
+    )
+    assert SemanticIntentMapper.map(value).route is RouterRoute.AMBIGUOUS
+
+
 @pytest.mark.parametrize(
     ("intent", "route", "capabilities", "policy", "scope"),
     [
         (SemanticIntent.CONVERSATIONAL, RouterRoute.CONVERSATIONAL, (RouterCapability.CONVERSATIONAL,), WebSearchPolicy.NONE, KnowledgeScope.NONE),
+        (SemanticIntent.DIRECT_GENERAL, RouterRoute.DIRECT_GENERAL, (RouterCapability.DIRECT_GENERAL,), WebSearchPolicy.NONE, KnowledgeScope.NONE),
         (SemanticIntent.INTERNAL_KNOWLEDGE, RouterRoute.KNOWLEDGE, (RouterCapability.KNOWLEDGE,), WebSearchPolicy.NONE, KnowledgeScope.INTERNAL),
         (SemanticIntent.PUBLIC_GETNET_KNOWLEDGE, RouterRoute.KNOWLEDGE, (RouterCapability.KNOWLEDGE,), WebSearchPolicy.FALLBACK_IF_RAG_INSUFFICIENT, KnowledgeScope.PUBLIC_GETNET),
         (SemanticIntent.CUSTOMER_SUPPORT, RouterRoute.CUSTOMER_SUPPORT, (RouterCapability.CUSTOMER_SUPPORT,), WebSearchPolicy.NONE, KnowledgeScope.NONE),

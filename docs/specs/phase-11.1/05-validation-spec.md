@@ -32,12 +32,19 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-KNOW-006` | citation-subset and invented-citation rejection tests |
 | `REQ-P11R-KNOW-007` | UNKNOWN-like rendered text cannot create `ANSWERED`; graph assembly test |
 | `REQ-P11R-KNOW-008` | registry-only is rejected as publication evidence; real local PostgreSQL/RAG inspection verifies approved public provenance/chunks or exposes absence without silent success |
+| `REQ-P11R-KNOW-009` | paraphrased/typo Public Getnet requests compare original vs bounded normalized retrieval query; intent, grounding question, scope, Web policy, and authorization remain unchanged; failed/uncertain formulation uses original query |
+| `REQ-P11R-KNOW-010` | real local PostgreSQL source/document/chunk inventory distinguishes registry approval from published corpus; approved exact-source publication is retrievable through `PUBLIC_GETNET` |
+| `REQ-P11R-KNOW-011` | validated registry is the only acquisition input; exact URL, approved host/redirect, MIME/size/time bounds, and negative no-crawl/no-discovery tests pass |
+| `REQ-P11R-KNOW-012` | persisted canary source/document/chunks preserve registry identity, exact reference, retrieved time, checksum, and typed provenance with valid vector/FTS payloads |
+| `REQ-P11R-KNOW-013` | injected acquisition, embedding, and database publication failures leave no partial new publication and preserve previously valid active chunks |
+| `REQ-P11R-KNOW-014` | real persistent lexical/semantic/hybrid/grounding and CLI tests answer stable approved Getnet scenarios without Web when evidence suffices |
 | `REQ-P11R-WEB-001` | public RAG sufficient/no-Web and insufficient/Web ordered-call tests |
 | `REQ-P11R-WEB-002` | weather/current exchange Web-required tests; a forecast without a city/region requests clarification before Web search |
 | `REQ-P11R-WEB-003` | stable general-public fact and paraphrase Web journey tests |
 | `REQ-P11R-WEB-004` | internal/OPS no-Web substitution negatives |
 | `REQ-P11R-WEB-005` | live evidence non-persistence observer test |
 | `REQ-P11R-WEB-006` | security zero-Web and prohibited-scope tests |
+| `REQ-P11R-WEB-007` | genuinely insufficient and freshness-sensitive journeys retain governed Web fallback; post-Web PostgreSQL source/document/chunk counts are unchanged |
 | `REQ-P11R-SEC-001` | preflight ordering and no semantic-call-on-block test |
 | `REQ-P11R-SEC-002` | normalized Portuguese/English injection family parameterization |
 | `REQ-P11R-SEC-003` | resource-family to typed Phase 10 classification tests |
@@ -58,6 +65,7 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-CONV-003` | substantive-prefix route tests |
 | `REQ-P11R-CONV-004` | public response/internal-metadata safety test |
 | `REQ-P11R-CONV-005` | provider spy proves normal conversational response uses the shared LLM, with zero tools/RAG/OPS/Web; provider failure/invalid output proves deterministic safe fallback |
+| `REQ-P11R-CONV-006` | typo/informal semantic paraphrases retain route families; typed insufficient/provider outcomes produce safe natural recovery; zero-answer placeholder is absent; genuinely ambiguous messages request clarification |
 | `REQ-P11R-INTEG-001` | authenticated FastAPI `/chat` E2E |
 | `REQ-P11R-INTEG-002` | real graph node/edge invocation integration tests |
 | `REQ-P11R-INTEG-003` | OPS authorization and expected-vs-observed E2E |
@@ -74,6 +82,7 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-VAL-005` | Phase 11 RAG + Challenge regression execution, artifacts preserved |
 | `REQ-P11R-VAL-006` | full pytest, compileall, pip check, imports, diff check, secret scan |
 | `REQ-P11R-VAL-007` | real CLI/runtime cases prove natural conversational generation, authorized discovery without preselection, inline protocol selection, and relational OPS synthesis |
+| `REQ-P11R-VAL-008` | current Challenge stable public-Getnet scenarios demonstrate persistent RAG where exact approved content is published; historical reports/datasets remain unchanged and genuine registry gaps are reported |
 | `REQ-P11R-SUPPORT-001` | capability-needs schema and deterministic route-mapping tests; semantic paraphrase matrix |
 | `REQ-P11R-SUPPORT-002` | authorized/unauthorized tests prove routing never creates OPS authorization |
 | `REQ-P11R-SUPPORT-003` | investigation-plan schema/property tests reject SQL, schema identifiers, arbitrary selectors, tool names, credentials, and authority |
@@ -93,6 +102,12 @@ All normal tests use the approved project `.venv`, deterministic typed doubles f
 | `REQ-P11R-ANALYTICS-007` | explicit grain runs without clarification; ambiguous “cases” requests one short clarification only when material |
 | `REQ-P11R-ANALYTICS-008` | CLIENT unauthorized spy proves zero analytics tool/repository calls |
 | `REQ-P11R-ANALYTICS-009` | 22-query plain CLI matrix, unseen paraphrases, PostgreSQL cross-checks, zero-result case, and latency record |
+| `REQ-P11R-DIRECT-001` | closed semantic capability maps stable self-contained general requests to DIRECT_GENERAL, not AMBIGUOUS/Web |
+| `REQ-P11R-DIRECT-002` | direct response uses a strict typed result and cannot access tools, RAG, Web, OPS, or database |
+| `REQ-P11R-DIRECT-003` | stable arithmetic/general facts answer directly; current facts retain Web and domain requests retain existing routes |
+| `REQ-P11R-DIRECT-004` | real CLI matrix and unseen paraphrases prove security-first direct answers with zero tool calls and output validation |
+| `REQ-P11R-DIRECT-005` | genuine ambiguity receives natural bounded clarification, safe fallback, and no tools |
+| `REQ-P11R-DIRECT-006` | repeated real CLI direct-general answers are concise, correct, tool-free, and include varied natural Getnet/support orientation; outbound security review remains active |
 
 ## Scenario traceability
 

@@ -117,6 +117,28 @@ def test_getnet_web_search_is_restricted_to_registry_domains() -> None:
     assert web.requests[0].include_domains == ("getnet.com.br", "site.getnet.com.br")
 
 
+def test_getnet_web_fallback_search_uses_normalized_query_but_grounds_original_question() -> None:
+    class Formulator:
+        async def formulate(self, question):
+            assert question == "quero trocar uma maquinha Getnet com defeito"
+            return "troca de maquininha Getnet com defeito suporte"
+
+    web = Web(WebSearchResult(status=WebSearchStatus.NO_RESULTS, reason="NONE"))
+    agent = WebKnowledgeAgent(
+        web,
+        Llm(),
+        LiveWebContextBuilder(frozenset({"site.getnet.com.br"})),
+        query_formulator=Formulator(),
+    )
+    original = "quero trocar uma maquinha Getnet com defeito"
+    result = asyncio.run(agent.answer(original, knowledge_scope=KnowledgeScope.PUBLIC_GETNET))
+    assert web.requests[0].query == "troca de maquininha Getnet com defeito suporte"
+    assert web.requests[0].include_domains == ("site.getnet.com.br",)
+    assert result.question == original
+    assert result.retrieval_query == web.requests[0].query
+    assert result.status is KnowledgeResultStatus.INSUFFICIENT_EVIDENCE
+
+
 def test_single_source_can_remain_insufficient_after_grounded_generation() -> None:
     web = Web(WebSearchResult(status=WebSearchStatus.SUCCESS, evidence=(evidence(),), reason="OK"))
     llm = Llm('{"schema_version":"1.0","status":"INSUFFICIENT_EVIDENCE","answer":null,"citation_ids":[]}')

@@ -18,6 +18,7 @@ from apps.agent_api.app.rag.scope import KnowledgeScope
 from apps.agent_api.app.web.errors import WebSearchError
 from apps.agent_api.app.web.models import WebSearchProvider, WebSearchRequest, WebSearchStatus
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
+from apps.agent_api.app.agents.search_query_formulation import SearchQueryFormulation
 
 
 class WebKnowledgeAgent:
@@ -28,10 +29,12 @@ class WebKnowledgeAgent:
         web_search: WebSearchProvider,
         llm_provider: LLMProvider,
         grounding: LiveWebContextBuilder | None = None,
+        query_formulator: SearchQueryFormulation | None = None,
     ) -> None:
         self._web_search = web_search
         self._llm_provider = llm_provider
         self._grounding = grounding or LiveWebContextBuilder.from_project_registry()
+        self._query_formulator = query_formulator
 
     _WEATHER_PATTERN = re.compile(
         r"\b(?:weather|forecast|previs[aã]o\s+(?:do\s+)?tempo|vai\s+chover|chover[aá]?|temperatura)\b",
@@ -44,7 +47,13 @@ class WebKnowledgeAgent:
         re.IGNORECASE,
     )
 
-    async def answer(self, question: str, *, knowledge_scope: KnowledgeScope = KnowledgeScope.NONE) -> KnowledgeResult:
+    async def answer(
+        self,
+        question: str,
+        *,
+        knowledge_scope: KnowledgeScope = KnowledgeScope.NONE,
+        search_query: str | None = None,
+    ) -> KnowledgeResult:
         """Generate only when live public evidence is available through the controlled boundary."""
 
         if not isinstance(question, str) or not question.strip():
@@ -63,6 +72,12 @@ class WebKnowledgeAgent:
             )
         search_started_at = perf_counter()
         emit_runtime_event(RuntimeEventKind.WEB_SEARCH, value="STARTED")
+        safe_search_query = search_query
+        if safe_search_query is None and knowledge_scope is KnowledgeScope.PUBLIC_GETNET and self._query_formulator is not None:
+            try:
+                safe_search_query = await self._query_formulator.formulate(question)
+            except Exception:
+                safe_search_query = None
         try:
             approved_domains = (
                 getattr(self._grounding, "approved_public_domains", ())
@@ -70,7 +85,7 @@ class WebKnowledgeAgent:
                 else ()
             )
             search_result = await self._web_search.search(
-                WebSearchRequest(query=question, include_domains=approved_domains)
+                WebSearchRequest(query=(safe_search_query or question), include_domains=approved_domains)
             )
         except WebSearchError as error:
             emit_runtime_event(
@@ -94,6 +109,7 @@ class WebKnowledgeAgent:
                 question=question,
                 status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
                 reason=search_result.reason,
+                retrieval_query=safe_search_query,
             )
         context = self._grounding.build(question, search_result.evidence)
         emit_runtime_event(
@@ -107,6 +123,7 @@ class WebKnowledgeAgent:
                 question=question,
                 status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
                 reason=context.reason,
+                retrieval_query=safe_search_query,
             )
         try:
             generated = await generate_grounded_outcome(
@@ -126,12 +143,14 @@ class WebKnowledgeAgent:
                 question=question,
                 status=KnowledgeResultStatus.PROVIDER_ERROR,
                 reason=getattr(error, "error_code", "invalid_grounded_generation"),
+                retrieval_query=safe_search_query,
             )
         if generated.status is GroundedGenerationStatus.INSUFFICIENT_EVIDENCE:
             return KnowledgeResult(
                 question=question,
                 status=KnowledgeResultStatus.INSUFFICIENT_EVIDENCE,
                 reason="GENERATION_INSUFFICIENT_EVIDENCE",
+                retrieval_query=safe_search_query,
             )
         citations_by_id = {citation.id: citation for citation in context.citations}
         return KnowledgeResult(

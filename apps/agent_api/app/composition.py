@@ -12,6 +12,7 @@ from apps.agent_api.app.agents.knowledge import KnowledgeAgent
 from apps.agent_api.app.agents.orchestration import LangGraphOrchestrator
 from apps.agent_api.app.agents.router import RouterAgent
 from apps.agent_api.app.agents.semantic_classifier import ProviderSemanticIntentClassifier
+from apps.agent_api.app.agents.search_query_formulation import SemanticSearchQueryFormulator
 from apps.agent_api.app.agents.web_knowledge import WebKnowledgeAgent
 from apps.agent_api.app.chat import ChatApplicationService
 from apps.agent_api.app.database.config import load_database_config
@@ -158,17 +159,19 @@ async def compose_runtime() -> RuntimeComposition:
             SemanticRetriever(placeholder, FastEmbedAdapter()),
             database=database,
         )
-        knowledge = KnowledgeAgent(retrieval, ContextBuilder(), llm_provider)
+        query_formulator = SemanticSearchQueryFormulator(llm_provider)
+        knowledge = KnowledgeAgent(retrieval, ContextBuilder(), llm_provider, query_formulator)
         tools = OperationalTools(_PooledOperationalFactsRepository(database))
         support = CustomerSupportAgent(tools, llm_provider)
 
         web_knowledge = None
         try:
             web_search_provider = create_tavily_web_search_provider()
-            web_knowledge = WebKnowledgeAgent(web_search_provider, llm_provider)
+            web_knowledge = WebKnowledgeAgent(web_search_provider, llm_provider, query_formulator=query_formulator)
         except WebSearchConfigurationError:
             pass
 
+        conversational = ConversationalAgent(llm_provider)
         orchestrator = LangGraphOrchestrator(
             RouterAgent(
                 ProviderSemanticIntentClassifier(llm_provider),
@@ -179,13 +182,14 @@ async def compose_runtime() -> RuntimeComposition:
             web_knowledge,
             HumanEscalationAgent(),
             SecurityAuditService(PostgresSecurityAuditSink(database)),
-            ConversationalAgent(llm_provider),
+            conversational,
         )
         return RuntimeComposition(
             ChatApplicationService(
                 orchestrator,
                 SecurityResponseAgent(llm_provider),
                 OutputSecurityGate(llm_provider),
+                conversational,
             ),
             database,
             llm_provider,

@@ -16,7 +16,7 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportResult,
     CustomerSupportStatus,
 )
-from apps.agent_api.app.agents.conversational import ConversationalAgent, ConversationalResult, bounded_conversational_response
+from apps.agent_api.app.agents.conversational import ConversationalAgent, ConversationalResult, DirectGeneralResult, bounded_conversational_response
 from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.human_escalation import (
     HumanEscalationAction,
@@ -65,7 +65,10 @@ class CustomerSupportCapability(Protocol):
 class WebKnowledgeCapability(Protocol):
     """Controlled live-public Knowledge boundary used only for approved web routes."""
 
-    async def answer(self, question: str, *, knowledge_scope: KnowledgeScope = KnowledgeScope.NONE) -> KnowledgeResult:
+    async def answer(
+        self, question: str, *, knowledge_scope: KnowledgeScope = KnowledgeScope.NONE,
+        search_query: str | None = None,
+    ) -> KnowledgeResult:
         """Return a typed result based on non-persistent live web evidence."""
 
 
@@ -140,6 +143,8 @@ class OrchestrationResult(BaseModel):
     semantic_intent: SemanticIntent | None = None
     knowledge_scope: KnowledgeScope = KnowledgeScope.NONE
     conversational_result: ConversationalResult | None = None
+    direct_general_result: DirectGeneralResult | None = None
+    ambiguous_response: ConversationalResult | None = None
     knowledge_result: KnowledgeResult | None = None
     persistent_knowledge_result: KnowledgeResult | None = None
     web_knowledge_result: KnowledgeResult | None = None
@@ -181,6 +186,8 @@ class OrchestrationState(TypedDict, total=False):
     routing_decision: RouterDecision
     knowledge_scope: KnowledgeScope
     conversational_result: ConversationalResult
+    direct_general_result: DirectGeneralResult
+    ambiguous_response: ConversationalResult
     knowledge_result: KnowledgeResult
     persistent_knowledge_result: KnowledgeResult
     web_knowledge_result: KnowledgeResult
@@ -238,6 +245,8 @@ class LangGraphOrchestrator:
             semantic_intent=state["routing_decision"].semantic_intent,
             knowledge_scope=state["knowledge_scope"],
             conversational_result=state.get("conversational_result"),
+            direct_general_result=state.get("direct_general_result"),
+            ambiguous_response=state.get("ambiguous_response"),
             knowledge_result=state.get("knowledge_result"),
             persistent_knowledge_result=state.get("persistent_knowledge_result"),
             web_knowledge_result=state.get("web_knowledge_result"),
@@ -279,6 +288,7 @@ class LangGraphOrchestrator:
         graph = StateGraph(OrchestrationState)
         graph.add_node("router", self._router_node)
         graph.add_node("conversational", self._conversational_node)
+        graph.add_node("direct_general", self._direct_general_node)
         graph.add_node("knowledge", self._knowledge_node)
         graph.add_node("customer_support", self._customer_support_node)
         graph.add_node("cooperative_synthesis", self._cooperative_synthesis_node)
@@ -295,6 +305,7 @@ class LangGraphOrchestrator:
             {
                 "knowledge": "knowledge",
                 "conversational": "conversational",
+                "direct_general": "direct_general",
                 "customer_support": "customer_support",
                 "cooperative": "customer_support",
                 "web_fallback": "web_knowledge",
@@ -320,6 +331,7 @@ class LangGraphOrchestrator:
         )
         graph.add_edge("cooperative_synthesis", "assembly")
         graph.add_edge("web_knowledge", "assembly")
+        graph.add_conditional_edges("direct_general", self._route_after_direct_general, {"web": "web_knowledge", "assembly": "assembly"})
         graph.add_edge("conversational", "assembly")
         graph.add_edge("security_terminal", "assembly")
         graph.add_edge("ambiguous_terminal", "assembly")
@@ -370,6 +382,7 @@ class LangGraphOrchestrator:
         return {
             RouterRoute.KNOWLEDGE: "knowledge",
             RouterRoute.CONVERSATIONAL: "conversational",
+            RouterRoute.DIRECT_GENERAL: "direct_general",
             RouterRoute.CUSTOMER_SUPPORT: "customer_support",
             RouterRoute.KNOWLEDGE_AND_CUSTOMER_SUPPORT: "cooperative",
             RouterRoute.KNOWLEDGE_WITH_WEB_FALLBACK: "web_fallback",
@@ -471,9 +484,18 @@ class LangGraphOrchestrator:
                 "web_fallback_required": True,
             }
         try:
-            result = await self._web_knowledge_agent.answer(
-                state["request"].message, knowledge_scope=state["knowledge_scope"]
-            )
+            retrieval_result = state.get("knowledge_result")
+            search_query = retrieval_result.retrieval_query if retrieval_result is not None else None
+            if search_query is None:
+                result = await self._web_knowledge_agent.answer(
+                    state["request"].message, knowledge_scope=state["knowledge_scope"]
+                )
+            else:
+                result = await self._web_knowledge_agent.answer(
+                    state["request"].message,
+                    knowledge_scope=state["knowledge_scope"],
+                    search_query=search_query,
+                )
         except Exception:
             result = KnowledgeResult(
                 question=state["request"].message,
@@ -582,12 +604,31 @@ class LangGraphOrchestrator:
         emit_runtime_event(RuntimeEventKind.SECURITY, value="CONTINUATION_INTERRUPTED")
         return {"status": OrchestrationStatus.SECURITY_BLOCKED, "reason": "SECURITY_POLICY_ROUTE"}
 
-    @staticmethod
-    def _ambiguous_terminal(state: OrchestrationState) -> dict[str, OrchestrationStatus | str]:
+    async def _ambiguous_terminal(self, state: OrchestrationState) -> dict[str, OrchestrationStatus | str | ConversationalResult]:
+        if state["routing_decision"].reason != "SEMANTIC_AMBIGUOUS":
+            return {"status": OrchestrationStatus.AMBIGUOUS, "reason": state["routing_decision"].reason}
+        message = state["request"].message
+        response = await self._conversational_agent.clarify(message) if self._conversational_agent is not None else ConversationalResult(answer="Não consegui entender exatamente o que você quer. Pode me dar um pouco mais de contexto?", reason="BOUNDED_CONVERSATIONAL_RESPONSE")
         return {
             "status": OrchestrationStatus.AMBIGUOUS,
             "reason": state["routing_decision"].reason,
+            "ambiguous_response": response,
         }
+
+    async def _direct_general_node(self, state: OrchestrationState) -> dict[str, DirectGeneralResult]:
+        started_at = perf_counter()
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="DirectGeneralAgent", value="STARTED")
+        if self._conversational_agent is None:
+            result = DirectGeneralResult(status="PROVIDER_ERROR")
+        else:
+            result = await self._conversational_agent.answer_general(state["request"].message)
+        emit_runtime_event(RuntimeEventKind.CAPABILITY, name="DirectGeneralAgent", value=result.status, elapsed_ms=int((perf_counter() - started_at) * 1000))
+        return {"direct_general_result": result}
+
+    @staticmethod
+    def _route_after_direct_general(state: OrchestrationState) -> str:
+        result = state.get("direct_general_result")
+        return "web" if result is not None and result.status == "REQUIRES_CURRENT_EVIDENCE" else "assembly"
 
     def _human_escalation_node(
         self, state: OrchestrationState
@@ -636,8 +677,14 @@ class LangGraphOrchestrator:
         knowledge = state.get("knowledge_result")
         customer_support = state.get("customer_support_result")
         conversational = state.get("conversational_result")
+        direct_general = state.get("direct_general_result")
         if conversational is not None:
             return {"status": OrchestrationStatus.COMPLETED, "reason": conversational.reason}
+        if direct_general is not None:
+            if direct_general.status == "ANSWERED":
+                return {"status": OrchestrationStatus.COMPLETED, "reason": "DIRECT_GENERAL_ANSWERED"}
+            if direct_general.status == "PROVIDER_ERROR":
+                return {"status": OrchestrationStatus.PARTIAL, "reason": "DIRECT_GENERAL_PROVIDER_ERROR"}
         knowledge_ok = knowledge is None or knowledge.status is KnowledgeResultStatus.ANSWERED
         support_ok = customer_support is None or customer_support.status is CustomerSupportStatus.ANSWERED
         if knowledge_ok and support_ok:
