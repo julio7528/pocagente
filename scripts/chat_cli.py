@@ -766,8 +766,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--url",
         type=str,
-        default=None,
-        help="URL of an already-running Agent API (e.g. http://127.0.0.1:8000). If omitted, runs in-process.",
+        default=os.environ.get("AGENT_API_BASE_URL"),
+        help="URL of an already-running Agent API; defaults to AGENT_API_BASE_URL, otherwise runs in-process.",
     )
     parser.add_argument(
         "--user-id",

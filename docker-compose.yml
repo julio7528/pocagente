@@ -22,5 +22,36 @@ services:
       timeout: 5s
       retries: 10
 
+  agent-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+      - .docker-secrets/agent-api.env
+    environment:
+      POSTGRES_HOST: postgres
+      FASTEMBED_CACHE_PATH: /var/cache/fastembed
+      AGENT_API_BASE_URL: http://127.0.0.1:8000
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - getnet_support_fastembed_cache:/var/cache/fastembed
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 90s
+
 volumes:
   getnet_support_pgdata:
+  getnet_support_fastembed_cache:
