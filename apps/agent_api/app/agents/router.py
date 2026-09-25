@@ -402,6 +402,26 @@ class RouterAgent:
                 )
                 return decision
             emit_runtime_event(RuntimeEventKind.SECURITY_SEMANTIC, value="ALLOWED")
+        # OPS access is an independent trusted claim. Once the security layers
+        # have allowed the turn, a clear protocol lookup should not depend on a
+        # probabilistic intent label to reach the existing OPS capability.
+        # The message can select a route, but it cannot grant this authorization.
+        if request.ops_read_authorized and not self._HUMAN_PATTERN.search(message):
+            ops_reason = self._trusted_ops_protocol_lookup_reason(request, message)
+            if ops_reason is not None:
+                decision = self._decision(RouterRoute.CUSTOMER_SUPPORT, ops_reason).model_copy(
+                    update={
+                        "semantic_intent": SemanticIntent.CUSTOMER_SUPPORT,
+                        "semantic_capability_needs": (SemanticCapabilityNeed.OPERATIONAL_FACTS,),
+                    }
+                )
+                emit_runtime_event(RuntimeEventKind.INTENT, value=SemanticIntent.CUSTOMER_SUPPORT.value)
+                emit_runtime_event(
+                    RuntimeEventKind.ROUTER,
+                    value=decision.route.value,
+                    name="trusted_ops_protocol_lookup",
+                )
+                return decision
         if self._semantic_classifier is None:
             emit_runtime_event(RuntimeEventKind.CLASSIFIER, value="NOT_CONFIGURED")
             decision = SemanticIntentMapper.safe_failure("SEMANTIC_CLASSIFIER_UNAVAILABLE")
@@ -455,6 +475,60 @@ class RouterAgent:
             ),
         })
         return decision
+
+    @classmethod
+    def _trusted_ops_protocol_lookup_reason(
+        cls,
+        request: RouterRequest,
+        message: str,
+    ) -> str | None:
+        """Recognize bounded protocol lookups after trusted OPS auth and security."""
+
+        current = cls._normalize_security_text(message)
+        history = cls._normalize_security_text(
+            " ".join(item.content for item in request.conversation_context)
+        )
+        has_protocol_id = bool(re.search(r"\bpoc\s*ops\s*\d{4}\b", current))
+        protocol_question = bool(re.search(r"\bprotocol(?:o|os|s)?\b", current))
+        cancellation_in_current = bool(re.search(r"\bcancel\w*\b", current))
+        cancellation_in_history = bool(re.search(r"\bcancel\w*\b", history))
+        lookup_language = bool(
+            re.search(
+                r"\b(qual|quais|numero|status|resultado|historico|ocorreu|aconteceu|"
+                r"descreva|detalhe|ultimo|mais recente|recent|latest|newest|"
+                r"what|when|which|describe|details?)\b",
+                current,
+            )
+        )
+        technical_protocol_topic = bool(
+            re.search(
+                r"\b(http|https|tcp|udp|ip|internet|oauth|tls|ssl|rede|comunicacao|"
+                r"conceito|definicao|definition)\b",
+                current,
+            )
+        )
+
+        if has_protocol_id:
+            return "TRUSTED_OPS_PROTOCOL_REFERENCE"
+        if protocol_question and cancellation_in_current:
+            return "TRUSTED_OPS_CANCELLATION_PROTOCOL_LOOKUP"
+        if (
+            protocol_question
+            and lookup_language
+            and not cancellation_in_current
+            and not technical_protocol_topic
+        ):
+            # Bare protocol questions are routed to the support capability so
+            # it can ask which business process the user means, without querying
+            # OPS or requesting customer identifiers.
+            return "TRUSTED_OPS_PROTOCOL_SCOPE_CLARIFICATION"
+        if (
+            cancellation_in_history
+            and lookup_language
+            and re.search(r"\b(resultado|status|historico|ocorreu|aconteceu|quando|detalhe|describe|what)\b", current)
+        ):
+            return "TRUSTED_OPS_CONTEXTUAL_FOLLOW_UP"
+        return None
 
     @staticmethod
     def _semantic_security_audit_semantics(category: SecurityCategory) -> tuple[SecurityClassification, ...]:

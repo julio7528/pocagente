@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import timedelta
 from enum import StrEnum
 from time import perf_counter
@@ -25,7 +26,9 @@ from apps.agent_api.app.database.models import (
     ProtocolCaseFacts, ProtocolStatusFacts,
 )
 from apps.agent_api.app.agents.ops_analytics import (
-    AnalyticsTimeBasis, OperationalAnalyticsPlan, OperationalTemporalResolver, ResolvedTimeWindow,
+    AnalyticsGrain, AnalyticsMetric, AnalyticsOrdering, AnalyticsTimeBasis,
+    OperationalAnalyticsPlan, OperationalTemporalResolver, OperationalTimeExpression,
+    ResolvedTimeWindow, TemporalKind,
 )
 from apps.agent_api.app.llm.errors import LLMProviderError
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMMessage, LLMProvider
@@ -207,7 +210,10 @@ class CustomerSupportResult(BaseModel):
     def fields_match_status(self) -> CustomerSupportResult:
         if self.status is CustomerSupportStatus.ANSWERED and not self.answer:
             raise ValueError("answered customer-support results require an answer")
-        if self.status is not CustomerSupportStatus.ANSWERED:
+        if self.status is CustomerSupportStatus.CLARIFICATION_REQUIRED:
+            if self.facts or self.inferences:
+                raise ValueError("clarification results cannot expose operational evidence")
+        elif self.status is not CustomerSupportStatus.ANSWERED:
             if self.answer is not None or self.facts or self.inferences:
                 raise ValueError("controlled non-success results cannot expose evidence or answers")
         return self
@@ -356,6 +362,16 @@ class CustomerSupportAgent:
 
         if not request.authorization.can_read_operational_facts:
             return CustomerSupportResult(status=CustomerSupportStatus.UNAUTHORIZED, reason="OPERATIONAL_ACCESS_DENIED")
+        if request.operation is None and self._needs_protocol_scope_clarification(request):
+            return CustomerSupportResult(
+                status=CustomerSupportStatus.CLARIFICATION_REQUIRED,
+                answer=(
+                    "Você quer saber o protocolo de cancelamento mais recente ou "
+                    "consultar um protocolo específico? Se for um protocolo específico, "
+                    "envie o número."
+                ),
+                reason="PROTOCOL_BUSINESS_SCOPE_REQUIRED",
+            )
         if request.operation is not None:
             intent = (
                 OperationalQueryIntent.EXECUTION_FAILURE
@@ -413,6 +429,7 @@ class CustomerSupportAgent:
         protocol_number = request.protocol_number or plan.protocol_number
         facts: list[ObservedOperationalFact] = []
         selected_protocol_number: str | None = None
+        enrich_selected_protocol = False
         legacy_operation = request.operation is not None
         if plan.intent is OperationalQueryIntent.ANALYTICS:
             assert plan.analytics is not None
@@ -461,6 +478,14 @@ class CustomerSupportAgent:
                 )
             ):
                 selected_protocol_number = analytics_result.rows[0].protocol_number
+                enrich_selected_protocol = bool(
+                    analytics_query.metric in {"FIRST", "LAST"}
+                    or (
+                        analytics_query.metric == "LIST"
+                        and analytics_query.ordering == "LATEST"
+                        and analytics_query.limit == 1
+                    )
+                )
         elif plan.intent in {OperationalQueryIntent.LATEST_PROTOCOL, OperationalQueryIntent.RECENT_PROTOCOLS}:
             limit = 1 if plan.intent is OperationalQueryIntent.LATEST_PROTOCOL else plan.limit or 3
             if plan.discovery_order is DiscoveryOrdering.LAST_EXECUTION_AT:
@@ -472,8 +497,14 @@ class CustomerSupportAgent:
                 return controlled
             if isinstance(recent, RecentExecutedProtocolsToolResult):
                 facts.extend(self._facts_from_recent_executed_protocols(recent.records))
+                if plan.intent is OperationalQueryIntent.LATEST_PROTOCOL and recent.records:
+                    selected_protocol_number = recent.records[0].service_request.protocol_number
+                    enrich_selected_protocol = True
             else:
                 facts.extend(self._facts_from_recent_protocols(recent.records))
+                if plan.intent is OperationalQueryIntent.LATEST_PROTOCOL and recent.records:
+                    selected_protocol_number = recent.records[0].protocol_number
+                    enrich_selected_protocol = True
         elif plan.intent is OperationalQueryIntent.CLARIFICATION_REQUIRED:
             return CustomerSupportResult(
                 status=CustomerSupportStatus.CLARIFICATION_REQUIRED,
@@ -539,6 +570,37 @@ class CustomerSupportAgent:
                     if not next_needs:
                         emit_runtime_event(RuntimeEventKind.OPS_PLAN, name="evidence_sufficiency", value="YES")
                         break
+
+        if enrich_selected_protocol and selected_protocol_number is not None:
+            try:
+                detail = await self._tools.investigate_protocol(
+                    selected_protocol_number,
+                    (
+                        OperationalEvidenceNeed.ORIGIN_EMAIL,
+                        OperationalEvidenceNeed.EMAIL_ATTACHMENTS,
+                        OperationalEvidenceNeed.AUTOMATION_RUNS,
+                        OperationalEvidenceNeed.ESTABLISHMENTS,
+                        OperationalEvidenceNeed.EXECUTION_TIMELINE,
+                        OperationalEvidenceNeed.FAILURE_EVIDENCE,
+                    ),
+                    request.authorization,
+                )
+                if detail.status is OpsToolStatus.SUCCESS and detail.facts is not None:
+                    facts.extend(self._facts_from_protocol_case(detail.facts))
+                else:
+                    emit_runtime_event(
+                        RuntimeEventKind.OPS_PLAN,
+                        name="selected_protocol_detail",
+                        value="UNAVAILABLE",
+                    )
+            except Exception:
+                # The bounded discovery facts remain usable even when linked
+                # history cannot be loaded; never turn this into a raw error.
+                emit_runtime_event(
+                    RuntimeEventKind.OPS_PLAN,
+                    name="selected_protocol_detail",
+                    value="CONTROLLED_ERROR",
+                )
 
         generation_request = self._build_generation_request(
             request.question,
@@ -635,6 +697,138 @@ class CustomerSupportAgent:
             reason="OBSERVED_OPS_EVIDENCE_INTERPRETED",
         )
 
+    @staticmethod
+    def _normalize_business_text(value: str) -> str:
+        decomposed = unicodedata.normalize("NFKD", value.casefold())
+        return " ".join(
+            "".join(char for char in decomposed if not unicodedata.combining(char))
+            .replace("-", " ")
+            .split()
+        )
+
+    @classmethod
+    def _needs_protocol_scope_clarification(cls, request: CustomerSupportRequest) -> bool:
+        current = cls._normalize_business_text(request.question)
+        history = cls._normalize_business_text(
+            " ".join(item.content for item in request.conversation_context)
+        )
+        if not re.search(r"\bprotocol(?:o|os|s)?\b", current):
+            return False
+        if re.search(r"\bpoc\s+ops\s+\d{4}\b", current + " " + history):
+            return False
+        if re.search(r"\bcancel\w*\b", current + " " + history):
+            return False
+        if re.search(
+            r"\b(http|https|tcp|udp|ip|internet|oauth|tls|ssl|rede|comunicacao|conceito|definicao)\b",
+            current,
+        ):
+            return False
+        return bool(
+            re.search(r"\b(qual|quais|numero|ultimo|mais recente|latest|newest|what|which)\b", current)
+        )
+
+    @classmethod
+    def _normalize_latest_protocol_plan(
+        cls,
+        question: str,
+        plan: OperationalQueryPlan | None,
+    ) -> OperationalQueryPlan | None:
+        """Keep singular latest-protocol questions on the approved created-at basis."""
+
+        normalized = cls._normalize_business_text(question)
+        if not re.search(r"\bprotocol(?:o|os|s)?\b", normalized):
+            return plan
+        if not re.search(r"\b(mais recente|mais novo|ultimo|latest|newest|most recent)\b", normalized):
+            return plan
+        if re.search(r"\b(atualizad\w*|update|updated|execu\w*|executed|run|evento|eventos|event)\b", normalized):
+            return plan
+        if re.search(r"\b(quais|liste|listar|todos|todas|quantos|quantas|list|count)\b", normalized):
+            return plan
+
+        month_numbers = {
+            "janeiro": 1, "january": 1,
+            "fevereiro": 2, "february": 2,
+            "marco": 3, "march": 3,
+            "abril": 4, "april": 4,
+            "maio": 5,
+            "junho": 6, "june": 6,
+            "julho": 7, "july": 7,
+            "agosto": 8, "august": 8,
+            "setembro": 9, "september": 9,
+            "outubro": 10, "october": 10,
+            "novembro": 11, "november": 11,
+            "dezembro": 12, "december": 12,
+        }
+        explicit_month = next(
+            (number for name, number in month_numbers.items() if re.search(rf"\b{name}\b", normalized)),
+            None,
+        )
+        explicit_year = re.search(r"\b(20\d{2})\b", normalized)
+        temporal_scope = bool(
+            explicit_year
+            or re.search(
+                r"\b(hoje|ontem|esta semana|essa semana|semana passada|este mes|mes passado|"
+                r"this week|last week|today|yesterday|this month|last month|"
+                r"ultimos? \d+ dias|last \d+ days|entre \d{4} \d{1,2} \d{1,2})\b",
+                normalized,
+            )
+        )
+        existing_analytics = plan.analytics if plan is not None else None
+        existing_protocol_analytics = (
+            existing_analytics
+            if existing_analytics is not None and existing_analytics.grain is AnalyticsGrain.PROTOCOL
+            else None
+        )
+
+        if explicit_month is not None:
+            time_expression = OperationalTimeExpression(
+                kind=TemporalKind.CALENDAR_MONTH,
+                month=explicit_month,
+                year=int(explicit_year.group(1)) if explicit_year else None,
+            )
+            analytics = OperationalAnalyticsPlan(
+                grain=AnalyticsGrain.PROTOCOL,
+                metric=AnalyticsMetric.LAST,
+                time=time_expression,
+                time_basis=AnalyticsTimeBasis.PROTOCOL_CREATED,
+                outcome_filter=existing_protocol_analytics.outcome_filter if existing_protocol_analytics else None,
+                status_filter=existing_protocol_analytics.status_filter if existing_protocol_analytics else None,
+                ordering=AnalyticsOrdering.LATEST,
+                limit=1,
+            )
+            return OperationalInvestigationPlan(intent=OperationalQueryIntent.ANALYTICS, analytics=analytics)
+
+        if plan is None:
+            if temporal_scope:
+                return None
+            return OperationalInvestigationPlan(
+                intent=OperationalQueryIntent.LATEST_PROTOCOL,
+                discovery_order=DiscoveryOrdering.REQUEST_CREATED_AT,
+            )
+
+        if (
+            existing_analytics is not None
+            and existing_analytics.grain is AnalyticsGrain.PROTOCOL
+        ):
+            analytics = existing_analytics.model_copy(
+                update={
+                    "metric": AnalyticsMetric.LAST,
+                    "time_basis": AnalyticsTimeBasis.PROTOCOL_CREATED,
+                    "ordering": AnalyticsOrdering.LATEST,
+                    "limit": 1,
+                    "group_by": (),
+                }
+            )
+            return plan.model_copy(update={"analytics": analytics})
+
+        if temporal_scope:
+            return plan
+
+        return OperationalInvestigationPlan(
+            intent=OperationalQueryIntent.LATEST_PROTOCOL,
+            discovery_order=DiscoveryOrdering.REQUEST_CREATED_AT,
+        )
+
     async def _plan(
         self,
         request: CustomerSupportRequest,
@@ -642,6 +836,10 @@ class CustomerSupportAgent:
         already_loaded: tuple[OperationalEvidenceNeed, ...] = (),
     ) -> OperationalQueryPlan | CustomerSupportResult:
         """Ask the model for one closed plan; authorization remains application-owned."""
+
+        deterministic_latest = self._normalize_latest_protocol_plan(request.question, None)
+        if deterministic_latest is not None:
+            return deterministic_latest
 
         system = """You plan bounded operational investigations for Getnet Support.
 Classify the user's intended read-only question using exactly one intent from:
@@ -669,6 +867,22 @@ user asks where the request came from. For status-only questions use SERVICE_REQ
 When a user asks when a protocol was created, request SERVICE_REQUEST and
 EXECUTION_TIMELINE so the PROTOCOLO_CRIADO domain event can be compared with
 the row persistence timestamp.
+For a singular request for the latest/newest cancellation protocol, use the
+approved protocol discovery path even when no protocol number, order number,
+or customer identifier is provided. Without a calendar period, choose
+LATEST_PROTOCOL ordered by ServiceRequestRecord.created_at descending and
+request the linked run, establishment, execution timeline, and failure evidence
+for that selected protocol. With a calendar month/year, choose ANALYTICS with
+grain PROTOCOL, metric LAST, time_basis PROTOCOL_CREATED, ordering LATEST, and
+limit 1; then inspect the selected protocol's linked case evidence. Do not turn
+a singular latest-protocol question into an aggregate COUNT or an unbounded
+LIST. A bare 'which protocol?' without a process in the current message/history
+requires one short clarification: latest cancellation protocol or a specific
+protocol number. Never ask for CPF/CNPJ, order number, or customer identity for
+protocol discovery. There is no process-type selector in the approved OPS
+schema. ServiceRequestRecord.updated_at describes a record update; an event's
+time is ExecutionLogRecord.logged_at.
+
 For latest/recent discovery, the unqualified "latest/recent protocol" means
 REQUEST_CREATED_AT and may use the legacy LATEST_PROTOCOL/RECENT_PROTOCOLS
 operation. For any first/last/oldest/newest protocol by actual execution,
@@ -754,6 +968,7 @@ protocol discovery only."""
             try:
                 result = await self._llm_provider.generate(generation)
                 plan = OperationalQueryPlan.model_validate_json(result.content)
+                plan = self._normalize_latest_protocol_plan(request.question, plan) or plan
             except LLMProviderError as error:
                 emit_runtime_event(RuntimeEventKind.LLM, name="ops_planning", value="CONTROLLED_ERROR",
                                    elapsed_ms=int((perf_counter() - planning_started_at) * 1000))
