@@ -15,6 +15,17 @@ from apps.agent_api.app.database.repositories.contracts import (
     RepositoryRecord,
     ReviewStatus,
 )
+from apps.agent_api.app.security.dashboard_models import (
+    SecurityDashboardBreakdownRow,
+    SecurityDashboardBreakdowns,
+    SecurityDashboardDay,
+    SecurityDashboardEventPage,
+    SecurityDashboardEventDetail,
+    SecurityDashboardEventRow,
+    SecurityDashboardFilters,
+    SecurityDashboardPage,
+    SecurityDashboardSummary,
+)
 
 
 _EVENT_WRITE_COLUMNS = (
@@ -51,6 +62,39 @@ _PROHIBITED_KEY_PARTS = (
 def _validate_limit(limit: int) -> None:
     if not 1 <= limit <= 100:
         raise ValueError("Audit query limit must be between 1 and 100")
+
+
+def _dashboard_where(
+    filters: SecurityDashboardFilters,
+    *,
+    additional: sql.Composable | None = None,
+) -> tuple[sql.Composable, tuple[object, ...]]:
+    """Compose fixed predicates and bind all dashboard values as parameters."""
+
+    clauses: list[sql.Composable] = [
+        sql.SQL("occurred_at >= %s"),
+        sql.SQL("occurred_at < %s"),
+    ]
+    parameters: list[object] = [filters.start_at, filters.end_before]
+    if filters.event_type is not None:
+        clauses.append(sql.SQL("event_type = %s"))
+        parameters.append(filters.event_type.value)
+    if filters.source_component is not None:
+        clauses.append(sql.SQL("source_component = %s"))
+        parameters.append(filters.source_component)
+    if filters.user_identifier is not None:
+        clauses.append(sql.SQL("user_identifier = %s"))
+        parameters.append(filters.user_identifier)
+    if additional is not None:
+        clauses.append(additional)
+    return sql.SQL(" WHERE ") + sql.SQL(" AND ").join(clauses), tuple(parameters)
+
+
+def _validate_dashboard_page(page: SecurityDashboardPage) -> None:
+    if not 1 <= page.page <= 1000:
+        raise ValueError("Audit page must be between 1 and 1000")
+    if not 1 <= page.page_size <= 100:
+        raise ValueError("Audit page size must be between 1 and 100")
 
 
 def _validate_event(event: Mapping[str, object]) -> tuple[str, ...]:
@@ -102,6 +146,140 @@ class AuditRepository(BaseRepository):
             await cursor.execute(statement, (event_id,))
             row = await cursor.fetchone()
         return map_security_event(row) if row is not None else None
+
+    async def get_dashboard_summary(
+        self,
+        filters: SecurityDashboardFilters,
+    ) -> SecurityDashboardSummary:
+        where, parameters = _dashboard_where(filters)
+        statement = sql.SQL(
+            "SELECT COUNT(*)::bigint AS total_events, "
+            "COUNT(DISTINCT user_identifier)::bigint AS distinct_users, "
+            "COUNT(DISTINCT event_type)::bigint AS distinct_event_types, "
+            "COUNT(DISTINCT source_component)::bigint AS distinct_source_components "
+            "FROM audit.security_events"
+        ) + where
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, parameters)
+            row = await cursor.fetchone()
+        if row is None:
+            return SecurityDashboardSummary(
+                total_events=0,
+                distinct_users=0,
+                distinct_event_types=0,
+                distinct_source_components=0,
+            )
+        return SecurityDashboardSummary(**row)
+
+    async def get_dashboard_event_detail(
+        self,
+        event_id: int,
+    ) -> SecurityDashboardEventDetail | None:
+        """Read only the allowlisted columns approved for the dashboard detail."""
+
+        statement = """
+            SELECT event_id, occurred_at, event_type, source_component,
+                   user_identifier, resource_category, action_taken, result,
+                   review_status, request_reference, sanitized_content,
+                   reviewed_at, created_at
+            FROM audit.security_events
+            WHERE event_id = %s
+        """
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, (event_id,))
+            row = await cursor.fetchone()
+        return SecurityDashboardEventDetail(**row) if row is not None else None
+
+    async def get_dashboard_timeseries(
+        self,
+        filters: SecurityDashboardFilters,
+    ) -> tuple[SecurityDashboardDay, ...]:
+        where, parameters = _dashboard_where(filters)
+        statement = sql.SQL(
+            "SELECT (occurred_at AT TIME ZONE 'UTC')::date AS event_date, "
+            "COUNT(*)::bigint AS event_count "
+            "FROM audit.security_events"
+        ) + where + sql.SQL(
+            " GROUP BY event_date ORDER BY event_date ASC"
+        )
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(statement, parameters)
+            rows = await cursor.fetchall()
+        return tuple(
+            SecurityDashboardDay(date=row["event_date"], count=row["event_count"])
+            for row in rows
+        )
+
+    async def get_dashboard_breakdowns(
+        self,
+        filters: SecurityDashboardFilters,
+    ) -> SecurityDashboardBreakdowns:
+        async def values_for(
+            column: str,
+            *,
+            nonnull_only: bool = False,
+        ) -> tuple[SecurityDashboardBreakdownRow, ...]:
+            extra = (
+                sql.SQL("{column} IS NOT NULL").format(column=sql.Identifier(column))
+                if nonnull_only
+                else None
+            )
+            query_where, query_parameters = _dashboard_where(filters, additional=extra)
+            statement = sql.SQL(
+                "SELECT {column} AS value, COUNT(*)::bigint AS event_count "
+                "FROM audit.security_events"
+            ).format(column=sql.Identifier(column)) + query_where + sql.SQL(
+                " GROUP BY {column} ORDER BY event_count DESC, value ASC"
+            ).format(column=sql.Identifier(column))
+            async with self._cursor(row_factory=dict_row) as cursor:
+                await cursor.execute(statement, query_parameters)
+                rows = await cursor.fetchall()
+            return tuple(
+                SecurityDashboardBreakdownRow(value=row["value"], count=row["event_count"])
+                for row in rows
+            )
+
+        # Fixed allowlist: SQL identifiers never originate from a request.
+        event_types = await values_for("event_type")
+        sources = await values_for("source_component")
+        users = await values_for("user_identifier", nonnull_only=True)
+        return SecurityDashboardBreakdowns(
+            event_types=event_types,
+            source_components=sources,
+            users=users,
+        )
+
+    async def list_dashboard_events(
+        self,
+        filters: SecurityDashboardFilters,
+        page: SecurityDashboardPage,
+    ) -> SecurityDashboardEventPage:
+        _validate_dashboard_page(page)
+        where, parameters = _dashboard_where(filters)
+        count_statement = sql.SQL(
+            "SELECT COUNT(*)::bigint AS total FROM audit.security_events"
+        ) + where
+        offset = (page.page - 1) * page.page_size
+        list_statement = sql.SQL(
+            "SELECT event_id, occurred_at, event_type, source_component, "
+            "user_identifier, resource_category, action_taken, result, review_status "
+            "FROM audit.security_events"
+        ) + where + sql.SQL(
+            " ORDER BY occurred_at DESC, event_id DESC LIMIT %s OFFSET %s"
+        )
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(count_statement, parameters)
+            count_row = await cursor.fetchone()
+            total = int(count_row["total"]) if count_row else 0
+            await cursor.execute(list_statement, (*parameters, page.page_size, offset))
+            rows = await cursor.fetchall()
+        items = tuple(SecurityDashboardEventRow(**row) for row in rows)
+        return SecurityDashboardEventPage(
+            page=page.page,
+            page_size=page.page_size,
+            total=total,
+            items=items,
+        )
 
     async def list_security_events_by_request_reference(
         self,

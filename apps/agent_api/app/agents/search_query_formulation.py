@@ -8,6 +8,10 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    render_contextual_request,
+)
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMMessage, LLMProvider
 
 
@@ -36,7 +40,10 @@ class SearchQueryDecision(BaseModel):
 
 
 class SearchQueryFormulation(Protocol):
-    async def formulate(self, question: str) -> str | None: ...
+    async def formulate(
+        self, question: str,
+        *, conversation_context: tuple[ConversationContextMessage, ...] = (),
+    ) -> str | None: ...
 
 
 class SemanticSearchQueryFormulator:
@@ -53,14 +60,22 @@ class SemanticSearchQueryFormulator:
     def __init__(self, llm_provider: LLMProvider) -> None:
         self._llm_provider = llm_provider
 
-    async def formulate(self, question: str) -> str | None:
+    async def formulate(
+        self,
+        question: str,
+        *,
+        conversation_context: tuple[ConversationContextMessage, ...] = (),
+    ) -> str | None:
         if not question.strip():
             return None
         try:
             generated = await self._llm_provider.generate(LLMGenerationRequest(
                 messages=(
                     LLMMessage(role="system", content=self._INSTRUCTION),
-                    LLMMessage(role="user", content=question),
+                    LLMMessage(
+                        role="user",
+                        content=render_contextual_request(question, conversation_context),
+                    ),
                 ),
                 max_output_tokens=96,
                 temperature=0,

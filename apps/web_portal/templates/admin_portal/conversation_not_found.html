@@ -1,0 +1,9 @@
+{% extends "admin_portal/base.html" %}
+{% block title %}Conversa não encontrada{% endblock %}
+{% block content %}
+  <section class="security-unavailable" role="status">
+    <h1>Conversa não encontrada</h1>
+    <p>Esta conversa não está disponível para consulta.</p>
+    <a href="{% url 'admin-conversations' %}">Voltar à lista de conversas</a>
+  </section>
+{% endblock %}

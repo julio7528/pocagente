@@ -1,0 +1,105 @@
+{% extends 'admin_portal/base.html' %}
+{% load static %}
+{% block title %}Painel de segurança{% endblock %}
+{% block content %}
+  <div class="admin-heading">
+    <div>
+      <p class="eyebrow">Eventos AUDIT · somente leitura</p>
+      <h1>Painel de segurança</h1>
+      <p class="muted">Indicadores e eventos registrados no período selecionado.</p>
+    </div>
+  </div>
+
+  <form class="admin-filters security-filters" method="get" action="{% url 'admin-security' %}" id="security-filter-form">
+    <div class="field"><label for="id_date_from">Data inicial</label>{{ form.date_from }}</div>
+    <div class="field"><label for="id_date_to">Data final</label>{{ form.date_to }}</div>
+    <div class="field"><label for="id_event_type">Tipo de evento</label>{{ form.event_type }}</div>
+    <div class="field"><label for="id_source_component">Componente de origem</label>{{ form.source_component }}<datalist id="audit-sources">{% for item in source_values %}<option value="{{ item.value }}">{% endfor %}</datalist></div>
+    <div class="field"><label for="id_user_identifier">Identificador registrado</label>{{ form.user_identifier }}<datalist id="audit-users">{% for item in user_values %}<option value="{{ item.value }}">{% endfor %}</datalist></div>
+    <input type="hidden" name="page" value="1">
+    <div class="filter-actions">
+      <button type="submit">Aplicar filtros</button>
+      <a href="{{ reset_url }}">Limpar filtros</a>
+    </div>
+    {% if form.errors %}<div class="security-filter-errors" role="alert">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}{% for field in form %}{% for error in field.errors %}<p>{{ error }}</p>{% endfor %}{% endfor %}</div>{% endif %}
+  </form>
+
+  {% if error_message %}
+    <section class="security-unavailable" role="status" aria-live="polite">
+      <h2>Dados temporariamente indisponíveis</h2>
+      <p>{{ error_message }}</p>
+    </section>
+  {% elif snapshot %}
+    <section aria-labelledby="security-summary-title">
+      <h2 id="security-summary-title" class="section-title">Resumo do período</h2>
+      <dl class="admin-summary security-summary">
+        <div><dt>Total de eventos</dt><dd>{{ snapshot.summary.total_events }}</dd></div>
+        <div><dt>Usuários envolvidos</dt><dd>{{ snapshot.summary.distinct_users }}</dd></div>
+        <div><dt>Tipos de evento</dt><dd>{{ snapshot.summary.distinct_event_types }}</dd></div>
+        <div><dt>Componentes de origem</dt><dd>{{ snapshot.summary.distinct_source_components }}</dd></div>
+      </dl>
+    </section>
+
+    {% if snapshot.summary.total_events == 0 %}
+      <p class="security-empty" role="status">Nenhum evento de segurança encontrado para os filtros selecionados.</p>
+    {% endif %}
+
+    <div class="security-chart-grid">
+      <section class="security-chart-card" aria-labelledby="security-timeseries-title">
+        <h2 id="security-timeseries-title">Eventos ao longo do tempo</h2>
+        <p class="muted">Selecione um dia no gráfico para filtrar o painel.</p>
+        <div class="security-canvas"><canvas id="audit-timeseries-chart" aria-label="Eventos de segurança por dia" role="img"></canvas></div>
+        <details><summary>Ver dados por dia</summary>
+          <div class="admin-table-wrap"><table class="admin-table security-table"><caption>Contagem diária em UTC</caption><thead><tr><th>Data UTC</th><th>Eventos</th></tr></thead><tbody>{% for point in snapshot.timeseries %}<tr><td>{{ point.date }}</td><td>{{ point.count }}</td></tr>{% empty %}<tr><td colspan="2">Sem dados no período.</td></tr>{% endfor %}</tbody></table></div>
+        </details>
+      </section>
+      <section class="security-chart-card" aria-labelledby="security-types-title">
+        <h2 id="security-types-title">Eventos por tipo</h2>
+        <p class="muted">Selecione um tipo para aplicar o filtro.</p>
+        <div class="security-canvas"><canvas id="audit-event-types-chart" aria-label="Distribuição de eventos por tipo" role="img"></canvas></div>
+        <details><summary>Ver tipos e contagens</summary>
+          <div class="admin-table-wrap"><table class="admin-table security-table"><caption>Contagem por tipo de evento</caption><thead><tr><th>Tipo</th><th>Eventos</th></tr></thead><tbody>{% for item in snapshot.breakdowns.event_types %}<tr><td>{{ item.value }}</td><td>{{ item.count }}</td></tr>{% empty %}<tr><td colspan="2">Sem eventos.</td></tr>{% endfor %}</tbody></table></div>
+        </details>
+      </section>
+      <section class="security-chart-card" aria-labelledby="security-sources-title">
+        <h2 id="security-sources-title">Eventos por componente</h2>
+        <p class="muted">Selecione um componente para aplicar o filtro.</p>
+        <div class="security-canvas"><canvas id="audit-sources-chart" aria-label="Distribuição de eventos por componente de origem" role="img"></canvas></div>
+        <details><summary>Ver componentes e contagens</summary>
+          <div class="admin-table-wrap"><table class="admin-table security-table"><caption>Contagem por componente de origem</caption><thead><tr><th>Componente</th><th>Eventos</th></tr></thead><tbody>{% for item in snapshot.breakdowns.source_components %}<tr><td>{{ item.value }}</td><td>{{ item.count }}</td></tr>{% empty %}<tr><td colspan="2">Sem eventos.</td></tr>{% endfor %}</tbody></table></div>
+        </details>
+      </section>
+      <section class="security-chart-card" aria-labelledby="security-users-title">
+        <h2 id="security-users-title">Eventos por usuário identificado</h2>
+        <p class="muted">Selecione um identificador para aplicar o filtro.</p>
+        <div class="security-canvas"><canvas id="audit-users-chart" aria-label="Distribuição de eventos por usuário identificado" role="img"></canvas></div>
+        <details><summary>Ver usuários e contagens</summary>
+          <div class="admin-table-wrap"><table class="admin-table security-table"><caption>Contagem por identificador registrado</caption><thead><tr><th>Identificador</th><th>Eventos</th></tr></thead><tbody>{% for item in snapshot.breakdowns.users %}<tr><td>{{ item.value }}</td><td>{{ item.count }}</td></tr>{% empty %}<tr><td colspan="2">Sem usuários identificados.</td></tr>{% endfor %}</tbody></table></div>
+        </details>
+      </section>
+    </div>
+
+    <section class="security-events-section" aria-labelledby="security-events-title">
+      <div class="security-events-heading"><h2 id="security-events-title">Eventos</h2><p class="muted">{{ snapshot.events.total }} registros · ordenados do mais recente para o mais antigo</p></div>
+      <div class="admin-table-wrap"><table class="admin-table security-table"><caption>Eventos filtrados</caption><thead><tr><th>Data/hora (UTC)</th><th>Tipo</th><th>Origem</th><th>Usuário</th><th>Recurso</th><th>Resultado</th><th>Ação</th></tr></thead>
+        <tbody>{% for event in snapshot.events.items %}<tr>
+          <td><a href="{{ event.detail_url }}">{{ event.occurred_at }}</a></td><td>{{ event.event_type }}</td><td>{{ event.source_component }}</td><td>{{ event.user_identifier|default:"—" }}</td><td>{{ event.resource_category|default:"—" }}</td><td>{{ event.result }}</td><td>{{ event.action_taken }}</td>
+        </tr>{% empty %}<tr><td class="table-empty" colspan="7">Nenhum evento de segurança encontrado para os filtros selecionados.</td></tr>{% endfor %}</tbody>
+      </table></div>
+      <nav class="pagination security-pagination" aria-label="Paginação de eventos">
+        <span>Página {{ snapshot.events.page }} de {{ snapshot.page_count }}</span>
+        <div>
+          {% if snapshot.events.page > 1 %}<a href="?{{ page_query }}&amp;page={{ snapshot.events.page|add:'-1' }}">Anterior</a>{% endif %}
+          {% if snapshot.events.page < snapshot.page_count %}<a href="?{{ page_query }}&amp;page={{ snapshot.events.page|add:'1' }}">Próxima</a>{% endif %}
+        </div>
+      </nav>
+    </section>
+    {{ snapshot|json_script:"security-dashboard-data" }}
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  {% if snapshot %}
+    <script src="{% static 'vendor/chart.js-4.5.1/chart.umd.min.js' %}" defer></script>
+    <script src="{% static 'admin-security.js' %}" defer></script>
+  {% endif %}
+{% endblock %}

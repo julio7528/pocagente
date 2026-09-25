@@ -1,0 +1,24 @@
+{% extends 'admin_portal/base.html' %}
+{% block title %}Detalhe do evento{% endblock %}
+{% block content %}
+  <div class="admin-heading">
+    <div><p class="eyebrow">Evento de segurança · somente leitura</p><h1>Detalhe do evento</h1></div>
+    <a class="button-link button-secondary" href="{% url 'admin-security' %}">Voltar ao painel</a>
+  </div>
+  <dl class="user-metadata security-event-metadata">
+    <div><dt>Identificador do evento</dt><dd>{{ event.event_id }}</dd></div>
+    <div><dt>Data/hora (UTC)</dt><dd>{{ event.occurred_at }}</dd></div>
+    <div><dt>Tipo</dt><dd>{{ event.event_type }}</dd></div>
+    <div><dt>Componente de origem</dt><dd>{{ event.source_component }}</dd></div>
+    <div><dt>Identificador registrado</dt><dd>{{ event.user_identifier|default:"—" }}</dd></div>
+    <div><dt>Referência da solicitação</dt><dd>{{ event.request_reference|default:"—" }}</dd></div>
+    <div><dt>Categoria do recurso</dt><dd>{{ event.resource_category|default:"—" }}</dd></div>
+    <div><dt>Ação</dt><dd>{{ event.action_taken }}</dd></div>
+    <div><dt>Resultado</dt><dd>{{ event.result }}</dd></div>
+    <div><dt>Estado de revisão</dt><dd>{{ event.review_status }}</dd></div>
+    <div><dt>Revisado em</dt><dd>{{ event.reviewed_at|default:"—" }}</dd></div>
+    <div><dt>Registrado em</dt><dd>{{ event.created_at }}</dd></div>
+  </dl>
+  {% if event.sanitized_content %}<section class="security-detail-content" aria-labelledby="sanitized-content-title"><h2 id="sanitized-content-title">Conteúdo sanitizado</h2><pre>{{ event.sanitized_content }}</pre></section>{% endif %}
+  <p class="admin-note">Este registro é exibido em modo somente leitura.</p>
+{% endblock %}

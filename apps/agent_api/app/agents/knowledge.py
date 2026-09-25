@@ -9,6 +9,10 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    validate_context_window,
+)
 from apps.agent_api.app.llm.errors import LLMProviderError
 from apps.agent_api.app.llm.models import LLMProvider
 from apps.agent_api.app.agents.grounded_generation import (
@@ -34,6 +38,7 @@ class KnowledgeRequest(BaseModel):
 
     question: str = Field(min_length=1)
     knowledge_scope: KnowledgeScope
+    conversation_context: tuple[ConversationContextMessage, ...] = Field(default=(), max_length=12)
 
     @model_validator(mode="after")
     def require_persistent_scope(self) -> KnowledgeRequest:
@@ -41,6 +46,7 @@ class KnowledgeRequest(BaseModel):
             raise ValueError("question must not be blank")
         if self.knowledge_scope not in {KnowledgeScope.INTERNAL, KnowledgeScope.PUBLIC_GETNET}:
             raise ValueError("persistent Knowledge requires an explicit retrieval scope")
+        validate_context_window(self.conversation_context)
         return self
 
 
@@ -114,7 +120,10 @@ class KnowledgeAgent:
         retrieval_query = question
         if request.knowledge_scope is KnowledgeScope.PUBLIC_GETNET and self._query_formulator is not None:
             try:
-                formulated = await self._query_formulator.formulate(question)
+                formulated = await self._query_formulator.formulate(
+                    question,
+                    **({"conversation_context": request.conversation_context} if request.conversation_context else {}),
+                )
             except Exception:
                 formulated = None
             if isinstance(formulated, str) and formulated.strip():
@@ -154,6 +163,7 @@ class KnowledgeAgent:
                     for item in context.evidence
                 ),
                 available_citation_ids=tuple(item.citation_id for item in context.evidence),
+                conversation_context=request.conversation_context,
             )
         except (LLMProviderError, GroundedGenerationError) as error:
             return KnowledgeResult(

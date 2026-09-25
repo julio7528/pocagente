@@ -1,0 +1,68 @@
+{% extends 'admin_portal/base.html' %}
+{% block title %}Usuários{% endblock %}
+{% block content %}
+  <div class="admin-heading">
+    <div>
+      <p class="eyebrow">Identidades</p>
+      <h1>Usuários</h1>
+      <p class="muted">Pesquise contas, confira perfis e gerencie o acesso ao portal.</p>
+    </div>
+    <a class="button-link" href="{% url 'admin-user-create' %}">Criar usuário</a>
+  </div>
+
+  <form method="get" class="admin-filters" role="search" aria-label="Pesquisar usuários">
+    <div class="field filter-search">
+      <label for="user-search">Nome de usuário</label>
+      <input id="user-search" name="q" type="search" maxlength="100" value="{{ query }}" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="role-filter">Perfil</label>
+      <select id="role-filter" name="role">
+        <option value="">Todos</option>
+        {% for value, label in role_choices %}<option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="state-filter">Estado</label>
+      <select id="state-filter" name="state">
+        <option value="">Todos</option>
+        <option value="ACTIVE" {% if selected_state == 'ACTIVE' %}selected{% endif %}>Ativo</option>
+        <option value="INACTIVE" {% if selected_state == 'INACTIVE' %}selected{% endif %}>Inativo</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button type="submit">Aplicar filtros</button>
+      <a href="{% url 'admin-users' %}">Limpar</a>
+    </div>
+  </form>
+
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <caption>{{ page_obj.paginator.count }} usuário(s)</caption>
+      <thead><tr><th scope="col">Usuário</th><th scope="col">Perfil</th><th scope="col">Estado</th><th scope="col">Criado</th><th scope="col">Último acesso</th></tr></thead>
+      <tbody>
+        {% for account in users %}
+          <tr>
+            <th scope="row"><a href="{% url 'admin-user-detail' account.id %}">{{ account.username }}</a></th>
+            <td>{{ account.get_role_display }}</td>
+            <td><span class="account-state {% if account.is_active %}is-active{% else %}is-inactive{% endif %}">{{ account.is_active|yesno:'Ativo,Inativo' }}</span></td>
+            <td><time datetime="{{ account.created_at|date:'c' }}">{{ account.created_at|date:'d/m/Y H:i' }}</time></td>
+            <td>{% if account.last_login %}<time datetime="{{ account.last_login|date:'c' }}">{{ account.last_login|date:'d/m/Y H:i' }}</time>{% else %}<span class="muted">Nunca</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="table-empty">{% if query or selected_role or selected_state %}Nenhum usuário corresponde aos filtros.{% else %}Nenhum usuário cadastrado.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="pagination" aria-label="Paginação de usuários">
+      <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+      <div>
+        {% if page_obj.has_previous %}<a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+        {% if page_obj.has_next %}<a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>{% endif %}
+      </div>
+    </nav>
+  {% endif %}
+{% endblock %}

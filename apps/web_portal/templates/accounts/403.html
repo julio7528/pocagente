@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acesso não permitido | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+</head>
+<body>
+  <header class="site-header"><span>Getnet Support</span></header>
+  <main class="auth-shell">
+    <section class="card" aria-labelledby="denied-title">
+      <h1 id="denied-title">Acesso não permitido</h1>
+      <p>Você não possui permissão para acessar esta área.</p>
+      {% if allowed_destination %}<a class="button-link" href="{{ allowed_destination }}">Voltar para minha área</a>{% else %}<a class="button-link" href="{% url 'login' %}">Ir para o login</a>{% endif %}
+    </section>
+  </main>
+  <footer class="site-footer">Portal Getnet Support</footer>
+</body>
+</html>

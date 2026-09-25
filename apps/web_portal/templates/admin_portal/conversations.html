@@ -1,0 +1,106 @@
+{% extends "admin_portal/base.html" %}
+{% block title %}Conversas{% endblock %}
+{% block content %}
+  <header class="admin-heading">
+    <div>
+      <p class="eyebrow">Governança</p>
+      <h1>Conversas</h1>
+      <p class="muted">Pesquisa e histórico completo em modo de observação. As mensagens não podem ser editadas nem enviadas por esta área.</p>
+    </div>
+  </header>
+
+  <form class="admin-filters conversation-filters" method="get" action="{% url 'admin-conversations' %}" aria-label="Filtros de conversa">
+    <div class="field filter-search">
+      <label for="{{ form.query.id_for_label }}">{{ form.query.label }}</label>
+      {{ form.query }}
+      {% for error in form.query.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.owner_username.id_for_label }}">{{ form.owner_username.label }}</label>
+      {{ form.owner_username }}
+      {% for error in form.owner_username.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+      {{ form.status }}
+      {% for error in form.status.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.date_from.id_for_label }}">{{ form.date_from.label }}</label>
+      {{ form.date_from }}
+      {% for error in form.date_from.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="field">
+      <label for="{{ form.date_to.id_for_label }}">{{ form.date_to.label }}</label>
+      {{ form.date_to }}
+      {% for error in form.date_to.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    </div>
+    {% if form.non_field_errors %}
+      <div class="conversation-filter-errors" role="alert">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    <div class="filter-actions">
+      <button type="submit">Aplicar filtros</button>
+      <a href="{% url 'admin-conversations' %}">Limpar</a>
+    </div>
+  </form>
+
+  {% if page_obj %}
+    <div class="admin-table-wrap">
+      <table class="admin-table conversation-table">
+        <caption>
+          {% if page_obj.paginator.count %}{{ page_obj.paginator.count }} conversa(s) encontrada(s).{% else %}Nenhuma conversa encontrada.{% endif %}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Conversa</th>
+            <th scope="col">Titular</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Atendimento humano</th>
+            <th scope="col">Criada</th>
+            <th scope="col">Atualizada</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for conversation in conversations %}
+            <tr>
+              <th scope="row">
+                <a href="{% url 'admin-conversation-detail' conversation_id=conversation.pk %}">{{ conversation.title }}</a>
+              </th>
+              <td>{{ conversation.owner.username }}</td>
+              <td><span class="conversation-status">{{ conversation.admin_status_label }}</span></td>
+              <td>
+                {% if conversation.support_handoff %}
+                  {{ conversation.admin_handoff_label }}
+                  {% if conversation.admin_assignee_username %}
+                    <span class="muted">· {{ conversation.admin_assignee_username }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="muted">Não solicitado</span>
+                {% endif %}
+              </td>
+              <td>{{ conversation.created_at|date:"Y-m-d H:i" }}</td>
+              <td>{{ conversation.updated_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="table-empty" colspan="6">Nenhuma conversa corresponde aos filtros informados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+      <nav class="pagination" aria-label="Paginação de conversas">
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        <div>
+          {% if page_obj.has_previous %}
+            <a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Próxima</a>
+          {% endif %}
+        </div>
+      </nav>
+    {% endif %}
+  {% endif %}
+{% endblock %}

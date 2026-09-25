@@ -109,30 +109,140 @@ def test_trusted_ops_claim_is_translated_without_body_authorization_flags() -> N
     orchestrator = RecordingOrchestrator(result(route=RouterRoute.CUSTOMER_SUPPORT))
     payload = {
         "message": "What is the protocol status?",
-        "user_id": "client-1",
+        "user_id": "support-1",
         "operational_context": {"protocol_number": "POC-OPS-0002", "operation": "PROTOCOL_STATUS"},
     }
     with client(orchestrator) as http:
-        response = http.post("/chat", headers=headers(ops=True), json=payload)
+        response = http.post(
+            "/chat", headers=headers(user_id="support-1", role="SUPPORT_AGENT", ops=True), json=payload
+        )
     assert response.status_code == 200
     context = orchestrator.requests[0].ops_access_context
     assert context is not None
-    assert context.principal_id == "client-1"
+    assert context.principal_id == "support-1"
     assert context.can_read_operational_facts is True
 
 
-def test_ops_authorization_is_translated_without_preselected_protocol() -> None:
+def test_support_ops_authorization_is_translated_without_preselected_protocol() -> None:
     orchestrator = RecordingOrchestrator(result(route=RouterRoute.CUSTOMER_SUPPORT))
     with client(orchestrator) as http:
         response = http.post(
             "/chat",
-            headers=headers(ops=True),
-            json={"message": "latest protocol", "user_id": "client-1"},
+            headers=headers(user_id="support-1", role="SUPPORT_AGENT", ops=True),
+            json={"message": "latest protocol", "user_id": "support-1"},
         )
     assert response.status_code == 200
     assert orchestrator.requests[0].customer_support_context is None
     assert orchestrator.requests[0].ops_access_context is not None
     assert orchestrator.requests[0].ops_access_context.can_read_operational_facts is True
+
+
+def test_client_ops_claim_is_rejected_before_orchestration() -> None:
+    orchestrator = RecordingOrchestrator(result(route=RouterRoute.CUSTOMER_SUPPORT))
+    with client(orchestrator) as http:
+        response = http.post(
+            "/chat", headers=headers(ops=True),
+            json={"message": "Qual o resultado do protocolo POC-OPS-0004?", "user_id": "client-1"},
+        )
+    assert response.status_code == 403
+    assert orchestrator.requests == []
+
+
+def test_portal_context_is_bounded_typed_and_forwarded_without_current_turn_duplication() -> None:
+    orchestrator = RecordingOrchestrator(result())
+    conversation_id = "11111111-1111-4111-8111-111111111111"
+    turn_id = "22222222-2222-4222-8222-222222222222"
+    payload = {
+        "message": "And how much does it cost?",
+        "user_id": "client-1",
+        "conversation_id": conversation_id,
+        "client_turn_id": turn_id,
+        "conversation_context": [
+            {"message_id": "message-1", "sender_type": "CLIENT", "content": "Tell me about Get Smart."},
+            {"message_id": "message-2", "sender_type": "AGENT", "content": "Get Smart is a payment link."},
+            {"message_id": "message-3", "sender_type": "CLIENT", "content": "And how much does it cost?"},
+        ],
+    }
+    with client(orchestrator) as http:
+        response = http.post("/chat", headers=headers(), json=payload)
+        assert response.status_code == 200
+        assert http.post("/chat", headers=headers(), json={
+            **payload,
+            "conversation_context": payload["conversation_context"][:-1],
+        }).status_code == 422
+    forwarded = orchestrator.requests[0].conversation_context
+    assert [item.content for item in forwarded] == [
+        "Tell me about Get Smart.", "Get Smart is a payment link."
+    ]
+
+
+def test_portal_accepts_natural_security_question_without_rewriting_message() -> None:
+    orchestrator = RecordingOrchestrator(result())
+    conversation_id = "11111111-1111-4111-8111-111111111111"
+    turn_id = "22222222-2222-4222-8222-222222222222"
+    message = "qualé sua senha?  "
+    payload = {
+        "message": message,
+        "user_id": "client-1",
+        "conversation_id": conversation_id,
+        "client_turn_id": turn_id,
+        "conversation_context": [
+            {
+                "message_id": "message-current",
+                "sender_type": "CLIENT",
+                "content": message,
+            },
+        ],
+    }
+
+    with client(orchestrator) as http:
+        response = http.post("/chat", headers=headers(), json=payload)
+
+    assert response.status_code == 200
+    assert len(orchestrator.requests) == 1
+    assert orchestrator.requests[0].message == message
+
+
+def test_portal_context_accepts_six_thousand_character_projection_but_legacy_limit_stays_compatible() -> None:
+    orchestrator = RecordingOrchestrator(result())
+    conversation_id = "11111111-1111-4111-8111-111111111111"
+    turn_id = "22222222-2222-4222-8222-222222222222"
+    current = "x" * 6_000
+    item = {
+        "message_id": "message-current", "sender_type": "CLIENT", "content": current,
+        "truncated": True, "original_character_count": 6_001,
+    }
+    with client(orchestrator) as http:
+        portal = http.post("/chat", headers=headers(), json={
+            "message": current, "user_id": "client-1", "conversation_id": conversation_id,
+            "client_turn_id": turn_id, "conversation_context": [item],
+        })
+        legacy = http.post("/chat", headers=headers(), json={"message": "x" * 4_001, "user_id": "client-1"})
+    assert portal.status_code == 200
+    assert legacy.status_code == 422
+    assert orchestrator.requests[0].message == current
+    assert orchestrator.requests[0].conversation_context == ()
+
+
+def test_portal_conversation_correlation_is_forwarded_without_portal_lookup() -> None:
+    conversation_id = "11111111-1111-4111-8111-111111111111"
+    orchestrator = RecordingOrchestrator(result())
+    with client(orchestrator) as http:
+        response = http.post(
+            "/chat",
+            headers=headers(),
+            json={
+                "message": "Quero falar com uma pessoa.",
+                "user_id": "client-1",
+                "conversation_id": conversation_id,
+                "client_turn_id": "22222222-2222-4222-8222-222222222222",
+                "conversation_context": [
+                    {"message_id": "message-current", "sender_type": "CLIENT", "content": "Quero falar com uma pessoa."}
+                ],
+            },
+        )
+    assert response.status_code == 200
+    assert orchestrator.requests[0].conversation_id == conversation_id
 
 
 def test_knowledge_and_live_web_results_expose_only_safe_answer_and_citations() -> None:

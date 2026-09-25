@@ -1,0 +1,5 @@
+{% extends 'admin_portal/base.html' %}
+{% block title %}Dados indisponíveis{% endblock %}
+{% block content %}
+  <section class="security-unavailable" role="status"><h1>Dados de segurança indisponíveis</h1><p>Os dados de segurança estão temporariamente indisponíveis.</p><a href="{% url 'admin-security' %}">Voltar ao painel de segurança</a></section>
+{% endblock %}

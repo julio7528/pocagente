@@ -1,0 +1,85 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atendimentos | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+  <link rel="stylesheet" href="{% static 'support.css' %}">
+  <script src="{% static 'support-live.js' %}" defer></script>
+</head>
+<body class="support-page">
+  <header class="site-header support-header">
+    <a class="brand-link" href="{% url 'support-landing' %}">Getnet Support</a>
+    <span class="header-section">Portal de atendimento</span>
+  </header>
+
+  <main class="support-dashboard" data-live-poll-url="{% url 'support-updates' %}" data-live-version="{{ queue_version }}">
+    {% if messages %}
+      <div class="portal-notices" role="status" aria-live="polite">
+        {% for notice in messages %}<p>{{ notice }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    <div class="support-page-heading">
+      <div>
+        <p class="eyebrow">Fila de trabalho</p>
+        <h1>Atendimentos</h1>
+        <p class="muted">Converse com o cliente na mesma conversa iniciada no portal.</p>
+      </div>
+      <dl class="support-counts" aria-label="Resumo dos atendimentos">
+        <div><dt>Chats abertos</dt><dd>{{ open_count }}</dd></div>
+        <div><dt>Chats finalizados</dt><dd>{{ finalized_count }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="support-queues">
+      <section class="queue-section" aria-labelledby="waiting-title">
+        <div class="queue-heading"><h2 id="waiting-title">Aguardando atendimento</h2><span>{{ waiting_handoffs|length }}</span></div>
+        <ul class="queue-list">
+          {% for item in waiting_handoffs %}
+            <li>
+              <a href="{% url 'support-conversation' item.conversation_id %}">
+                <strong>{{ item.conversation.title }}</strong>
+                <span>Solicitado {{ item.requested_at|date:'d/m/Y H:i' }}</span>
+              </a>
+            </li>
+          {% empty %}<li class="queue-empty">Nenhum atendimento aguardando.</li>{% endfor %}
+        </ul>
+      </section>
+
+      <section class="queue-section" aria-labelledby="active-title">
+        <div class="queue-heading"><h2 id="active-title">Meus atendimentos ativos</h2><span>{{ active_handoffs|length }}</span></div>
+        <ul class="queue-list">
+          {% for item in active_handoffs %}
+            <li>
+              <a href="{% url 'support-conversation' item.conversation_id %}">
+                <strong>{{ item.conversation.title }}</strong>
+                <span>Última atividade {{ item.conversation.updated_at|date:'d/m/Y H:i' }}</span>
+              </a>
+            </li>
+          {% empty %}<li class="queue-empty">Você não possui atendimentos ativos.</li>{% endfor %}
+        </ul>
+      </section>
+
+      <section class="queue-section" aria-labelledby="closed-title">
+        <div class="queue-heading"><h2 id="closed-title">Finalizados</h2><span>{{ finalized_handoffs|length }}</span></div>
+        <ul class="queue-list">
+          {% for item in finalized_handoffs %}
+            <li>
+              <a href="{% url 'support-conversation' item.conversation_id %}">
+                <strong>{{ item.conversation.title }}</strong>
+                <span>Finalizado {{ item.resolved_at|date:'d/m/Y H:i' }}</span>
+              </a>
+            </li>
+          {% empty %}<li class="queue-empty">Nenhum atendimento finalizado.</li>{% endfor %}
+        </ul>
+      </section>
+    </div>
+  </main>
+  <footer class="site-footer support-footer">
+    <span>Getnet Support · Atendimento</span>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sair</button></form>
+  </footer>
+</body>
+</html>

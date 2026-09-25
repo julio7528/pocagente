@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Serviço temporariamente indisponível | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+</head>
+<body>
+  <header class="site-header">Getnet Support</header>
+  <main class="auth-shell">
+    <section class="card" role="alert">
+      <h1>Não foi possível abrir suas conversas</h1>
+      <p>Tente novamente em instantes. Sua mensagem anterior permanece registrada se o envio foi concluído.</p>
+      <a class="button-link" href="{% url 'client-landing' %}">Tentar novamente</a>
+    </section>
+  </main>
+  <footer class="site-footer">Portal Getnet Support</footer>
+</body>
+</html>

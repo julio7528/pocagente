@@ -242,8 +242,13 @@ class ChallengeEvaluationRunner:
         before = runtime.observer.snapshot()
         primary_position = runtime.observer.snapshot_sequence_position()
         audit_before = len(runtime.audit_sink.events)
+        caller_role = "SUPPORT_AGENT" if scenario.expected_tools else "CLIENT"
         response = client.post(
-            "/chat", headers=runtime.headers(user_id=self._suite.suite.defaults.user_id, ops=bool(scenario.expected_tools)),
+            "/chat", headers=runtime.headers(
+                user_id=self._suite.suite.defaults.user_id,
+                role=caller_role,
+                ops=bool(scenario.expected_tools),
+            ),
             json=self._body_for(scenario),
         )
         primary_counts = ChallengeInvocationObserver.delta(before, runtime.observer.snapshot())
@@ -294,14 +299,27 @@ class ChallengeEvaluationRunner:
         conversation = f"evaluation-{scenario.id}"
         total_before = runtime.observer.snapshot()
         turns: list[ChallengeTurnObservation] = []
+        authorized_before = runtime.observer.snapshot()
+        authorized_body = self._body_for(scenario)
+        authorized_body["user_id"] = "support-1"
+        authorized = client.post(
+            "/chat",
+            headers=runtime.headers(user_id="support-1", role="SUPPORT_AGENT", ops=True),
+            json=authorized_body,
+        )
+        authorized_payload = authorized.json()
+        authorized_counts = ChallengeInvocationObserver.delta(
+            authorized_before, runtime.observer.snapshot()
+        )
         first_before = runtime.observer.snapshot()
-        first = client.post("/chat", headers=runtime.headers(user_id=user, ops=True), json={
-            **self._body_for(scenario, message=scenario.turns[0].user_message),
+        first = client.post("/chat", headers=runtime.headers(user_id=user, ops=False), json={
+            "message": scenario.turns[0].user_message,
+            "user_id": user,
             "human_context": {"conversation_id": conversation, "current_state": "BOT", "action": "OFFER", "reason": "UNRESOLVED_REQUEST"},
         }).json()
         first_counts = ChallengeInvocationObserver.delta(first_before, runtime.observer.snapshot())
         turns.append(self._turn(1, "CLIENT", first, first_counts))
-        handoff = self._handoff(conversation, first)
+        handoff = self._handoff(conversation, authorized_payload)
         second_before = runtime.observer.snapshot()
         second = client.post("/chat", headers=runtime.headers(user_id=user), json={
             "message": scenario.turns[1].user_message, "user_id": user,
@@ -352,8 +370,8 @@ class ChallengeEvaluationRunner:
             assigned_operator_resolution_succeeded=resolved.get("human", {}).get("state") == "RESOLVED",
             handoff_context_safe=self._handoff_safe(second.get("human", {}).get("handoff")),
         )
-        tools = self._tool_observation(scenario, first_counts)
-        fact_inference = self._fact_inference_observation(first, first_counts)
+        tools = self._tool_observation(scenario, authorized_counts)
+        fact_inference = self._fact_inference_observation(authorized_payload, authorized_counts)
         forbidden = self._forbidden_observation(
             scenario,
             first_counts,
@@ -366,7 +384,11 @@ class ChallengeEvaluationRunner:
         )
         authorization = ChallengeAuthorizationObservation(
             applicable=True,
-            authorized_request_succeeded=first_counts.ops_lookup_protocol_status == 1 and first_counts.ops_inspect_execution_failure == 1,
+            authorized_request_succeeded=(
+                authorized.status_code == 200
+                and authorized_counts.ops_lookup_protocol_status == 1
+                and authorized_counts.ops_inspect_execution_failure == 1
+            ),
             unauthorized_request_checked=True,
             unauthorized_repository_calls=denied_counts.ops_lookup_protocol_status + denied_counts.ops_inspect_execution_failure,
             unauthorized_access_blocked=(
@@ -397,7 +419,8 @@ class ChallengeEvaluationRunner:
             and turns[3].invocation_counts.ops_inspect_execution_failure == 0
             and turns[3].invocation_counts.interpretation_provider == 0
             and human.operator_authorization_rejected and human.wrong_operator_ownership_preserved and human.assigned_operator_resolution_succeeded
-            and first_counts.ops_lookup_protocol_status == 1 and first_counts.ops_inspect_execution_failure == 1
+            and authorized_counts.ops_lookup_protocol_status == 1
+            and authorized_counts.ops_inspect_execution_failure == 1
             and first_counts.web == 0 and human.handoff_context_safe
             and tools.expected_tools_satisfied and tools.unexpected_tools_absent
             and fact_inference.separated is True and forbidden.respected

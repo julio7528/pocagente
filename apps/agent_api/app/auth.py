@@ -6,7 +6,7 @@ import hmac
 import os
 from enum import StrEnum
 
-from fastapi import HTTPException, Request, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 
@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, f
 class PrincipalRole(StrEnum):
     CLIENT = "CLIENT"
     SUPPORT_AGENT = "SUPPORT_AGENT"
+    ADMIN = "ADMIN"
 
 
 class ServiceAuthConfig(BaseModel):
@@ -83,3 +84,18 @@ async def authenticate_internal_service(
         role=PrincipalRole(role_value),
         can_read_operational_facts=ops_value == "true",
     )
+
+
+async def authenticate_internal_admin(
+    request: Request,
+    principal: AuthenticatedPrincipal = Depends(authenticate_internal_service),
+) -> AuthenticatedPrincipal:
+    """Require a trusted ADMIN principal with an explicitly false OPS claim."""
+
+    ops_header = request.headers.get("x-ops-authorized", "").strip().lower()
+    if principal.role is not PrincipalRole.ADMIN or ops_header != "false":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ADMIN_AUDIT_ACCESS_FORBIDDEN",
+        )
+    return principal

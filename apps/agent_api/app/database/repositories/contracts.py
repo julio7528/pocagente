@@ -23,6 +23,15 @@ from apps.agent_api.app.database.models import (
     OperationalAnalyticsQuery,
     OperationalAnalyticsResult,
 )
+from apps.agent_api.app.security.dashboard_models import (
+    SecurityDashboardBreakdowns,
+    SecurityDashboardDay,
+    SecurityDashboardEventDetail,
+    SecurityDashboardEventPage,
+    SecurityDashboardFilters,
+    SecurityDashboardPage,
+    SecurityDashboardSummary,
+)
 from apps.agent_api.app.rag.models import SearchCandidate
 from apps.agent_api.app.rag.scope import KnowledgeScope
 
@@ -224,6 +233,32 @@ class AuditRepositoryContract(Protocol):
         self,
         event_id: int,
     ) -> SecurityEventRecord | None: ...
+
+    async def get_dashboard_summary(
+        self,
+        filters: SecurityDashboardFilters,
+    ) -> SecurityDashboardSummary: ...
+
+    async def get_dashboard_timeseries(
+        self,
+        filters: SecurityDashboardFilters,
+    ) -> tuple[SecurityDashboardDay, ...]: ...
+
+    async def get_dashboard_event_detail(
+        self,
+        event_id: int,
+    ) -> SecurityDashboardEventDetail | None: ...
+
+    async def get_dashboard_breakdowns(
+        self,
+        filters: SecurityDashboardFilters,
+    ) -> SecurityDashboardBreakdowns: ...
+
+    async def list_dashboard_events(
+        self,
+        filters: SecurityDashboardFilters,
+        page: SecurityDashboardPage,
+    ) -> SecurityDashboardEventPage: ...
 
     async def list_security_events_by_request_reference(
         self,

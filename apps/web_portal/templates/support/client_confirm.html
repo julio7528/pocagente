@@ -1,0 +1,28 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirmar atendimento humano | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+</head>
+<body>
+  <header class="site-header"><a class="brand-link" href="{% url 'chat-detail' conversation.id %}">Getnet Support</a></header>
+  <main class="auth-shell">
+    <section class="card confirmation-card" aria-labelledby="confirm-title">
+      <p class="eyebrow">{{ conversation.title }}</p>
+      <h1 id="confirm-title">Solicitar atendimento humano?</h1>
+      <p class="muted">A conversa será encaminhada para a fila de atendimento. Você poderá continuar escrevendo aqui enquanto aguarda. As respostas automáticas ficarão pausadas.</p>
+      <form method="post" action="{% url 'support-request-human' conversation.id %}">
+        {% csrf_token %}
+        <div class="confirmation-actions">
+          <a class="secondary-link" href="{% url 'chat-detail' conversation.id %}">Voltar à conversa</a>
+          <button type="submit">Confirmar solicitação</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  <footer class="site-footer">Portal Getnet Support</footer>
+</body>
+</html>

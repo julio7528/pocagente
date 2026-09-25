@@ -1,0 +1,24 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ area_name }} | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+</head>
+<body>
+  <header class="site-header"><span>Getnet Support</span></header>
+  <main class="auth-shell">
+    <section class="card" aria-labelledby="area-title">
+      <h1 id="area-title">{{ area_name }}</h1>
+      <p class="muted">Esta área protegida será detalhada em uma etapa posterior da Phase 12.</p>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit">Sair</button>
+      </form>
+    </section>
+  </main>
+  <footer class="site-footer">Portal Getnet Support</footer>
+</body>
+</html>

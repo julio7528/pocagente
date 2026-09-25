@@ -58,6 +58,11 @@ OPERATIONAL_METHODS = {
 AUDIT_METHODS = {
     "write_sanitized_security_event",
     "get_security_event",
+    "get_dashboard_summary",
+    "get_dashboard_timeseries",
+    "get_dashboard_event_detail",
+    "get_dashboard_breakdowns",
+    "list_dashboard_events",
     "list_security_events_by_request_reference",
     "list_unreviewed_security_events",
     "update_security_event_review",

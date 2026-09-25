@@ -745,18 +745,135 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 
 
-12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL               PRÓXIMO (NÃO INICIADO)
+12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL
+   OWNER APPROVED / IMPLEMENTATION IN PROGRESS
+   12.1 COMPLETED / OWNER APPROVED; 12.2 COMPLETED; 12.3 COMPLETED; 12.4 COMPLETED; 12.5 COMPLETED; 12.6 COMPLETED; 12.7 COMPLETED; 12.8 COMPLETED; 12.9 COMPLETED; 12.10 COMPLETED; 12.11 COMPLETED; 12.12 COMPLETED; 12.13 COMPLETED; 12.14 COMPLETE; 12.15 NEXT
 
+   Authority: docs/specs/phase-12/00-phase-12-spec.md and linked specs.
+   Architecture: apps/agent_api remains FastAPI; apps/web_portal is Django BFF.
+   Schemas: portal owns web state; rag, ops and audit ownership is preserved.
 
-    Django
-       ↓
-    FastAPI
-       ↓
-    LangGraph
-       ↓
-    RAG / OPS / Audit / Tavily
+12.1 SDD FOUNDATION E ARQUITETURA WEB
+     CONCLUÍDO / OWNER APPROVED
+     - owner review and approval gate before implementation
+     - browser -> Django -> authenticated internal FastAPI boundary
+     - Django/FastAPI ownership, module structure, scope and invariants
 
+12.2 ESTRUTURA DO SERVIÇO DJANGO
+     CONCLUÍDO
+     - apps/web_portal modular config/accounts/conversations/support/admin_portal/integrations
+     - settings, URL composition, templates, static assets and service health
+     - no agent, Router, RAG or OPS logic duplicated
 
+12.3 SCHEMA PORTAL E MODELO DE DADOS WEB
+     CONCLUIDO
+     - native migration 0007 creates only the portal schema
+     - custom UUID User and five portal application models were migrated explicitly
+     - Django framework tables resolve inside portal; RAG/OPS/AUDIT data is preserved
+     - constraints, lifecycle, indexes and PostgreSQL validation passed
+
+12.4 USUÁRIOS, AUTENTICAÇÃO E RBAC
+     CONCLUÍDO / DEPENDE DE 12.3
+     - ADMIN / CLIENT / SUPPORT_AGENT identity; is_active is the account access gate
+     - ADMIN-only account service, normalized login, password hashing and session revocation
+     - protected bootstrap_admin and concurrency-safe last-active-ADMIN guard
+     - reusable route/object authorization and role-gated read-only technical Django Admin
+
+12.5 LOGIN, SESSÃO E CONTROLE DE ACESSO
+     CONCLUÍDO / DEPENDE DE 12.4
+     - server-derived CLIENT / SUPPORT_AGENT / ADMIN landing routes and strict HTTP 403 role separation
+     - CSRF-protected login/logout, generic credential failures and session fixation protection
+     - 30-minute inactivity plus independent eight-hour absolute session lifetime
+     - inactive/role/password revocation defense and environment-driven secure cookie policy
+     - no registration, Remember Me or unfinished Forgot Password control
+
+12.6 PERSISTÊNCIA DE CONVERSAS E MENSAGENS
+     CONCLUÍDO / DEPENDE DE 12.3-12.5
+     - atomic conversation/first-turn creation and immutable same-thread transcript services
+     - conversation-scoped CLIENT idempotency and deterministic at-most-one AGENT persistence
+     - provider-neutral same-conversation context: 12 prior messages and 6,000 characters
+     - explicit oversized-current context truncation while preserving the complete persisted message
+     - lifecycle write enforcement, owned queries and cross-conversation isolation
+
+12.7 PORTAL DO CLIENTE / CHAT
+     CONCLUÍDO / DEPENDE DE 12.6
+     - login-protected client chat, new conversation and owned full history
+     - ACTIVE, WAITING_HUMAN and HUMAN message entry; BLOCKED/CLOSED read-only; DELETED hidden
+     - CSRF-protected idempotent forms, responsive accessible templates and safe pending/failure states
+     - general agent transport was deferred to Phase 12.13 and is now implemented there
+
+12.8 HUMAN ESCALATION E PORTAL DO SUPPORT_AGENT
+     CONCLUÍDO / DEPENDE DE 12.6-12.7
+     - reuse FastAPI Human Escalation transitions
+     - narrow trusted FastAPI transition transport for confirmation, claim and resolution
+     - WAITING queue, atomic single-agent claim and assigned conversations
+     - same-thread human messages, automation suspension and finalization
+     - HTTP polling initially; no WebSocket requirement
+
+12.9 ADMINISTRAÇÃO DE USUÁRIOS
+     CONCLUÍDO / DEPENDE DE 12.4-12.5
+     - user list/search/create/activate/block/role/password workflows
+     - protect last active ADMIN; prefer deactivation to physical deletion
+
+12.10 DASHBOARD DE SEGURANÇA
+      CONCLUÍDO / API INTERNA AUDIT READ-ONLY AUTORIZADA NESTA ETAPA
+      - ADMIN-only dashboard from audit.security_events
+      - internal FastAPI/AuditRepository typed read API
+      - date, event type, source and supported user filters; charts and events
+      - Django does not query audit directly
+
+12.11 ADMINISTRAÇÃO DE CONVERSAS
+      CONCLUÍDO / DEPENDE DE 12.6 E 12.9
+      - bounded search, filters, pagination, safe metadata and full transcript inspection
+      - transactional block/unblock preserves valid prior state and HUMAN assignment
+      - soft-delete records ADMIN actor/time and retains conversation, messages and handoff
+      - active WAITING_HUMAN/HUMAN handoffs cannot be soft-deleted
+
+12.12 FLUXO DE RECUPERAÇÃO DE SENHA
+      CONCLUÍDO / DEPENDE DE 12.9
+      - generic non-enumerating public request confirmation
+      - ADMIN OPEN queue with bounded filters/pagination and terminal RESOLVED/REJECTED actions
+      - Phase 12.4 password service hashes new credentials and revokes target sessions
+      - PostgreSQL concurrency proves one terminal winner; no email, token, or plaintext persistence
+
+12.13 INTEGRAÇÃO DJANGO  FASTAPI
+      COMPLETED / VALIDATED / DEPENDE DE 12.2, 12.4, 12.6 E 12.8
+      - authenticated /chat with typed same-conversation context and turn correlation
+      - trusted identity/role and policy-derived OPS authorization
+      - general agent execution; narrow AUDIT and Human Escalation boundaries remain owned by 12.10 and 12.8
+      - bounded timeout/retry behavior, idempotency, stale-state checks and safe result persistence
+      - full regression, isolated PostgreSQL, Django checks, Docker readiness and security scans passed
+
+12.14 TESTES DE SEGURANÇA / AUTORIZAÇÃO / E2E
+      COMPLETE / VALIDATION PASSED
+      - route/object/CSRF/session and trusted-claim forgery matrix
+      - concurrent handoff claim and HUMAN automation suspension
+      - complete client -> AI -> support -> finalized client history journey
+      - AUDIT/dashboard sanitization and no-secret checks
+      - 36 protected routes and 21 browser mutation routes covered by security matrices
+      - isolated PostgreSQL Django suite: 189 tests passed; full pytest: 922 passed, 37 skipped, 1 known warning
+      - no migration drift; Docker configuration valid; agent-api healthy and /ready returned HTTP 200
+      - no Phase 12.15 implementation started
+
+12.15 DOCKER COM DJANGO
+      NEXT / NÃO INICIADO / DEPENDE DA CONCLUSÃO DE 12.14
+      - future postgres + agent-api + web-portal topology
+      - preserve current PostgreSQL service, named volume and data
+      - private internal calls, runtime secrets, health and explicit migrations
+      - restart and down/up persistence proof; never use down -v
+
+12.16 VALIDAÇÃO FINAL DA PHASE 12
+      NÃO INICIADO / DEPENDE DE 12.14-12.15
+      - full project and Phase 9-11 regressions
+      - PostgreSQL, security, dependency, container and performance checks
+      - complete 100-requirement traceability with passing evidence
+      - resolve all acceptance failures before closure
+
+12.17 DOCUMENTAÇÃO / DECISION LOG / CLOSURE
+      NÃO INICIADO / OWNER REVIEW REQUIRED
+      - update project-context and append approved Decision Log record
+      - reconcile roadmap and Phase 12 SDD with actual implementation
+      - owner reviews evidence and explicitly approves Phase 12 closure
 
 
 13. TESTES E ENTREGA DA POC                            ⏳

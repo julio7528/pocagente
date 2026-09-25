@@ -1,0 +1,5 @@
+{% extends 'admin_portal/base.html' %}
+{% block title %}Evento indisponível{% endblock %}
+{% block content %}
+  <section class="security-unavailable" role="status"><h1>Evento não encontrado</h1><p>Este registro não está disponível.</p><a href="{% url 'admin-security' %}">Voltar ao painel de segurança</a></section>
+{% endblock %}

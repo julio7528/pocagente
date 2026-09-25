@@ -7,6 +7,7 @@ import asyncio
 import pytest
 
 from apps.agent_api.app.agents.semantic_classifier import ProviderSemanticIntentClassifier
+from apps.agent_api.app.agents.conversation_context import ConversationContextMessage, ConversationSender
 from apps.agent_api.app.agents.semantic_routing import SemanticClassifierError, SemanticIntent
 from apps.agent_api.app.composition import compose_runtime
 from apps.agent_api.app.llm.errors import LLMProviderTimeoutError
@@ -51,7 +52,7 @@ def test_classifier_uses_one_bounded_neutral_provider_request() -> None:
     assert request.response_format == "json_object"
     assert request.reasoning_enabled is False
     prompt = request.messages[0].content
-    assert len(prompt) < 2_200
+    assert len(prompt) < 3_000
     assert "PUBLIC_GETNET_KNOWLEDGE" in prompt
     assert "Currentness beats model memory" in prompt
     assert "INTERNAL_KNOWLEDGE" in prompt and "documented internal process" in prompt
@@ -62,6 +63,7 @@ def test_classifier_uses_one_bounded_neutral_provider_request() -> None:
     assert "DIRECT_GENERAL" in prompt
     assert "standard technology definitions" in prompt
     assert "Getnet as a company" in prompt
+    assert "Get Smart and Get" in prompt and "are Getnet products" in prompt
     assert "ordinary typos" in prompt
     assert "high-confidence" in prompt
     assert "payment-terminal problems/replacement" in prompt
@@ -77,6 +79,32 @@ def test_classifier_parses_structured_internal_and_ops_needs() -> None:
     )
     result = asyncio.run(ProviderSemanticIntentClassifier(provider).classify("how to reprocess case"))
     assert [need.value for need in result.capability_needs] == ["INTERNAL_KNOWLEDGE", "OPERATIONAL_FACTS"]
+
+
+def test_classifier_receives_bounded_history_as_untrusted_reference_for_follow_up():
+    provider = ProviderDouble('{"schema_version":"1.0","intent":"PUBLIC_GETNET_KNOWLEDGE"}')
+    context = (
+        ConversationContextMessage(
+            message_id="prior-client", sender_type=ConversationSender.CLIENT,
+            content="Tell me about Get Smart.",
+        ),
+        ConversationContextMessage(
+            message_id="prior-agent", sender_type=ConversationSender.AGENT,
+            content="Get Smart is a Getnet payment link.",
+        ),
+    )
+
+    result = asyncio.run(ProviderSemanticIntentClassifier(provider).classify(
+        "And how much does it cost?", conversation_context=context
+    ))
+
+    assert result.intent is SemanticIntent.PUBLIC_GETNET_KNOWLEDGE
+    assert provider.requests[0].messages[1].role == "user"
+    assert "resolve a clear elliptical follow-up" in provider.requests[0].messages[0].content
+    assert "CURRENT_PUBLIC_INFORMATION), not AMBIGUOUS" in provider.requests[0].messages[0].content
+    assert "Tell me about Get Smart." in provider.requests[0].messages[1].content
+    assert "Get Smart is a Getnet payment link." in provider.requests[0].messages[1].content
+    assert "And how much does it cost?" in provider.requests[0].messages[1].content
 
 
 @pytest.mark.parametrize(

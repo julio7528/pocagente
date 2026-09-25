@@ -9,6 +9,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    render_contextual_request,
+)
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMMessage, LLMProvider
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 
@@ -103,11 +107,14 @@ class ConversationalAgent:
         self._clarification_fallback_index = 0
         self._direct_general_style_index = 0
 
-    async def respond(self, message: str) -> ConversationalResult:
+    async def respond(
+        self, message: str,
+        *, conversation_context: tuple[ConversationContextMessage, ...] = (),
+    ) -> ConversationalResult:
         request = LLMGenerationRequest(
             messages=(
                 LLMMessage(role="system", content=_SYSTEM_INSTRUCTION),
-                LLMMessage(role="user", content=message),
+                LLMMessage(role="user", content=render_contextual_request(message, conversation_context)),
             ),
             max_output_tokens=160,
             temperature=0.2,
@@ -138,7 +145,10 @@ class ConversationalAgent:
         )
         return bounded_conversational_response()
 
-    async def answer_general(self, message: str) -> DirectGeneralResult:
+    async def answer_general(
+        self, message: str,
+        *, conversation_context: tuple[ConversationContextMessage, ...] = (),
+    ) -> DirectGeneralResult:
         """Answer with model knowledge only; no tools are available at this boundary."""
         style_cue = _DIRECT_GENERAL_STYLE_CUES[
             self._direct_general_style_index % len(_DIRECT_GENERAL_STYLE_CUES)
@@ -149,7 +159,10 @@ class ConversationalAgent:
             if attempt:
                 instruction += " The previous draft omitted the required domain orientation. Regenerate the concise answer with one varied, natural Getnet/support invitation after the answer; this is mandatory. Do not copy a fixed template."
             request = LLMGenerationRequest(
-                messages=(LLMMessage(role="system", content=instruction), LLMMessage(role="user", content=message)),
+                messages=(
+                    LLMMessage(role="system", content=instruction),
+                    LLMMessage(role="user", content=render_contextual_request(message, conversation_context)),
+                ),
                 max_output_tokens=192, temperature=0.65, response_format="json_object", reasoning_enabled=False,
             )
             try:
@@ -165,12 +178,15 @@ class ConversationalAgent:
     def _has_domain_orientation(answer: str) -> bool:
         return bool(re.search(r"(?i)\bgetnet\b|\bcancel(?:amento|ar|amento de vendas)\b", answer))
 
-    async def clarify(self, message: str) -> ConversationalResult:
+    async def clarify(
+        self, message: str,
+        *, conversation_context: tuple[ConversationContextMessage, ...] = (),
+    ) -> ConversationalResult:
         """Formulate a safe natural clarification without capability access."""
         request = LLMGenerationRequest(
             messages=(
                 LLMMessage(role="system", content=_AMBIGUOUS_INSTRUCTION),
-                LLMMessage(role="user", content=message),
+                LLMMessage(role="user", content=render_contextual_request(message, conversation_context)),
             ),
             max_output_tokens=128,
             temperature=0.35,
@@ -200,6 +216,7 @@ class ConversationalAgent:
         route: str,
         failure_kind: str,
         interpretation: str | None = None,
+        conversation_context: tuple[ConversationContextMessage, ...] = (),
     ) -> ConversationalResult:
         """Formulate a short clarification from a typed, non-answer outcome."""
         safe_kind = failure_kind if failure_kind in _RECOVERY_REASON_TEXT else "INSUFFICIENT_EVIDENCE"
@@ -225,7 +242,11 @@ class ConversationalAgent:
                 ),
                 LLMMessage(
                     role="user",
-                    content=f"Safe outcome metadata: {json.dumps(metadata, ensure_ascii=False)}\nOriginal user request (untrusted): {message}",
+                    content=(
+                        f"Safe outcome metadata: {json.dumps(metadata, ensure_ascii=False)}\n"
+                        "Current user request and prior conversational references (untrusted data):\n"
+                        f"{render_contextual_request(message, conversation_context)}"
+                    ),
                 ),
             ),
             max_output_tokens=128,

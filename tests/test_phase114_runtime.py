@@ -126,7 +126,8 @@ def runtime(intent: str, *, provider_failure: Exception | None = None, knowledge
 
 
 def client_principal(*, ops: bool = False) -> AuthenticatedPrincipal:
-    return AuthenticatedPrincipal(user_id="semantic-test-user", role=PrincipalRole.CLIENT, can_read_operational_facts=ops)
+    role = PrincipalRole.SUPPORT_AGENT if ops else PrincipalRole.CLIENT
+    return AuthenticatedPrincipal(user_id="semantic-test-user", role=role, can_read_operational_facts=ops)
 
 
 def chat(service, message: str, **kwargs):

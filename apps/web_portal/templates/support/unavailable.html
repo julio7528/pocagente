@@ -1,0 +1,20 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atendimento indisponível | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+  <link rel="stylesheet" href="{% static 'support.css' %}">
+</head>
+<body>
+  <header class="site-header"><a class="brand-link" href="{% url 'support-landing' %}">Getnet Support</a></header>
+  <main class="auth-shell"><section class="card">
+    <h1>Atendimento temporariamente indisponível</h1>
+    <p class="muted">Não foi possível carregar esta área agora. Atualize a página em instantes.</p>
+    <a class="secondary-link" href="{% url 'support-landing' %}">Voltar à fila</a>
+  </section></main>
+  <footer class="site-footer">Getnet Support · Atendimento</footer>
+</body>
+</html>

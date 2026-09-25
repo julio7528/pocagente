@@ -17,6 +17,10 @@ from apps.agent_api.app.agents.customer_support import (
     CustomerSupportStatus,
 )
 from apps.agent_api.app.agents.conversational import ConversationalAgent, ConversationalResult, DirectGeneralResult, bounded_conversational_response
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    validate_context_window,
+)
 from apps.agent_api.app.agents.knowledge import KnowledgeRequest, KnowledgeResult, KnowledgeResultStatus
 from apps.agent_api.app.agents.human_escalation import (
     HumanEscalationAction,
@@ -68,6 +72,7 @@ class WebKnowledgeCapability(Protocol):
     async def answer(
         self, question: str, *, knowledge_scope: KnowledgeScope = KnowledgeScope.NONE,
         search_query: str | None = None,
+        conversation_context: tuple[ConversationContextMessage, ...] = (),
     ) -> KnowledgeResult:
         """Return a typed result based on non-persistent live web evidence."""
 
@@ -110,11 +115,21 @@ class OrchestrationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     message: str = Field(min_length=1)
+    # Opaque request correlation only; never an authority claim or portal lookup.
+    conversation_id: str | None = Field(default=None, min_length=1, max_length=128)
     ops_access_context: OpsAccessContext | None = None
     customer_support_context: CustomerSupportContext | None = None
     analytics_grain_context: Literal["PROTOCOL", "EXECUTION", "EVENT"] | None = None
     human_escalation_request: HumanEscalationRequest | None = None
     security_audit_context: SecurityAuditContext | None = None
+    conversation_context: tuple[ConversationContextMessage, ...] = Field(
+        default=(), max_length=12
+    )
+
+    @model_validator(mode="after")
+    def context_is_bounded_data(self) -> OrchestrationRequest:
+        validate_context_window(self.conversation_context)
+        return self
 
 
 class OrchestrationStatus(StrEnum):
@@ -343,6 +358,7 @@ class LangGraphOrchestrator:
         request = state["request"]
         router_request = RouterRequest(
             message=request.message,
+            conversation_context=request.conversation_context,
             protocol_context=(
                 request.customer_support_context.protocol_number
                 if request.customer_support_context is not None else None
@@ -420,7 +436,12 @@ class LangGraphOrchestrator:
             formulate = getattr(self._customer_support_agent, "formulate_internal_knowledge_query", None)
             if formulate is not None:
                 try:
-                    formulated = await formulate(question, state.get("customer_support_result"))
+                    formulated = await formulate(
+                        question,
+                        state.get("customer_support_result"),
+                        **({"conversation_context": state["request"].conversation_context}
+                           if state["request"].conversation_context else {}),
+                    )
                 except Exception:
                     formulated = None
                 if isinstance(formulated, str) and formulated.strip():
@@ -430,6 +451,7 @@ class LangGraphOrchestrator:
                 KnowledgeRequest(
                     question=question,
                     knowledge_scope=state["knowledge_scope"],
+                    conversation_context=state["request"].conversation_context,
                 )
             )
         except Exception:
@@ -452,7 +474,11 @@ class LangGraphOrchestrator:
         synthesize = getattr(self._customer_support_agent, "synthesize_cooperative", None)
         if support is not None and knowledge is not None and synthesize is not None:
             try:
-                support = await synthesize(state["request"].message, support, knowledge)
+                support = await synthesize(
+                    state["request"].message, support, knowledge,
+                    **({"conversation_context": state["request"].conversation_context}
+                       if state["request"].conversation_context else {}),
+                )
             except Exception:
                 pass
         return {"customer_support_result": support} if support is not None else {}
@@ -463,7 +489,10 @@ class LangGraphOrchestrator:
         if self._conversational_agent is None:
             result = bounded_conversational_response()
         else:
-            result = await self._conversational_agent.respond(state["request"].message)
+            result = await self._conversational_agent.respond(
+                state["request"].message,
+                conversation_context=state["request"].conversation_context,
+            )
         emit_runtime_event(
             RuntimeEventKind.CAPABILITY,
             name="ConversationalAgent",
@@ -488,13 +517,18 @@ class LangGraphOrchestrator:
             search_query = retrieval_result.retrieval_query if retrieval_result is not None else None
             if search_query is None:
                 result = await self._web_knowledge_agent.answer(
-                    state["request"].message, knowledge_scope=state["knowledge_scope"]
+                    state["request"].message,
+                    knowledge_scope=state["knowledge_scope"],
+                    **({"conversation_context": state["request"].conversation_context}
+                       if state["request"].conversation_context else {}),
                 )
             else:
                 result = await self._web_knowledge_agent.answer(
                     state["request"].message,
                     knowledge_scope=state["knowledge_scope"],
                     search_query=search_query,
+                    **({"conversation_context": state["request"].conversation_context}
+                       if state["request"].conversation_context else {}),
                 )
         except Exception:
             result = KnowledgeResult(
@@ -543,6 +577,7 @@ class LangGraphOrchestrator:
                     authorization=authorization,
                     run_id=context.run_id if follow_up_context_applies else None,
                     analytics_grain_context=state["request"].analytics_grain_context,
+                    conversation_context=state["request"].conversation_context,
                 )
             )
         except Exception:
@@ -608,7 +643,10 @@ class LangGraphOrchestrator:
         if state["routing_decision"].reason != "SEMANTIC_AMBIGUOUS":
             return {"status": OrchestrationStatus.AMBIGUOUS, "reason": state["routing_decision"].reason}
         message = state["request"].message
-        response = await self._conversational_agent.clarify(message) if self._conversational_agent is not None else ConversationalResult(answer="Não consegui entender exatamente o que você quer. Pode me dar um pouco mais de contexto?", reason="BOUNDED_CONVERSATIONAL_RESPONSE")
+        response = await self._conversational_agent.clarify(
+            message,
+            conversation_context=state["request"].conversation_context,
+        ) if self._conversational_agent is not None else ConversationalResult(answer="Não consegui entender exatamente o que você quer. Pode me dar um pouco mais de contexto?", reason="BOUNDED_CONVERSATIONAL_RESPONSE")
         return {
             "status": OrchestrationStatus.AMBIGUOUS,
             "reason": state["routing_decision"].reason,
@@ -621,7 +659,10 @@ class LangGraphOrchestrator:
         if self._conversational_agent is None:
             result = DirectGeneralResult(status="PROVIDER_ERROR")
         else:
-            result = await self._conversational_agent.answer_general(state["request"].message)
+            result = await self._conversational_agent.answer_general(
+                state["request"].message,
+                conversation_context=state["request"].conversation_context,
+            )
         emit_runtime_event(RuntimeEventKind.CAPABILITY, name="DirectGeneralAgent", value=result.status, elapsed_ms=int((perf_counter() - started_at) * 1000))
         return {"direct_general_result": result}
 
@@ -643,7 +684,9 @@ class LangGraphOrchestrator:
             }
         if request is None:
             request = HumanEscalationRequest(
-                conversation=ConversationReference(conversation_id=f"chat-{uuid4().hex}"),
+                conversation=ConversationReference(
+                    conversation_id=state["request"].conversation_id or f"chat-{uuid4().hex}"
+                ),
                 current_state=HumanEscalationState.BOT,
                 action=HumanEscalationAction.OFFER,
                 reason=HumanEscalationReason.USER_REQUESTED_HUMAN,

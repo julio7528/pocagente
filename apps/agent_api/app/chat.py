@@ -5,12 +5,17 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 from typing import Literal, Protocol
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from apps.agent_api.app.agents.customer_support import CustomerSupportOperation, OperationalQueryPlan
 from apps.agent_api.app.agents.conversational import ConversationalAgent
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    ConversationSender,
+    validate_context_window,
+)
 from apps.agent_api.app.agents.human_escalation import (
     ConversationReference,
     HandoffFact,
@@ -111,20 +116,73 @@ class ChatHumanContext(BaseModel):
 class ChatRequest(BaseModel):
     """Strict challenge-compatible request with narrowly typed optional context."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+    # Preserve the user message text exactly as submitted. Portal history ends
+    # with the same persisted text, and mutating only the request field would
+    # make valid contextual turns fail validation before Security evaluates it.
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
-    message: str = Field(min_length=1, max_length=4000)
+    # Legacy callers retain their historical 4,000-character limit. Portal
+    # callers may send the bounded 6,000-character context projection; the full
+    # original remains owned by the Django transcript.
+    message: str = Field(min_length=1, max_length=6_000)
     user_id: str = Field(min_length=1, max_length=128)
     operational_context: ChatOperationalContext | None = None
     analytics_grain_context: Literal["PROTOCOL", "EXECUTION", "EVENT"] | None = None
     human_context: ChatHumanContext | None = None
+    conversation_id: UUID | None = None
+    conversation_context: tuple[ConversationContextMessage, ...] | None = Field(
+        default=None, max_length=13
+    )
+    client_turn_id: UUID | None = None
 
-    @field_validator("message", "user_id")
+    @field_validator("message")
     @classmethod
-    def value_must_not_be_blank(cls, value: str) -> str:
+    def message_must_not_be_blank(cls, value: str) -> str:
         if not value.strip():
             raise ValueError("value must not be blank")
         return value
+
+    @field_validator("user_id")
+    @classmethod
+    def user_id_is_normalized_and_not_blank(cls, value: str) -> str:
+        # Keep the prior normalization behavior for identity correlation while
+        # leaving natural-language message content untouched.
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("value must not be blank")
+        return normalized
+
+    @model_validator(mode="after")
+    def portal_context_is_complete_and_bounded(self) -> ChatRequest:
+        has_portal_metadata = any((
+            self.conversation_id is not None,
+            self.conversation_context is not None,
+            self.client_turn_id is not None,
+        ))
+        if not has_portal_metadata:
+            if len(self.message) > 4_000:
+                raise ValueError("legacy message exceeds its established limit")
+            return self
+        if (
+            self.conversation_id is None
+            or self.client_turn_id is None
+            or not self.conversation_context
+        ):
+            raise ValueError("portal conversation metadata must be supplied together")
+        try:
+            validate_context_window(self.conversation_context, max_items=13)
+        except ValueError as error:
+            raise ValueError("portal conversation context is invalid") from error
+        current = self.conversation_context[-1]
+        if current.sender_type is not ConversationSender.CLIENT or current.content != self.message:
+            raise ValueError("portal context must end with the current client turn")
+        if current.truncated and len(self.conversation_context) != 1:
+            raise ValueError("an oversized current turn cannot include prior context")
+        if any(item.truncated for item in self.conversation_context[:-1]):
+            raise ValueError("only the current turn may be projected as truncated")
+        if self.human_context is not None and self.human_context.conversation_id != str(self.conversation_id):
+            raise ValueError("human transition correlation must match the portal conversation")
+        return self
 
 
 class ChatCitation(BaseModel):
@@ -374,6 +432,10 @@ class ChatApplicationService:
     ) -> ChatResponse:
         if request.user_id != principal.user_id:
             raise ChatAuthorizationError()
+        if principal.can_read_operational_facts and principal.role is not PrincipalRole.SUPPORT_AGENT:
+            # OPS authorization is an independent server-derived capability;
+            # a CLIENT or ADMIN claim can never gain it through trusted headers.
+            raise ChatAuthorizationError()
         operational = self._operational_context(request, principal)
         human = self._human_context(request.human_context, principal)
         audit_context = SecurityAuditContext(
@@ -384,6 +446,10 @@ class ChatApplicationService:
             result = await self._orchestrator.execute(
                 OrchestrationRequest(
                     message=request.message,
+                    conversation_id=(
+                        str(request.conversation_id)
+                        if request.conversation_id is not None else None
+                    ),
                     ops_access_context=OpsAccessContext(
                         principal_id=principal.user_id,
                         can_read_operational_facts=principal.can_read_operational_facts,
@@ -392,6 +458,10 @@ class ChatApplicationService:
                     analytics_grain_context=request.analytics_grain_context,
                     human_escalation_request=human,
                     security_audit_context=audit_context,
+                    conversation_context=(
+                        request.conversation_context[:-1]
+                        if request.conversation_context is not None else ()
+                    ),
                 )
             )
             security_answer = None

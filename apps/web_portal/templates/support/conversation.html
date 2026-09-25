@@ -1,0 +1,96 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ conversation.title }} | Atendimento</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+  <link rel="stylesheet" href="{% static 'support.css' %}">
+  <script src="{% static 'support-live.js' %}" defer></script>
+</head>
+<body class="support-page">
+  <header class="site-header support-header">
+    <a class="brand-link" href="{% url 'support-landing' %}">Getnet Support</a>
+    <a class="back-link" href="{% url 'support-landing' %}">Voltar à fila</a>
+  </header>
+  <main class="support-thread" {% if can_claim or can_reply %}data-live-poll-url="{% url 'support-conversation-updates' conversation.id %}" data-live-version="{{ live_version }}"{% endif %}>
+    {% if messages %}
+      <div class="portal-notices" role="status" aria-live="polite">
+        {% for notice in messages %}<p>{{ notice }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    <div class="conversation-heading support-thread-heading">
+      <div>
+        <p class="eyebrow">{{ state_label }}</p>
+        <h1>{{ conversation.title }}</h1>
+      </div>
+      <span class="state-badge" role="status">{{ state_label }}</span>
+    </div>
+    <p class="state-description">{{ status_note }}</p>
+
+    {% if can_claim %}
+      <form method="post" action="{% url 'support-claim' conversation.id %}" class="claim-form">
+        {% csrf_token %}
+        <p>Leia o histórico completo antes de assumir este atendimento.</p>
+        <button type="submit">Assumir atendimento</button>
+      </form>
+    {% endif %}
+
+    <ol class="transcript support-transcript" aria-label="Histórico completo da conversa">
+      {% for item in history %}
+        <li class="transcript-item sender-{{ item.sender_type|lower }}">
+          <article class="message-bubble">
+            <div class="message-heading">
+              <span class="sender-label">
+                {% if item.sender_type == 'CLIENT' %}Cliente
+                {% elif item.sender_type == 'AGENT' %}Assistente
+                {% elif item.sender_type == 'SUPPORT_AGENT' %}Atendimento humano
+                {% else %}Aviso{% endif %}
+              </span>
+              <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:'d/m/Y H:i' }}</time>
+            </div>
+            <p class="message-body">{{ item.body }}</p>
+          </article>
+        </li>
+      {% empty %}<li><p class="muted">Esta conversa ainda não tem mensagens.</p></li>{% endfor %}
+    </ol>
+
+    {% if can_reply %}
+      <section class="support-controls" aria-label="Responder e finalizar atendimento">
+        <form method="post" action="{% url 'support-message' conversation.id %}" class="composer" data-submit-once>
+          {% csrf_token %}
+          {{ message_form.support_turn_key }}
+          {% if message_form.non_field_errors %}<div class="form-errors" role="alert">{{ message_form.non_field_errors }}</div>{% endif %}
+          <div class="field">
+            <label for="{{ message_form.body.id_for_label }}">{{ message_form.body.label }}</label>
+            {{ message_form.body }}
+            {% if message_form.body.errors %}<div class="form-errors" role="alert">{{ message_form.body.errors }}</div>{% endif %}
+          </div>
+          <div class="composer-actions">
+            <span class="muted">A resposta será enviada nesta mesma conversa.</span>
+            <button type="submit">Enviar resposta</button>
+          </div>
+          <p class="submit-status" role="status" aria-live="polite" data-submit-status></p>
+        </form>
+        <form method="post" action="{% url 'support-close' conversation.id %}" class="finalize-form">
+          {% csrf_token %}
+          <h2>Finalizar atendimento</h2>
+          <p>Depois de finalizada, a conversa ficará somente para leitura. O cliente poderá iniciar uma nova conversa se precisar de ajuda.</p>
+          <div class="confirmation-field">
+            {{ finalize_form.confirm_finalization }}
+            <label for="{{ finalize_form.confirm_finalization.id_for_label }}">{{ finalize_form.confirm_finalization.label }}</label>
+          </div>
+          <button class="secondary-button" type="submit">Finalizar atendimento</button>
+        </form>
+      </section>
+    {% else %}
+      <p class="read-only-note" role="status">Este histórico está disponível somente para leitura.</p>
+    {% endif %}
+  </main>
+  <footer class="site-footer support-footer">
+    <span>Getnet Support · Atendimento</span>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sair</button></form>
+  </footer>
+</body>
+</html>

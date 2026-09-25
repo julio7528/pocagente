@@ -340,6 +340,23 @@ def test_human_route_preserves_only_deferred_requirement_without_handoff() -> No
     assert support.requests == []
 
 
+def test_portal_human_offer_preserves_opaque_conversation_correlation() -> None:
+    portal_conversation_id = "11111111-1111-4111-8111-111111111111"
+    knowledge, support = RecordingKnowledge(), RecordingSupport()
+    graph = LangGraphOrchestrator(
+        StaticRouter(RouterRoute.HUMAN_ESCALATION), knowledge, support,
+        human_escalation_agent=HumanEscalationAgent(),
+    )
+    result = asyncio.run(graph.execute(OrchestrationRequest(
+        message="I want human support",
+        conversation_id=portal_conversation_id,
+    )))
+    assert result.human_escalation_result is not None
+    assert result.human_escalation_result.state is HumanEscalationState.WAITING_CONFIRMATION
+    assert result.human_escalation_result.conversation.conversation_id == portal_conversation_id
+    assert knowledge.questions == [] and support.requests == []
+
+
 def test_human_route_requires_typed_confirmation_then_authorized_acceptance_and_suspends_automation() -> None:
     conversation = ConversationReference(conversation_id="challenge-014")
     offer = HumanEscalationRequest(

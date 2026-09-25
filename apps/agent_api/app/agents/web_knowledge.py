@@ -19,6 +19,10 @@ from apps.agent_api.app.web.errors import WebSearchError
 from apps.agent_api.app.web.models import WebSearchProvider, WebSearchRequest, WebSearchStatus
 from apps.agent_api.app.telemetry import RuntimeEventKind, emit_runtime_event
 from apps.agent_api.app.agents.search_query_formulation import SearchQueryFormulation
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    validate_context_window,
+)
 
 
 class WebKnowledgeAgent:
@@ -53,11 +57,13 @@ class WebKnowledgeAgent:
         *,
         knowledge_scope: KnowledgeScope = KnowledgeScope.NONE,
         search_query: str | None = None,
+        conversation_context: tuple[ConversationContextMessage, ...] = (),
     ) -> KnowledgeResult:
         """Generate only when live public evidence is available through the controlled boundary."""
 
         if not isinstance(question, str) or not question.strip():
             raise ValueError("web knowledge question cannot be blank")
+        validate_context_window(conversation_context)
         if self._WEATHER_PATTERN.search(question) and not self._LOCATION_PATTERN.search(question):
             emit_runtime_event(
                 RuntimeEventKind.WEB_SEARCH,
@@ -75,7 +81,10 @@ class WebKnowledgeAgent:
         safe_search_query = search_query
         if safe_search_query is None and knowledge_scope is KnowledgeScope.PUBLIC_GETNET and self._query_formulator is not None:
             try:
-                safe_search_query = await self._query_formulator.formulate(question)
+                safe_search_query = await self._query_formulator.formulate(
+                    question,
+                    **({"conversation_context": conversation_context} if conversation_context else {}),
+                )
             except Exception:
                 safe_search_query = None
         try:
@@ -137,6 +146,7 @@ class WebKnowledgeAgent:
                     for item in context.evidence
                 ),
                 available_citation_ids=tuple(item.citation_id for item in context.evidence),
+                conversation_context=conversation_context,
             )
         except (LLMProviderError, GroundedGenerationError) as error:
             return KnowledgeResult(

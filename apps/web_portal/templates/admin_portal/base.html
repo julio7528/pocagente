@@ -1,0 +1,43 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Administração{% endblock %} | Getnet Support</title>
+  <link rel="stylesheet" href="{% static 'portal.css' %}">
+  <link rel="stylesheet" href="{% static 'admin-portal.css' %}">
+</head>
+<body class="admin-page">
+  <header class="site-header admin-header">
+    <a class="brand-link" href="{% url 'admin-overview' %}">Getnet Support</a>
+    <span class="header-section">Administração do portal</span>
+  </header>
+  <div class="admin-layout">
+    <aside class="admin-sidebar" aria-label="Navegação administrativa">
+      <p class="eyebrow">Gestão</p>
+      <nav>
+        <a href="{% url 'admin-overview' %}" {% if section == 'overview' %}aria-current="page"{% endif %}>Visão geral</a>
+        <a href="{% url 'admin-users' %}" {% if section == 'users' or section == 'user-detail' or section == 'user-create' %}aria-current="page"{% endif %}>Usuários</a>
+        <a href="{% url 'admin-security' %}" {% if section == 'security' %}aria-current="page"{% endif %}>Segurança</a>
+        <a href="{% url 'admin-conversations' %}" {% if section == 'conversations' %}aria-current="page"{% endif %}>Conversas</a>
+        <a href="{% url 'admin-password-requests' %}" {% if section == 'password-requests' %}aria-current="page"{% endif %}>Solicitações de senha</a>
+      </nav>
+      <p class="admin-sidebar-note">O histórico das conversas é somente leitura. As ações disponíveis alteram apenas o estado do portal.</p>
+    </aside>
+    <main class="admin-main" id="conteudo">
+      {% if messages %}
+        <div class="admin-notices" role="status" aria-live="polite">
+          {% for notice in messages %}<p>{{ notice }}</p>{% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <footer class="site-footer admin-footer">
+    <span>Getnet Support · Administração</span>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sair</button></form>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

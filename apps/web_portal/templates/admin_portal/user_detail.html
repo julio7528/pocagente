@@ -1,0 +1,57 @@
+{% extends 'admin_portal/base.html' %}
+{% block title %}{{ target.username }}{% endblock %}
+{% block content %}
+  <div class="admin-heading">
+    <div><p class="eyebrow">Detalhes da conta</p><h1>{{ target.username }}</h1><p class="muted">Identificador técnico: <code>{{ target.id }}</code></p></div>
+    <a class="button-link button-secondary" href="{% url 'admin-users' %}">Voltar à lista</a>
+  </div>
+
+  <section class="user-detail-section" aria-labelledby="account-details-title">
+    <h2 id="account-details-title" class="section-title">Dados da conta</h2>
+    <dl class="user-metadata">
+      <div><dt>Nome de usuário</dt><dd>{{ target.username }}</dd></div>
+      <div><dt>Perfil</dt><dd>{{ target.get_role_display }}</dd></div>
+      <div><dt>Estado</dt><dd>{{ target.is_active|yesno:'Ativo,Inativo' }}</dd></div>
+      <div><dt>Criado em</dt><dd><time datetime="{{ target.created_at|date:'c' }}">{{ target.created_at|date:'d/m/Y H:i' }}</time></dd></div>
+      <div><dt>Atualizado em</dt><dd><time datetime="{{ target.updated_at|date:'c' }}">{{ target.updated_at|date:'d/m/Y H:i' }}</time></dd></div>
+      <div><dt>Último acesso</dt><dd>{% if target.last_login %}<time datetime="{{ target.last_login|date:'c' }}">{{ target.last_login|date:'d/m/Y H:i' }}</time>{% else %}Nunca{% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <section class="user-actions" aria-labelledby="account-actions-title">
+    <h2 id="account-actions-title" class="section-title">Ações administrativas</h2>
+    {% if target.is_active %}
+      <details class="admin-action">
+        <summary>Desativar conta</summary>
+        <p>A pessoa perderá acesso ao portal e suas sessões atuais serão encerradas. O histórico será preservado.</p>
+        <form method="post" action="{% url 'admin-user-deactivate' target.id %}">{% csrf_token %}<button class="button-danger" type="submit">Confirmar desativação</button></form>
+      </details>
+    {% else %}
+      <form method="post" action="{% url 'admin-user-activate' target.id %}" class="inline-action">{% csrf_token %}<button type="submit">Ativar conta</button></form>
+    {% endif %}
+
+    <section class="admin-action" aria-labelledby="role-title">
+      <h3 id="role-title">Alterar perfil</h3>
+      <form method="post" action="{% url 'admin-user-role' target.id %}" class="admin-form compact-form">
+        {% csrf_token %}
+        <label for="{{ role_form.role.id_for_label }}">{{ role_form.role.label }}</label>
+        {{ role_form.role }}
+        <p class="form-note">A alteração encerra as sessões existentes. Atendimentos humanos ativos impedem a saída do perfil SUPPORT_AGENT.</p>
+        <button type="submit">Salvar perfil</button>
+      </form>
+    </section>
+
+    <section class="admin-action" aria-labelledby="password-title">
+      <h3 id="password-title">Definir nova senha</h3>
+      <p>As sessões anteriores da conta serão encerradas após a alteração.</p>
+      <form method="post" action="{% url 'admin-user-password' target.id %}" class="admin-form compact-form">
+        {% csrf_token %}
+        {% if password_form.non_field_errors %}<div class="form-errors" role="alert">{{ password_form.non_field_errors }}</div>{% endif %}
+        {% for field in password_form %}
+          <div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="form-errors" role="alert">{{ field.errors }}</div>{% endif %}</div>
+        {% endfor %}
+        <button type="submit">Alterar senha</button>
+      </form>
+    </section>
+  </section>
+{% endblock %}

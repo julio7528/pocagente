@@ -1,0 +1,120 @@
+{% extends "admin_portal/base.html" %}
+{% block title %}Histórico da conversa{% endblock %}
+{% block content %}
+  <nav class="conversation-back" aria-label="Caminho de navegação">
+    <a href="{% url 'admin-conversations' %}">← Voltar às conversas</a>
+  </nav>
+  <header class="admin-heading conversation-detail-heading">
+    <div>
+      <p class="eyebrow">Histórico de conversa</p>
+      <h1>{{ conversation.title }}</h1>
+      <p class="muted">Titular: {{ conversation.owner.username }}</p>
+    </div>
+    <span class="conversation-status status-{{ conversation.status|lower }}">{{ status_label }}</span>
+  </header>
+
+  <section class="conversation-admin-section" aria-labelledby="conversation-metadata-title">
+    <h2 id="conversation-metadata-title" class="section-title">Metadados</h2>
+    <dl class="user-metadata conversation-metadata">
+      <div><dt>Identificador</dt><dd><code>{{ conversation.pk }}</code></dd></div>
+      <div><dt>Titular</dt><dd>{{ conversation.owner.username }}</dd></div>
+      <div><dt>Estado</dt><dd>{{ status_label }}</dd></div>
+      {% if conversation.status == "BLOCKED" %}
+        <div><dt>Estado anterior</dt><dd>{{ status_before_label }}</dd></div>
+      {% endif %}
+      <div><dt>Criada</dt><dd>{{ conversation.created_at|date:"Y-m-d H:i:s T" }}</dd></div>
+      <div><dt>Última atualização</dt><dd>{{ conversation.updated_at|date:"Y-m-d H:i:s T" }}</dd></div>
+      {% if conversation.status == "DELETED" %}
+        <div><dt>Apagada em</dt><dd>{{ conversation.deleted_at|date:"Y-m-d H:i:s T" }}</dd></div>
+        <div><dt>Ação realizada por</dt><dd>{{ conversation.deleted_by.username }}</dd></div>
+      {% endif %}
+      {% if handoff %}
+        <div><dt>Atendimento humano</dt><dd>{{ handoff_status_label }}</dd></div>
+        <div><dt>Solicitado em</dt><dd>{{ handoff.requested_at|date:"Y-m-d H:i:s T" }}</dd></div>
+        {% if handoff.assigned_support_user %}
+          <div><dt>Atendente atribuído</dt><dd>{{ handoff.assigned_support_user.username }}</dd></div>
+        {% endif %}
+        {% if handoff.accepted_at %}
+          <div><dt>Assumido em</dt><dd>{{ handoff.accepted_at|date:"Y-m-d H:i:s T" }}</dd></div>
+        {% endif %}
+        {% if handoff.resolved_at %}
+          <div><dt>Finalizado em</dt><dd>{{ handoff.resolved_at|date:"Y-m-d H:i:s T" }}</dd></div>
+        {% endif %}
+      {% endif %}
+    </dl>
+  </section>
+
+  {% if can_block or can_unblock or can_delete or delete_restricted %}
+    <section class="conversation-admin-section" aria-labelledby="conversation-actions-title">
+      <h2 id="conversation-actions-title" class="section-title">Ações administrativas</h2>
+      <p class="admin-note">Estas ações não alteram mensagens nem enviam respostas. Toda mudança de estado é registrada no portal.</p>
+      {% if can_block %}
+        <details class="admin-action">
+          <summary>Bloquear conversa</summary>
+          <p>Novas mensagens de cliente, suporte e agente ficam suspensas até que um administrador restaure o estado anterior.</p>
+          <form method="post" action="{% url 'admin-conversation-block' conversation_id=conversation.pk %}" class="compact-form">
+            {% csrf_token %}
+            <label class="confirmation-label"><input type="checkbox" name="confirm" value="on" required> Confirmo o bloqueio desta conversa.</label>
+            <button type="submit" class="button-danger">Bloquear conversa</button>
+          </form>
+        </details>
+      {% endif %}
+      {% if can_unblock %}
+        <details class="admin-action">
+          <summary>Desbloquear conversa</summary>
+          <p>O estado restaurado será <strong>{{ status_before_label }}</strong>, conforme registrado pelo portal. Não é possível escolher outro destino.</p>
+          <form method="post" action="{% url 'admin-conversation-unblock' conversation_id=conversation.pk %}" class="compact-form">
+            {% csrf_token %}
+            <label class="confirmation-label"><input type="checkbox" name="confirm" value="on" required> Confirmo a restauração do estado anterior.</label>
+            <button type="submit">Restaurar estado anterior</button>
+          </form>
+        </details>
+      {% endif %}
+      {% if can_delete %}
+        <details class="admin-action admin-action-danger">
+          <summary>Apagar conversa</summary>
+          <p>Ela deixará as visualizações normais de cliente e suporte. O histórico será mantido internamente e não há restauração normal.</p>
+          <form method="post" action="{% url 'admin-conversation-delete' conversation_id=conversation.pk %}" class="compact-form">
+            {% csrf_token %}
+            <label class="confirmation-label"><input type="checkbox" name="confirm" value="on" required> Tem certeza que deseja apagar esta conversa?</label>
+            <button type="submit" class="button-danger">Confirmar exclusão lógica</button>
+          </form>
+        </details>
+      {% elif delete_restricted %}
+        <p class="read-only-note" role="status">A exclusão está indisponível enquanto o atendimento humano estiver aguardando ou atribuído. O handoff e a atribuição serão preservados.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="conversation-admin-section" aria-labelledby="conversation-history-title">
+    <div class="admin-heading transcript-heading">
+      <div>
+        <p class="eyebrow">Registro completo</p>
+        <h2 id="conversation-history-title">Histórico da conversa</h2>
+      </div>
+      <p class="admin-note">Somente leitura · {{ history|length }} mensagem(ns)</p>
+    </div>
+    {% if history %}
+      <ol class="admin-transcript">
+        {% for message in history %}
+          <li class="admin-transcript-item sender-{{ message.sender_type|lower }}">
+            <article class="admin-transcript-message">
+              <header class="message-heading">
+                <span class="sender-label">
+                  {% if message.sender_type == "CLIENT" %}Cliente
+                  {% elif message.sender_type == "AGENT" %}Assistente
+                  {% elif message.sender_type == "SUPPORT_AGENT" %}Atendimento humano
+                  {% else %}Aviso{% endif %}
+                </span>
+                <time datetime="{{ message.created_at|date:'c' }}">{{ message.created_at|date:"Y-m-d H:i:s T" }}</time>
+              </header>
+              <p class="admin-message-body">{{ message.body }}</p>
+            </article>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="read-only-note">Esta conversa ainda não possui mensagens.</p>
+    {% endif %}
+  </section>
+{% endblock %}

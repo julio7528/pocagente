@@ -259,14 +259,18 @@ def test_phase9_yaml_scenarios_execute_through_authenticated_chat(
     semantic_intent: str,
 ) -> None:
     runtime = Phase9Runtime(semantic_intent=semantic_intent)
-    body: dict[str, object] = {"message": SCENARIOS[scenario_id], "user_id": "cliente1988"}
+    user_id = "support-1" if uses_ops else "cliente1988"
+    role = "SUPPORT_AGENT" if uses_ops else "CLIENT"
+    body: dict[str, object] = {"message": SCENARIOS[scenario_id], "user_id": user_id}
     if scenario_id == "challenge-011":
         body["operational_context"] = _support_context()
     elif scenario_id == "challenge-012":
         body["operational_context"] = _support_context()
 
     with TestClient(runtime.app) as http:
-        response = http.post("/chat", headers=_headers(ops=uses_ops), json=body)
+        response = http.post(
+            "/chat", headers=_headers(user_id=user_id, role=role, ops=uses_ops), json=body
+        )
 
     assert response.status_code == 200
     payload = response.json()
@@ -428,10 +432,14 @@ def test_live_web_failure_and_insufficient_persistent_knowledge_remain_controlle
 def test_challenge_014_full_http_handoff_keeps_same_conversation_and_suspends_automation() -> None:
     runtime = Phase9Runtime(semantic_intent="CUSTOMER_SUPPORT")
     conversation_id = "challenge-014-conversation"
+    support_diagnostic = {
+        "message": SCENARIOS["challenge-014"],
+        "user_id": "support-1",
+        "operational_context": _support_context("EXECUTION_FAILURE"),
+    }
     turn_one = {
         "message": SCENARIOS["challenge-014"],
         "user_id": "cliente1988",
-        "operational_context": _support_context("EXECUTION_FAILURE"),
         "human_context": {
             "conversation_id": conversation_id,
             "current_state": "BOT",
@@ -440,11 +448,22 @@ def test_challenge_014_full_http_handoff_keeps_same_conversation_and_suspends_au
         },
     }
     with TestClient(runtime.app) as http:
-        offered = http.post("/chat", headers=_headers(ops=True), json=turn_one)
+        diagnostic = http.post(
+            "/chat",
+            headers=_headers(user_id="support-1", role="SUPPORT_AGENT", ops=True),
+            json=support_diagnostic,
+        )
+        assert diagnostic.status_code == 200
+        diagnostic_payload = diagnostic.json()
+        assert diagnostic_payload["customer_support"]["facts"]
+        assert diagnostic_payload["customer_support"]["inferences"]
+
+        offered = http.post("/chat", headers=_headers(ops=False), json=turn_one)
         assert offered.status_code == 200
         offer = offered.json()
-        assert offer["customer_support"]["facts"]
-        assert offer["customer_support"]["inferences"]
+        assert offer["customer_support"]["status"] == "UNAUTHORIZED"
+        assert offer["customer_support"]["facts"] == []
+        assert offer["customer_support"]["inferences"] == []
         assert offer["human"]["state"] == "WAITING_CONFIRMATION"
         assert offer["human"]["assigned_operator_id"] is None
         assert offer["human"]["automation_suspended"] is False
@@ -455,8 +474,8 @@ def test_challenge_014_full_http_handoff_keeps_same_conversation_and_suspends_au
             "reason": "UNRESOLVED_REQUEST",
             "protocol_reference": "POC-OPS-0002",
             "run_reference": 31,
-            "facts": offer["customer_support"]["facts"],
-            "inferences": offer["customer_support"]["inferences"],
+            "facts": diagnostic_payload["customer_support"]["facts"],
+            "inferences": diagnostic_payload["customer_support"]["inferences"],
         }
         confirmed = http.post(
             "/chat",

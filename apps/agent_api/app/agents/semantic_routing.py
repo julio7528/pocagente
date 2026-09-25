@@ -12,6 +12,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from apps.agent_api.app.agents.conversation_context import ConversationContextMessage
 from apps.agent_api.app.rag.scope import KnowledgeScope
 
 
@@ -80,7 +81,10 @@ class SemanticRoutingContext(BaseModel):
 class SemanticIntentClassifier(Protocol):
     """Async semantic-only boundary for a future provider adapter."""
 
-    async def classify(self, message: str) -> SemanticClassification:
+    async def classify(
+        self, message: str,
+        *, conversation_context: tuple[ConversationContextMessage, ...] = (),
+    ) -> SemanticClassification:
         """Return one validated semantic intent without policy fields or tools."""
 
 

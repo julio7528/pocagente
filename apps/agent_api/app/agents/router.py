@@ -9,6 +9,10 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    validate_context_window,
+)
 from apps.agent_api.app.llm.errors import LLMProviderError
 
 from apps.agent_api.app.security.models import (
@@ -84,6 +88,12 @@ class RouterRequest(BaseModel):
     message: str
     ops_read_authorized: bool = False
     protocol_context: str | None = Field(default=None, pattern=r"^POC-OPS-\d{4}$")
+    conversation_context: tuple[ConversationContextMessage, ...] = Field(default=(), max_length=12)
+
+    @model_validator(mode="after")
+    def context_is_bounded_data(self) -> RouterRequest:
+        validate_context_window(self.conversation_context)
+        return self
 
 
 class RouterDecision(BaseModel):
@@ -370,7 +380,10 @@ class RouterAgent:
         if self._semantic_security_classifier is not None:
             emit_runtime_event(RuntimeEventKind.SECURITY_SEMANTIC, value="STARTED")
             try:
-                security_decision = await self._semantic_security_classifier.classify(message)
+                security_decision = await self._semantic_security_classifier.classify(
+                    message,
+                    **({"conversation_context": request.conversation_context} if request.conversation_context else {}),
+                )
             except Exception:
                 # No business capability is selected when the additional security
                 # boundary cannot provide a validated decision.
@@ -396,7 +409,10 @@ class RouterAgent:
         classifier_started_at = perf_counter()
         emit_runtime_event(RuntimeEventKind.CLASSIFIER, value="STARTED")
         try:
-            classification = await self._semantic_classifier.classify(message)
+            classification = await self._semantic_classifier.classify(
+                message,
+                **({"conversation_context": request.conversation_context} if request.conversation_context else {}),
+            )
             classification = SemanticClassification.model_validate(classification)
         except (TimeoutError, LLMProviderError, SemanticClassifierError, ValidationError, TypeError):
             emit_runtime_event(

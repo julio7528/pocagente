@@ -16,6 +16,10 @@ from apps.agent_api.app.agents.customer_support import (
     OperationalEvidenceNeed,
     OperationalQueryPlan,
 )
+from apps.agent_api.app.agents.conversation_context import (
+    ConversationContextMessage,
+    ConversationSender,
+)
 from apps.agent_api.app.database.models import ExecutionFailureEvidence, ProtocolCaseFacts, ProtocolStatusFacts, ServiceRequestRecord
 from apps.agent_api.app.llm.errors import LLMProviderTimeoutError
 from apps.agent_api.app.llm.models import LLMGenerationRequest, LLMGenerationResult
@@ -364,6 +368,40 @@ def test_latest_protocol_plan_uses_authorized_typed_discovery_then_synthesis() -
     assert provider.requests[0].response_format == "json_object"
     assert "SELECT" not in provider.requests[0].messages[0].content
     assert "POC-OPS-0004" in provider.requests[1].messages[1].content
+
+
+def test_trusted_support_planner_receives_context_as_data_without_changing_ops_claims() -> None:
+    provider = RecordingProvider(LLMGenerationResult(content=(
+        '{"intent":"PROTOCOL_EXECUTION_RESULT",'
+        '"protocol_number":"POC-OPS-0004","evidence_needs":["SERVICE_REQUEST"]}'
+    )))
+    context = (
+        ConversationContextMessage(
+            message_id="support-context-client",
+            sender_type=ConversationSender.CLIENT,
+            content="Qual foi o resultado do protocolo POC-OPS-0004?",
+        ),
+        ConversationContextMessage(
+            message_id="support-context-agent",
+            sender_type=ConversationSender.AGENT,
+            content="O histórico anterior continha o resultado solicitado.",
+        ),
+    )
+    support_request = CustomerSupportRequest(
+        question="E quando ele foi executado?",
+        authorization=AUTHORIZED,
+        conversation_context=context,
+    )
+
+    plan = asyncio.run(CustomerSupportAgent(FakeTools(lookup=lookup_success()), provider)._plan(support_request))
+
+    assert isinstance(plan, OperationalQueryPlan)
+    assert plan.protocol_number == "POC-OPS-0004"
+    assert support_request.authorization == AUTHORIZED
+    assert "untrusted data" in provider.requests[0].messages[1].content
+    assert "Qual foi o resultado do protocolo POC-OPS-0004?" in provider.requests[0].messages[1].content
+    assert "O histórico anterior continha o resultado solicitado." in provider.requests[0].messages[1].content
+    assert "E quando ele foi executado?" in provider.requests[0].messages[1].content
 
 
 def test_inline_protocol_plan_uses_message_selector_after_authorization() -> None:
