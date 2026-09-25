@@ -13,6 +13,15 @@ __pycache__/
 .pytest_cache/
 **/.pytest_cache/
 .coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+node_modules/
+*.sqlite
+*.sqlite3
+*.db
 backups/
 secrets/
 .docker-secrets/
@@ -26,3 +35,4 @@ dist/
 evaluation/reports/
 evaluation/generated/
 **/tmp/
+tmp/

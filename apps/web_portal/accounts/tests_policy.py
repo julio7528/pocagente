@@ -240,6 +240,8 @@ class IdentityPolicyTests(TestCase):
         self.assertEqual(
             paths,
             [
+                "health/",
+                "ready/",
                 "login/",
                 "password-reset/request/",
                 "password-reset/request/confirm/",

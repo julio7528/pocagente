@@ -17,8 +17,14 @@ class InternalServicePrincipalError(RuntimeError):
     """The caller cannot form the requested trusted principal claims."""
 
 
-def trusted_service_headers(actor, *, ops_authorized: bool = False) -> dict[str, str]:
-    """Derive internal headers from an active server-loaded portal identity."""
+def trusted_service_headers(
+    actor, *, ops_authorized: bool = False, endpoint: str | None = None
+) -> dict[str, str]:
+    """Derive internal headers from an active server-loaded portal identity.
+
+    OPS claims are accepted only for CLIENT/SUPPORT_AGENT calls to the typed
+    /chat boundary. Other internal APIs retain their explicit role policies.
+    """
 
     if (
         actor is None
@@ -29,7 +35,9 @@ def trusted_service_headers(actor, *, ops_authorized: bool = False) -> dict[str,
     role = str(getattr(actor, "role", ""))
     if role not in {"ADMIN", "CLIENT", "SUPPORT_AGENT"}:
         raise InternalServicePrincipalError
-    if ops_authorized and role != "SUPPORT_AGENT":
+    if ops_authorized and (
+        role not in {"CLIENT", "SUPPORT_AGENT"} or endpoint != "/chat"
+    ):
         raise InternalServicePrincipalError
     token = settings.AGENT_API_SERVICE_TOKEN
     if not token or not settings.AGENT_API_INTERNAL_URL:
@@ -80,7 +88,9 @@ def request_internal(
 
     if not path.startswith("/") or path.startswith("//") or "://" in path or "#" in path:
         raise InternalServiceConfigurationError
-    headers = trusted_service_headers(actor, ops_authorized=ops_authorized)
+    headers = trusted_service_headers(
+        actor, ops_authorized=ops_authorized, endpoint=path
+    )
     base_url = settings.AGENT_API_INTERNAL_URL.rstrip("/")
     client = _pooled_http_client(
         base_url,

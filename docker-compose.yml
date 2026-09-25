@@ -52,6 +52,42 @@ services:
       retries: 8
       start_period: 90s
 
+  web-portal:
+    build:
+      context: ./apps/web_portal
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .docker-secrets/agent-api.env
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost}
+      WEB_PORTAL_SECURE_COOKIES: ${WEB_PORTAL_SECURE_COOKIES:-false}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      AGENT_API_INTERNAL_URL: http://agent-api:8000
+      AGENT_API_CONNECT_TIMEOUT_SECONDS: ${AGENT_API_CONNECT_TIMEOUT_SECONDS:-2}
+      AGENT_API_READ_TIMEOUT_SECONDS: ${AGENT_API_READ_TIMEOUT_SECONDS:-90}
+    ports:
+      - "127.0.0.1:8001:8001"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/ready/', timeout=4).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+
 volumes:
   getnet_support_pgdata:
   getnet_support_fastembed_cache:

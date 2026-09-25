@@ -74,7 +74,7 @@ def _transcript_answer(response: AgentChatResponse) -> str:
         url = _safe_citation_url(citation.source_url)
         line = f"[{citation.id}] {label} — {attribution}"
         if url is not None:
-            line += f" — {url}"
+            line += f" — [Abrir fonte]({url})"
         citations.append(line)
     if citations:
         answer += "\n\nFontes:\n" + "\n".join(citations)

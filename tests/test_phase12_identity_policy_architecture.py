@@ -59,6 +59,8 @@ def test_approved_browser_routes_exist_and_no_public_registration_route() -> Non
         and isinstance(node.args[0].value, str)
     ]
     assert declared_paths == [
+        "health/",
+        "ready/",
         "login/",
         "password-reset/request/",
         "password-reset/request/confirm/",

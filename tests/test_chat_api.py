@@ -137,15 +137,18 @@ def test_support_ops_authorization_is_translated_without_preselected_protocol() 
     assert orchestrator.requests[0].ops_access_context.can_read_operational_facts is True
 
 
-def test_client_ops_claim_is_rejected_before_orchestration() -> None:
+def test_trusted_client_ops_claim_reaches_read_only_orchestration() -> None:
     orchestrator = RecordingOrchestrator(result(route=RouterRoute.CUSTOMER_SUPPORT))
     with client(orchestrator) as http:
         response = http.post(
             "/chat", headers=headers(ops=True),
             json={"message": "Qual o resultado do protocolo POC-OPS-0004?", "user_id": "client-1"},
         )
-    assert response.status_code == 403
-    assert orchestrator.requests == []
+    assert response.status_code == 200
+    assert len(orchestrator.requests) == 1
+    assert orchestrator.requests[0].ops_access_context is not None
+    assert orchestrator.requests[0].ops_access_context.principal_id == "client-1"
+    assert orchestrator.requests[0].ops_access_context.can_read_operational_facts is True
 
 
 def test_portal_context_is_bounded_typed_and_forwarded_without_current_turn_duplication() -> None:

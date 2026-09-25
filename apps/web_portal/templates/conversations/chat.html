@@ -75,7 +75,7 @@
                   </span>
                   <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:'d/m/Y H:i' }}</time>
                 </div>
-                <p class="message-body">{{ item.body }}</p>
+                <div class="message-body"{% if item.sender_type == 'AGENT' %} data-response-format="markdown"{% endif %}>{{ item.body }}</div>
                 {% if item.sender_type == 'CLIENT' and item.processing_status == 'PENDING' %}
                   <p class="message-state">Mensagem registrada.</p>
                 {% elif item.sender_type == 'CLIENT' and item.processing_status == 'FAILED' %}

@@ -267,8 +267,9 @@ def test_multi_turn_handoff_preserves_waiting_then_human_ownership(suite) -> Non
         HumanEscalationState.WAITING_HUMAN,
         HumanEscalationState.HUMAN,
     )
-    # Trusted SUPPORT_AGENT OPS evidence is exercised as a separate boundary
-    # request; the CLIENT escalation turn never receives OPS authorization.
+    # This challenge's CLIENT handoff turn does not request operational tools;
+    # trusted SUPPORT_AGENT OPS evidence is exercised as a separate boundary
+    # request in the evaluator fixture.
     assert result.observed_tool_calls == ("lookup_protocol_status", "inspect_execution_failure")
     assert result.turns[0].tool_calls == ()
     assert result.turns[1].human_state is HumanEscalationState.WAITING_HUMAN

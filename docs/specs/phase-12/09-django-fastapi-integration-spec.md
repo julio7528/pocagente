@@ -16,9 +16,15 @@ The web portal uses `/chat` for approved user turns and AI-originated
 offer/confirmation transitions. Its typed request extension carries a stable
 `conversation_id`, same-conversation bounded context, and turn idempotency
 reference while preserving the current message/user contract. OPS authority
-is true only for an active authorized SUPPORT_AGENT principal when the
-requested capability is permitted by application policy; the Router still
-selects whether OPS is needed. CLIENT requests never receive OPS authority.
+is true for an active CLIENT or active authorized SUPPORT_AGENT principal on
+the authenticated `/chat` path; ADMIN never receives it. Under the owner-
+approved policy amendment dated 2026-09-25, CLIENT receives the same read-only
+OPS query capabilities exposed to SUPPORT_AGENT through `chat_cli.py`,
+including protocol lookup, recent protocol discovery, and approved analytics.
+The Router still selects whether OPS is needed. OPS data is not scoped to the
+portal account, so a CLIENT may ask about any protocol or approved aggregate.
+The claim is derived from the active server-loaded Django identity and cannot
+be supplied by browser input. OPS tools exposed through chat remain read-only.
 
 Phase 12.8 owns a narrow trusted internal handoff-transition endpoint/service
 for explicit confirmation, operator acceptance, and assigned-operator
@@ -86,8 +92,10 @@ fails closed before outbound HTTP.
   conversation context, and internal dashboard/transition operations.
 - **REQ-P12-INTEG-003:** Django MUST derive authenticated user ID, one of the
   three trusted roles, and any OPS claim from active portal state and server
-  policy; browser-supplied identity, role, OPS authorization, and service
-  credentials MUST be ignored.
+  policy; active CLIENT and authorized SUPPORT_AGENT `/chat` requests receive
+  the approved read-only OPS capability, while ADMIN remains OPS=false.
+  Browser-supplied identity, role, OPS authorization, and service credentials
+  MUST be ignored.
 - **REQ-P12-INTEG-004:** Existing `/chat` MUST remain the agent execution
   boundary and be extended only with typed conversation correlation, bounded
   same-conversation context, and turn idempotency metadata as required; it MUST

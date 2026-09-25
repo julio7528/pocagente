@@ -56,6 +56,15 @@ button, .button-link { display: inline-block; border: 0; border-radius: .375rem;
 .message-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1rem; color: #526361; font-size: .82rem; }
 .sender-label { font-weight: 700; color: #17212b; }
 .message-body { margin: .7rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.message-body--formatted { white-space: normal; }
+.message-body--formatted p { margin: 0 0 .7rem; }
+.message-body--formatted p:last-child { margin-bottom: 0; }
+.message-body--formatted ul, .message-body--formatted ol { margin: .15rem 0 .8rem; padding-inline-start: 1.5rem; }
+.message-body--formatted li + li { margin-top: .3rem; }
+.message-body--formatted strong { font-weight: 700; }
+.message-body--formatted em { font-style: italic; }
+.message-body--formatted .message-link { color: #286f98; text-decoration-thickness: .08em; text-underline-offset: .15em; }
+.message-body--formatted .message-link:hover { color: #174f70; }
 .message-state { margin: .6rem 0 0; color: #526361; font-size: .85rem; }
 .message-bubble [data-agent-retry-form] { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin-top: .75rem; }
 .message-bubble [data-agent-retry-form] button { padding: .55rem .75rem; font-size: .9rem; }

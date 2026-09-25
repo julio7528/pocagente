@@ -172,7 +172,10 @@ class AgentChatClient:
         for attempt in range(2):
             try:
                 response = request_internal(
-                    "POST", self.ENDPOINT, actor=self._actor, ops_authorized=False, json=payload
+                    # Active CLIENTs receive the owner-approved read-only OPS
+                    # query capability through this authenticated chat boundary.
+                    # The claim comes from the server-loaded actor, never browser input.
+                    "POST", self.ENDPOINT, actor=self._actor, ops_authorized=True, json=payload
                 )
             except (InternalServiceConfigurationError, InternalServicePrincipalError):
                 raise AgentChatUnavailable

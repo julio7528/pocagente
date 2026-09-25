@@ -525,7 +525,9 @@ class CompleteClientToHumanJourneyTests(TestCase):
                         SupportHandoff.objects.filter(conversation=conversation).count(), 1
                     )
                     self.assertTrue(all(
-                        call["headers"]["X-Ops-Authorized"] == "false"
+                        call["headers"]["X-Ops-Authorized"] == (
+                            "true" if call["path"] == "/chat" else "false"
+                        )
                         for call in bridge.calls
                     ))
                     self.assertTrue(all(

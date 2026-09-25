@@ -1,4 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
+  renderAgentFormatting();
+
   for (const form of document.querySelectorAll("[data-chat-form], [data-agent-retry-form]")) {
     form.addEventListener("submit", (event) => {
       if (!form.checkValidity()) return;
@@ -52,3 +54,103 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   timer = window.setTimeout(poll, 12000);
 });
+
+function renderAgentFormatting() {
+  const tokenPattern = /\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/g;
+  for (const element of document.querySelectorAll('[data-response-format="markdown"]')) {
+    const source = (element.textContent || "").replace(/\r\n?/g, "\n").trim();
+    if (!source) continue;
+
+    const fragment = document.createDocumentFragment();
+    const blocks = source.split(/\n[\t ]*\n+/);
+    for (const block of blocks) {
+      const lines = block.split("\n");
+      const unorderedItems = lines.map((line) => line.match(/^\s*[-*]\s+(.+)$/));
+      const orderedItems = lines.map((line) => line.match(/^\s*(\d+)[.)]\s+(.+)$/));
+
+      if (unorderedItems.every(Boolean)) {
+        const list = document.createElement("ul");
+        for (const item of unorderedItems) {
+          const entry = document.createElement("li");
+          appendInlineFormatting(entry, item[1]);
+          list.append(entry);
+        }
+        fragment.append(list);
+        continue;
+      }
+
+      if (orderedItems.every(Boolean)) {
+        const list = document.createElement("ol");
+        const firstNumber = Number(orderedItems[0][1]);
+        if (firstNumber > 1) list.start = firstNumber;
+        for (const item of orderedItems) {
+          const entry = document.createElement("li");
+          appendInlineFormatting(entry, item[2]);
+          list.append(entry);
+        }
+        fragment.append(list);
+        continue;
+      }
+
+      const paragraph = document.createElement("p");
+      lines.forEach((line, index) => {
+        if (index) paragraph.append(document.createElement("br"));
+        appendInlineFormatting(paragraph, line);
+      });
+      fragment.append(paragraph);
+    }
+
+    element.replaceChildren(fragment);
+    element.classList.add("message-body--formatted");
+  }
+
+  function appendInlineFormatting(parent, text) {
+    let cursor = 0;
+    for (const match of text.matchAll(tokenPattern)) {
+      if (match.index > cursor) {
+        parent.append(document.createTextNode(text.slice(cursor, match.index)));
+      }
+      const token = match[0];
+      if (token.startsWith("**") && token.endsWith("**")) {
+        const strong = document.createElement("strong");
+        strong.textContent = token.slice(2, -2);
+        parent.append(strong);
+      } else if (token.startsWith("*") && token.endsWith("*")) {
+        const emphasis = document.createElement("em");
+        emphasis.textContent = token.slice(1, -1);
+        parent.append(emphasis);
+      } else {
+        const markdownLink = token.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+        const href = markdownLink ? safeHttpLink(markdownLink[2]) : null;
+        if (href) {
+          const link = document.createElement("a");
+          link.className = "message-link";
+          link.href = href;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = markdownLink[1];
+          parent.append(link);
+        } else {
+          parent.append(document.createTextNode(token));
+        }
+      }
+      cursor = match.index + token.length;
+    }
+    if (cursor < text.length) {
+      parent.append(document.createTextNode(text.slice(cursor)));
+    }
+  }
+
+  function safeHttpLink(value) {
+    if (!value || /\s|[\u0000-\u001f]/.test(value)) return null;
+    try {
+      const parsed = new URL(value);
+      if (!["http:", "https:"].includes(parsed.protocol) || !parsed.hostname || parsed.username || parsed.password) {
+        return null;
+      }
+      return parsed.href;
+    } catch (_) {
+      return null;
+    }
+  }
+}

@@ -747,7 +747,7 @@ MAPA ATUAL — GETNET SUPPORT POC
 
 12. DJANGO / FRONTEND / INTEGRAÇÃO FINAL
    OWNER APPROVED / IMPLEMENTATION IN PROGRESS
-   12.1 COMPLETED / OWNER APPROVED; 12.2 COMPLETED; 12.3 COMPLETED; 12.4 COMPLETED; 12.5 COMPLETED; 12.6 COMPLETED; 12.7 COMPLETED; 12.8 COMPLETED; 12.9 COMPLETED; 12.10 COMPLETED; 12.11 COMPLETED; 12.12 COMPLETED; 12.13 COMPLETED; 12.14 COMPLETE; 12.15 NEXT
+    12.1 COMPLETED / OWNER APPROVED; 12.2 COMPLETED; 12.3 COMPLETED; 12.4 COMPLETED; 12.5 COMPLETED; 12.6 COMPLETED; 12.7 COMPLETED; 12.8 COMPLETED; 12.9 COMPLETED; 12.10 COMPLETED; 12.11 COMPLETED; 12.12 COMPLETED; 12.13 COMPLETED; 12.14 COMPLETE; 12.15 COMPLETE; 12.16 NEXT
 
    Authority: docs/specs/phase-12/00-phase-12-spec.md and linked specs.
    Architecture: apps/agent_api remains FastAPI; apps/web_portal is Django BFF.
@@ -853,17 +853,19 @@ MAPA ATUAL — GETNET SUPPORT POC
       - 36 protected routes and 21 browser mutation routes covered by security matrices
       - isolated PostgreSQL Django suite: 189 tests passed; full pytest: 922 passed, 37 skipped, 1 known warning
       - no migration drift; Docker configuration valid; agent-api healthy and /ready returned HTTP 200
-      - no Phase 12.15 implementation started
+      - Phase 12.15 had not started when the Phase 12.14 validation closed
 
 12.15 DOCKER COM DJANGO
-      NEXT / NÃO INICIADO / DEPENDE DA CONCLUSÃO DE 12.14
-      - future postgres + agent-api + web-portal topology
-      - preserve current PostgreSQL service, named volume and data
-      - private internal calls, runtime secrets, health and explicit migrations
-      - restart and down/up persistence proof; never use down -v
+      COMPLETE / VALIDATION PASSED
+      - separately built web-portal added; existing postgres/agent-api names and loopback mappings preserved
+      - portal exposed only at 127.0.0.1:8001; private API/database DNS and browser boundary validated
+      - safe liveness/readiness, static assets, health ordering, and controlled agent outage/recovery validated
+      - clean image build; runtime-only secrets; startup runs no migration, seed, or admin bootstrap
+      - docker compose down/up without -v preserved exact PostgreSQL volume, all domain counts, and pgvector
+      - evidence and explicit operator procedures recorded in phase-12/11-docker-and-deployment-spec.md
 
 12.16 VALIDAÇÃO FINAL DA PHASE 12
-      NÃO INICIADO / DEPENDE DE 12.14-12.15
+      NEXT / NÃO INICIADO / DEPENDE DA REVISÃO DE 12.15
       - full project and Phase 9-11 regressions
       - PostgreSQL, security, dependency, container and performance checks
       - complete 100-requirement traceability with passing evidence

@@ -173,7 +173,7 @@ class DjangoFastAPIChatIntegrationTests(TestCase):
         self.assertNotIn("Get Smart", " ".join(item.content for item in other_context))
         self.assertEqual(
             runtime.requests[1].ops_access_context.can_read_operational_facts,
-            False,
+            True,
         )
         self.assertEqual(runtime.requests[1].ops_access_context.principal_id, str(self.client_user.pk))
 
@@ -224,7 +224,7 @@ class DjangoFastAPIChatIntegrationTests(TestCase):
         method, path, headers, _params, payload = bridge.calls[0]
         self.assertEqual((method, path), ("POST", "/chat"))
         self.assertEqual(headers["X-Authenticated-Role"], "CLIENT")
-        self.assertEqual(headers["X-Ops-Authorized"], "false")
+        self.assertEqual(headers["X-Ops-Authorized"], "true")
         self.assertEqual(payload["conversation_id"], response.url.removeprefix("/chat/").removesuffix("/"))
         self.assertEqual(payload["conversation_context"][-1]["content"], "Quero falar com uma pessoa.")
         conversation = Conversation.objects.get(owner=self.client_user)

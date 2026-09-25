@@ -104,12 +104,14 @@ Do not run database cleanup against shared `rag`, `ops`, or `audit` data.
   user, event type/source breakdown, each filter, pagination, and detail agree
   with `audit.security_events` via AuditRepository API results.
 - Django cannot query AUDIT directly; anonymous/browser calls to internal
-  endpoints fail; trusted ADMIN with OPS false is allowed while CLIENT,
-  SUPPORT_AGENT, missing role, and OPS true are denied. Sanitized content only
-  is returned. The narrow AUDIT dashboard API belongs to Phase 12.10; general
-  `/chat` and context integration remains Phase 12.13.
-- `/chat` receives identity and roles derived by Django; CLIENT has OPS false;
-  SUPPORT_AGENT authorization is server-derived; browser cannot alter either.
+  endpoints fail; the narrow AUDIT API allows trusted ADMIN with OPS false and
+  denies CLIENT, SUPPORT_AGENT, missing role, and ADMIN with OPS true.
+  Sanitized content only is returned. The narrow AUDIT dashboard API belongs
+  to Phase 12.10; general `/chat` and context integration remains Phase 12.13.
+- `/chat` receives identity, role, and OPS capability derived by Django;
+  active CLIENT and authorized SUPPORT_AGENT can use the same read-only OPS
+  query capabilities, ADMIN remains OPS false, and browser input cannot alter
+  those claims.
 - Controlled 401/403/422/503/timeout results do not expose provider internals;
   retry does not duplicate persisted messages.
 
@@ -218,12 +220,12 @@ not a claim that implementation or tests already exist.
 | REQ-P12-UI-005 | 10 UI / Frontend | Pinned self-hosted chart asset works offline | Static/browser |
 | REQ-P12-UI-006 | 10 UI / Frontend | Keyboard, labels, focus, status and contrast baseline | Accessibility |
 | REQ-P12-UI-007 | 10 UI / Authorization | Hidden control bypass attempts still denied server-side | Security E2E |
-| REQ-P12-DOCKER-001 | 11 Docker / Platform | Three services and exact existing volume identity | Compose integration |
-| REQ-P12-DOCKER-002 | 11 Docker / Platform | Loopback portal access; FastAPI not browser-facing | Network scan |
-| REQ-P12-DOCKER-003 | 11 Docker / Platform | Service DNS/env config and ORM search_path restricted to portal | Integration/security |
-| REQ-P12-DOCKER-004 | 11 Docker / Platform | Image/config/source/browser secret scan | Security scan |
-| REQ-P12-DOCKER-005 | 11 Docker / Platform | Liveness/readiness/degraded API behavior | Container integration |
-| REQ-P12-DOCKER-006 | 11 Docker / Platform | Startup has no migration; explicit command proof | Container/migration |
+| REQ-P12-DOCKER-001 | 11 Docker / Platform | Three services; named volume identity and domain counts unchanged after safe down/up | Compose/PostgreSQL integration; evidence in `11-docker-and-deployment-spec.md` |
+| REQ-P12-DOCKER-002 | 11 Docker / Platform | Portal binds to loopback; browser HTML/assets contain no private FastAPI route or trusted claims | Compose binding and browser-source scans |
+| REQ-P12-DOCKER-003 | 11 Docker / Platform | In-container FastAPI/DB connectivity; current schema and Django ORM search path are portal | Compose private-network smoke and Django check |
+| REQ-P12-DOCKER-004 | 11 Docker / Platform | Runtime secret values absent from image metadata/history, portal source/assets, and service logs | Secret-value scan; image path and metadata check |
+| REQ-P12-DOCKER-005 | 11 Docker / Platform | Separate liveness/readiness; portal stays usable during agent outage and recovers | Container health, dependency-outage and recovery checks |
+| REQ-P12-DOCKER-006 | 11 Docker / Platform | Startup command performs no mutation; native and Django migration commands are explicit | Dockerfile/Compose scan; showmigrations; no-drift check |
 | REQ-P12-VAL-001 | 12 Validation / Phase owner | IDs unique and appear once in this matrix | Spec lint |
 | REQ-P12-VAL-002 | 12 Validation / Phase owner | No 12.2 implementation before SDD approval | Process review |
 | REQ-P12-VAL-003 | 12 Validation / Test owner | Isolated portal integration preserves current schemas/data | PostgreSQL integration |

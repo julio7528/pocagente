@@ -13,16 +13,19 @@ generic blocked flag is permitted.
 
 | Role | Allowed areas | Denied areas |
 |---|---|---|
-| `CLIENT` | own client portal, own conversations, own reset request | all support-agent and admin routes; other users' conversations |
+| `CLIENT` | own client portal, own conversations, own reset request; same read-only OPS query capabilities as SUPPORT_AGENT through authenticated `/chat` | all support-agent and admin routes; other users' conversations |
 | `SUPPORT_AGENT` | waiting queue, assigned HUMAN conversations, permitted finalized support history | admin routes; unassigned HUMAN content; client account/ownership bypass |
 | `ADMIN` | admin dashboard, user/conversation/reset administration, sanitized security dashboard | no automatic OPS authority from ADMIN role; no direct RAG/OPS/AUDIT SQL |
 
-Support agent access is limited to queue items and conversations assigned to
-that operator, with explicitly approved read-only finalized access if required.
-An ADMIN may inspect conversations and metadata as required for administration;
-all views remain server-authorized. No role implies unrestricted OPS access:
-FastAPI OPS authorization is separately derived by trusted Django policy for a
-support-agent turn and is not a browser claim.
+Support-agent portal access is limited to queue items and conversations
+assigned to that operator, with explicitly approved read-only finalized access
+if required. For authenticated `/chat` execution, the owner-approved policy
+grants active CLIENT and authorized SUPPORT_AGENT principals the same read-only
+OPS query capability. This can return protocol records across the OPS dataset;
+current OPS records are not linked to a portal account. The trusted claim is
+derived by Django server code and is never a browser claim. ADMIN does not
+receive OPS authorization. An ADMIN may inspect conversations and metadata as
+required for administration; all views remain server-authorized.
 
 ## Login and session policy
 

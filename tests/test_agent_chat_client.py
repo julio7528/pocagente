@@ -91,7 +91,7 @@ def close_shared_transport():
     AGENT_API_CONNECT_TIMEOUT_SECONDS=1.25,
     AGENT_API_READ_TIMEOUT_SECONDS=3.5,
 )
-def test_client_sends_typed_portal_turn_with_server_derived_client_claims(monkeypatch):
+def test_client_sends_typed_portal_turn_with_server_derived_ops_claim(monkeypatch):
     transport = _Transport(
         [
             _Response(
@@ -129,7 +129,7 @@ def test_client_sends_typed_portal_turn_with_server_derived_client_claims(monkey
         "Authorization": "Bearer server-only-chat-token",
         "X-Authenticated-User-Id": str(actor.pk),
         "X-Authenticated-Role": "CLIENT",
-        "X-Ops-Authorized": "false",
+        "X-Ops-Authorized": "true",
     }
     assert payload["user_id"] == str(actor.pk)
     assert payload["conversation_id"] == str(turn.conversation_id)
@@ -267,7 +267,7 @@ def test_client_maps_internal_http_errors_without_response_body_leak(
     assert len(transport.calls) == 1
 
 
-def test_untrusted_roles_cannot_call_chat_or_request_ops(monkeypatch):
+def test_chat_client_is_client_only_and_ops_claim_is_server_derived(monkeypatch):
     calls = []
     monkeypatch.setattr(agent_chat, "request_internal", lambda *args, **kwargs: calls.append((args, kwargs)))
     turn = build_agent_chat_turn(context=_context(), client_turn_id=uuid.uuid4())
@@ -277,5 +277,15 @@ def test_untrusted_roles_cannot_call_chat_or_request_ops(monkeypatch):
             AgentChatClient(actor).execute(turn)
     assert calls == []
 
+    client_headers = internal_service.trusted_service_headers(
+        _actor(), ops_authorized=True, endpoint="/chat"
+    )
+    assert client_headers["X-Ops-Authorized"] == "true"
     with pytest.raises(internal_service.InternalServicePrincipalError):
-        internal_service.trusted_service_headers(_actor(), ops_authorized=True)
+        internal_service.trusted_service_headers(
+            _actor(role="ADMIN"), ops_authorized=True, endpoint="/chat"
+        )
+    with pytest.raises(internal_service.InternalServicePrincipalError):
+        internal_service.trusted_service_headers(
+            _actor(), ops_authorized=True, endpoint="/internal/admin/audit/summary"
+        )

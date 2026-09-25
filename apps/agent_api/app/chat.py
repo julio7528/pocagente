@@ -432,9 +432,12 @@ class ChatApplicationService:
     ) -> ChatResponse:
         if request.user_id != principal.user_id:
             raise ChatAuthorizationError()
-        if principal.can_read_operational_facts and principal.role is not PrincipalRole.SUPPORT_AGENT:
-            # OPS authorization is an independent server-derived capability;
-            # a CLIENT or ADMIN claim can never gain it through trusted headers.
+        if principal.can_read_operational_facts and principal.role not in {
+            PrincipalRole.CLIENT,
+            PrincipalRole.SUPPORT_AGENT,
+        }:
+            # OPS remains an independent trusted capability. CLIENT and
+            # SUPPORT_AGENT may use read-only OPS tools in /chat; ADMIN may not.
             raise ChatAuthorizationError()
         operational = self._operational_context(request, principal)
         human = self._human_context(request.human_context, principal)

@@ -1,6 +1,6 @@
 # Phase 12 — Django / Frontend / Final Integration
 
-Status: **OWNER APPROVED / IMPLEMENTATION IN PROGRESS. Phase 12.1 COMPLETED / APPROVED; Phase 12.2 COMPLETED; Phase 12.3 COMPLETED; Phase 12.4 COMPLETED; Phase 12.5 COMPLETED; Phase 12.6 COMPLETED; Phase 12.7 COMPLETED; Phase 12.8 COMPLETED; Phase 12.9 COMPLETED; Phase 12.10 COMPLETED; Phase 12.11 COMPLETED; Phase 12.12 COMPLETED; Phase 12.13 COMPLETED; Phase 12.14 NEXT.**
+Status: **OWNER APPROVED / IMPLEMENTATION IN PROGRESS. Phase 12.1 COMPLETED / APPROVED; Phase 12.2 COMPLETED; Phase 12.3 COMPLETED; Phase 12.4 COMPLETED; Phase 12.5 COMPLETED; Phase 12.6 COMPLETED; Phase 12.7 COMPLETED; Phase 12.8 COMPLETED; Phase 12.9 COMPLETED; Phase 12.10 COMPLETED; Phase 12.11 COMPLETED; Phase 12.12 COMPLETED; Phase 12.13 COMPLETED; Phase 12.14 COMPLETE; Phase 12.15 COMPLETE; Phase 12.16 NEXT.**
 
 ## Purpose and authority
 
@@ -35,6 +35,11 @@ Django-to-FastAPI calls; and the future `postgres`, `agent-api`,
   and admin workflows.
 - The browser calls Django only. Internal service credentials and trusted role
   context never enter browser HTML, JavaScript, or storage.
+- OPS authorization remains a server-derived capability separate from browser
+  input. Under the owner-approved 2026-09-25 policy amendment, active CLIENT
+  and authorized SUPPORT_AGENT `/chat` calls have the same read-only OPS query
+  capabilities; ADMIN remains OPS false. OPS results are not scoped to the
+  portal account.
 - PostgreSQL gains a logically isolated `portal` schema. The existing `rag`,
   `ops`, and `audit` ownership and data remain independent.
 - Phase 12.3 uses the existing PostgreSQL database principal for the POC.
@@ -166,11 +171,12 @@ change before implementation.
 
 ## Owner-review boundary
 
-The owner approved this SDD before implementation. Phases 12.1 through 12.13
+The owner approved this SDD before implementation. Phases 12.1 through 12.15
 are complete. Phase 12.13 owns the general /chat and agent-execution
-integration. Phase 12.14 is next and must not begin before 12.13 receives
-owner review.
-Phase 12 and final closure remain open for their stated gates and owner review.
+integration. Phase 12.15 added the Docker deployment topology and preserved the
+existing PostgreSQL volume and domain data. Phase 12.16 is next and did not
+start as part of Phase 12.15. Phase 12 and final closure remain open for their
+stated gates and owner review.
 
 ## Definition of Done
 
@@ -182,3 +188,28 @@ schema-scoped; Docker operates with the existing PostgreSQL data preserved;
 regressions for Phase 9–11 remain green; documentation and Decision Log are
 updated only at the approved final roadmap stage; and the owner accepts the
 Phase 12 closure evidence.
+
+## Phase 12.15 execution evidence (2026-09-25)
+
+- Compose now contains the existing `postgres` and `agent-api` plus a separately
+  built `web-portal`. Portal and existing developer ports bind to loopback.
+  Django uses service DNS for PostgreSQL and FastAPI; its ORM search path is
+  `portal`, and the browser remains Django-only.
+- The named PostgreSQL volume remained
+  `getnet-support_getnet_support_pgdata` through restart and two safe
+  `docker compose down`/`up` validations without `-v`. Portal, RAG, OPS, AUDIT,
+  and pgvector counts/availability match their pre-change baseline; exact
+  before/after table counts and operator commands are recorded in
+  `11-docker-and-deployment-spec.md`.
+- The clean web image uses the pinned portal runtime manifest and Uvicorn ASGI
+  command. Runtime secrets are not build arguments or image contents. No
+  migration, seed, or ADMIN bootstrap runs at image startup. Local static
+  assets, including Chart.js, are served from the portal image.
+- `/health/` and `/ready/` are distinct; database and agent-api outage/recovery
+  checks produced controlled portal behavior. In-container Django checks,
+  migration state, no-drift validation, and dependency validation passed.
+- Django tests passed **181** against disposable PostgreSQL, and the Phase
+  12.14 route/journey validation passed **4** against disposable PostgreSQL.
+  Final `python -m pytest`: **928 passed, 37 skipped, 1 existing FastEmbed
+  warning**. `compileall` and `git diff --check` passed. Phase 12.16 remains
+  next and was not started.
