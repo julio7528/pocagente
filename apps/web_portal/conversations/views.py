@@ -14,6 +14,7 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.web_portal.accounts.models import User
 from apps.web_portal.accounts.views import role_required
 from apps.web_portal.conversations.forms import ClientMessageForm
+from apps.web_portal.conversations.human_support_intent import requests_human_support
 from apps.web_portal.conversations.models import Conversation, Message
 from apps.web_portal.conversations.services import (
     ConversationNotWritableError,
@@ -28,6 +29,12 @@ from apps.web_portal.conversations.services import (
 )
 from apps.web_portal.conversations.agent_turns import execute_agent_turn
 from apps.web_portal.integrations.agent_chat import AgentChatUnavailable
+from apps.web_portal.integrations.human_escalation import HumanTransitionUnavailable
+from apps.web_portal.support.services import (
+    SupportConversationUnavailable,
+    SupportOperationConflict,
+    request_human_support,
+)
 
 
 STATE_PRESENTATION = {
@@ -120,6 +127,53 @@ def _attempt_agent_turn(
             messages.info(request, "Sua mensagem foi preservada, mas não há uma resposta disponível para exibição.")
     else:
         _update_retry_session(request, client_message.pk, allowed=False)
+
+
+def _route_client_turn(
+    request: HttpRequest,
+    conversation: Conversation,
+    client_message: Message,
+    *,
+    retry: bool = False,
+) -> None:
+    """Send an explicit human request to the handoff flow, otherwise use automation."""
+
+    if not requests_human_support(client_message.body):
+        _attempt_agent_turn(request, conversation, client_message, retry=retry)
+        return
+
+    _update_retry_session(request, client_message.pk, allowed=False)
+    try:
+        request_human_support(
+            actor=request.user,
+            conversation_id=conversation.pk,
+            explicit_confirmation=True,
+        )
+    except (SupportConversationUnavailable, PermissionDenied):
+        messages.warning(
+            request,
+            "Não foi possível localizar esta conversa para solicitar atendimento humano.",
+        )
+    except (SupportOperationConflict, ConversationNotWritableError):
+        messages.info(
+            request,
+            "Esta conversa não pode iniciar um novo atendimento humano.",
+        )
+    except HumanTransitionUnavailable:
+        messages.warning(
+            request,
+            "O atendimento humano está temporariamente indisponível. Sua mensagem foi preservada.",
+        )
+    except DatabaseError:
+        messages.warning(
+            request,
+            "Não foi possível solicitar atendimento humano agora. Sua mensagem foi preservada.",
+        )
+    else:
+        messages.success(
+            request,
+            "Solicitação enviada. Você pode continuar nesta conversa enquanto aguarda.",
+        )
 
 
 def _message_form() -> ClientMessageForm:
@@ -220,7 +274,7 @@ def new_conversation(request: HttpRequest) -> HttpResponse:
         return _unavailable(request)
     messages.success(request, "Mensagem registrada.")
     if created.created and created.conversation.status == Conversation.Status.ACTIVE:
-        _attempt_agent_turn(request, created.conversation, created.first_message)
+        _route_client_turn(request, created.conversation, created.first_message)
     return redirect("chat-detail", conversation_id=created.conversation.id)
 
 
@@ -293,7 +347,7 @@ def append_message(request: HttpRequest, conversation_id: uuid.UUID) -> HttpResp
         return _unavailable(request)
     messages.success(request, "Mensagem registrada.")
     if persisted.created and conversation.status == Conversation.Status.ACTIVE:
-        _attempt_agent_turn(request, conversation, persisted.message)
+        _route_client_turn(request, conversation, persisted.message)
     return redirect("chat-detail", conversation_id=conversation.id)
 
 
@@ -332,5 +386,5 @@ def retry_agent_message(
         messages.info(request, "Esta conversa não está disponível para uma nova resposta automática.")
         return redirect("chat-detail", conversation_id=conversation.pk)
 
-    _attempt_agent_turn(request, conversation, client_message, retry=True)
+    _route_client_turn(request, conversation, client_message, retry=True)
     return redirect("chat-detail", conversation_id=conversation.pk)

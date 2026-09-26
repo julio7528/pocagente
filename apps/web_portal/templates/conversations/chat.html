@@ -1,55 +1,67 @@
 {% load static %}
 <!doctype html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if conversation %}{{ conversation.title }}{% else %}Nova conversa{% endif %} | Getnet Support</title>
+  <script src="{% static 'portal-theme.js' %}"></script>
   <link rel="stylesheet" href="{% static 'portal.css' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'getnet-favicon-32x32.png' %}">
+  <link rel="stylesheet" href="{% static 'client-shell.css' %}">
   <script src="{% static 'client-chat.js' %}" defer></script>
+  <script src="{% static 'client-menu.js' %}" defer></script>
+  <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
 </head>
+
 <body class="client-page">
   <header class="site-header client-header">
-    <a class="brand-link" href="{% url 'client-landing' %}">Getnet Support</a>
-    <span class="header-section">Área do cliente</span>
+    <a class="brand-link client-brand" href="{% url 'client-landing' %}"><img src="{% static 'getnet-logo-wide.png' %}" alt="">Central de Atendimento</a>
+    <div class="client-menu-wrap">
+      <button class="client-menu-trigger" type="button" aria-label="Abrir menu" aria-haspopup="true"
+        aria-expanded="false" aria-controls="client-menu" data-client-menu-trigger>•••</button>
+      <div class="client-menu" id="client-menu" role="menu" hidden data-client-menu>
+        <button type="button" role="menuitem" class="client-menu-item" data-theme-toggle><span class="theme-icon"
+            aria-hidden="true">☾</span><span data-theme-label>Tema escuro</span></button>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" role="menuitem"
+            class="client-menu-item"><span aria-hidden="true">↪</span><span>Sair</span></button></form>
+      </div>
+    </div>
   </header>
 
   <div class="client-layout">
-    <aside class="client-sidebar" aria-label="Conversas e conta">
+    <aside class="client-sidebar" aria-label="Conversas">
       <a class="button-link new-conversation-link" href="{% url 'client-landing' %}">+ Nova conversa</a>
       <nav aria-label="Histórico de conversas">
         <h2>Suas conversas</h2>
-        {% if sidebar_conversations %}
+        <div class="conversation-scroll">
+          {% if sidebar_conversations %}
           <ul class="conversation-list">
             {% for item in sidebar_conversations %}
-              <li>
-                <a href="{% url 'chat-detail' item.id %}" {% if conversation and item.id == conversation.id %}aria-current="page"{% endif %}>
-                  {{ item.title }}
-                </a>
-              </li>
+            <li>
+              <a href="{% url 'chat-detail' item.id %}" {% if conversation and item.id == conversation.id %}aria-current="page"{% endif %}>
+                {{ item.title }}
+              </a>
+            </li>
             {% endfor %}
           </ul>
-        {% else %}
+          {% else %}
           <p class="muted">Você ainda não possui conversas.</p>
-        {% endif %}
+          {% endif %}
+        </div>
       </nav>
-      <div class="sidebar-account">
-        <span>Minha conta</span>
-        <form method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button class="text-button" type="submit">Sair</button>
-        </form>
-      </div>
     </aside>
 
     <main class="client-main" id="conteudo" {% if conversation and conversation.status == 'WAITING_HUMAN' or conversation and conversation.status == 'HUMAN' %}data-live-poll-url="{% url 'chat-updates' conversation.id %}" data-live-version="{{ live_version }}"{% endif %}>
       {% if messages %}
-        <div class="portal-notices" role="status" aria-live="polite">
-          {% for notice in messages %}<p>{{ notice }}</p>{% endfor %}
-        </div>
+      <div class="portal-notices" role="status" aria-live="polite">
+        {% for notice in messages %}<p>{{ notice }}</p>{% endfor %}
+      </div>
       {% endif %}
 
       {% if conversation %}
+      <div class="conversation-context">
         <div class="conversation-heading">
           <div>
             <p class="eyebrow">Conversa</p>
@@ -59,74 +71,92 @@
         </div>
         <p class="state-description" role="status">{{ state_description }}</p>
         {% if conversation.status == 'ACTIVE' %}
-          <p class="human-request-link"><a href="{% url 'support-confirm' conversation.id %}">Solicitar atendimento humano</a></p>
+        <p class="human-request-link"><a href="{% url 'support-confirm' conversation.id %}">Solicitar atendimento
+            humano</a></p>
         {% endif %}
+      </div>
 
-        <ol class="transcript" aria-label="Mensagens da conversa">
-          {% for item in history %}
-            <li class="transcript-item sender-{{ item.sender_type|lower }}">
-              <article class="message-bubble">
-                <div class="message-heading">
-                  <span class="sender-label">
-                    {% if item.sender_type == 'CLIENT' %}Você
-                    {% elif item.sender_type == 'AGENT' %}Assistente
-                    {% elif item.sender_type == 'SUPPORT_AGENT' %}Atendimento humano
-                    {% else %}Aviso{% endif %}
-                  </span>
-                  <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:'d/m/Y H:i' }}</time>
-                </div>
-                <div class="message-body"{% if item.sender_type == 'AGENT' %} data-response-format="markdown"{% endif %}>{{ item.body }}</div>
-                {% if item.sender_type == 'CLIENT' and item.processing_status == 'PENDING' %}
-                  <p class="message-state">Mensagem registrada.</p>
-                {% elif item.sender_type == 'CLIENT' and item.processing_status == 'FAILED' %}
-                  <p class="message-state" id="turn-status-{{ item.id }}">Não foi possível obter uma resposta. Sua mensagem foi preservada.</p>
-                  {% if item.agent_retry_available %}
-                    <form method="post" action="{% url 'chat-retry-agent' conversation.id item.id %}" data-agent-retry-form>
-                      {% csrf_token %}
-                      <button type="submit" aria-describedby="turn-status-{{ item.id }}">Tentar obter resposta novamente</button>
-                      <span class="submit-status" role="status" aria-live="polite" data-submit-status></span>
-                    </form>
-                  {% endif %}
-                {% endif %}
-              </article>
-            </li>
-          {% empty %}
-            <li><p class="muted">Esta conversa ainda não tem mensagens.</p></li>
-          {% endfor %}
-        </ol>
+      <ol class="transcript" aria-label="Mensagens da conversa" tabindex="0">
+        {% for item in history %}
+        <li class="transcript-item sender-{{ item.sender_type|lower }}">
+          <article class="message-bubble">
+            <div class="message-heading">
+              <span class="sender-label">
+                {% if item.sender_type == 'CLIENT' %}Você
+                {% elif item.sender_type == 'AGENT' %}Assistente
+                {% elif item.sender_type == 'SUPPORT_AGENT' %}Atendimento humano
+                {% else %}Aviso{% endif %}
+              </span>
+              <time datetime="{{ item.created_at|date:'c' }}">{{ item.created_at|date:'d/m/Y H:i' }}</time>
+            </div>
+            <div class="message-body" {% if item.sender_type == 'AGENT' %}data-response-format="markdown"{% endif %}>{{ item.body }}</div>
+            {% if item.sender_type == 'CLIENT' and item.processing_status == 'PENDING' %}
+            <p class="message-state">Mensagem registrada.</p>
+            {% elif item.sender_type == 'CLIENT' and item.processing_status == 'FAILED' %}
+            <p class="message-state" id="turn-status-{{ item.id }}">Não foi possível obter uma resposta. Sua mensagem
+              foi preservada.</p>
+            {% if item.agent_retry_available %}
+            <form method="post" action="{% url 'chat-retry-agent' conversation.id item.id %}" data-agent-retry-form>
+              {% csrf_token %}
+              <button type="submit" aria-describedby="turn-status-{{ item.id }}">Tentar obter resposta
+                novamente</button>
+              <span class="submit-status" role="status" aria-live="polite" data-submit-status></span>
+            </form>
+            {% endif %}
+            {% endif %}
+          </article>
+        </li>
+        {% empty %}
+        <li>
+          <p class="muted">Esta conversa ainda não tem mensagens.</p>
+        </li>
+        {% endfor %}
+      </ol>
       {% else %}
-        <section class="chat-welcome" aria-labelledby="welcome-title">
-          <p class="eyebrow">Nova conversa</p>
-          <h1 id="welcome-title">Como podemos ajudar?</h1>
-          <p class="muted">Envie sua primeira mensagem para começar uma conversa.</p>
-        </section>
+      <section class="chat-welcome" aria-labelledby="welcome-title">
+        <p class="eyebrow">Nova conversa</p>
+        <h1 id="welcome-title">Como podemos ajudar?</h1>
+        <p class="muted">Envie sua primeira mensagem para começar uma conversa.</p>
+      </section>
       {% endif %}
 
       {% if writable %}
-        <section class="composer" aria-labelledby="composer-title">
-          <h2 id="composer-title">{% if conversation %}Enviar mensagem{% else %}Começar conversa{% endif %}</h2>
-          <form method="post" action="{% if conversation %}{% url 'chat-message' conversation.id %}{% else %}{% url 'chat-new' %}{% endif %}" data-chat-form>
-            {% csrf_token %}
-            {{ form.client_turn_key }}
-            {% if form.client_turn_key.errors %}<div class="form-errors" role="alert">Atualize a página e tente enviar novamente.</div>{% endif %}
-            {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-            <div class="field">
-              <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
-              {{ form.body }}
-              {% if form.body.errors %}<div class="form-errors" id="body-errors" role="alert">{{ form.body.errors }}</div>{% endif %}
-            </div>
-            <div class="composer-actions">
-              <p class="muted">Sua mensagem será registrada nesta conversa.</p>
-              <button type="submit">Enviar</button>
-            </div>
-            <p class="submit-status" role="status" aria-live="polite" data-submit-status></p>
-          </form>
-        </section>
+      <section class="composer" aria-labelledby="composer-title">
+        <h2 id="composer-title">{% if conversation %}Enviar mensagem{% else %}Começar conversa{% endif %}</h2>
+        <form method="post"
+          action="{% if conversation %}{% url 'chat-message' conversation.id %}{% else %}{% url 'chat-new' %}{% endif %}"
+          data-chat-form>
+          {% csrf_token %}
+          {{ form.client_turn_key }}
+          {% if form.client_turn_key.errors %}<div class="form-errors" role="alert">Atualize a página e tente enviar
+            novamente.</div>{% endif %}
+          {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+          <div class="field">
+            <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+            {{ form.body }}
+            {% if form.body.errors %}<div class="form-errors" id="body-errors" role="alert">{{ form.body.errors }}</div>
+            {% endif %}
+          </div>
+          <div class="composer-actions">
+            <button class="composer-expand" type="button" aria-label="Expandir caixa de mensagem" aria-expanded="false"
+              title="Expandir caixa de mensagem" data-composer-expand>⤢</button>
+            <p class="muted">Sua mensagem será registrada nesta conversa.</p>
+            <button class="composer-send" type="submit" aria-label="Enviar mensagem" title="Enviar mensagem"><svg
+                viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M12 19V5m0 0-6 6m6-6 6 6" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+              </svg></button>
+          </div>
+          <p class="submit-status" role="status" aria-live="polite" data-submit-status></p>
+        </form>
+      </section>
       {% else %}
-        <p class="read-only-note" role="status">Esta conversa está disponível somente para leitura. Você pode iniciar uma nova conversa.</p>
+      <p class="read-only-note" role="status">Esta conversa está disponível somente para leitura. Você pode iniciar uma
+        nova conversa.</p>
       {% endif %}
     </main>
   </div>
   <footer class="site-footer">Portal Getnet Support</footer>
 </body>
+
 </html>

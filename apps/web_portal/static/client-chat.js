@@ -1,6 +1,41 @@
 document.addEventListener("DOMContentLoaded", () => {
   renderAgentFormatting();
 
+  const transcript = document.querySelector(".client-page .transcript");
+  if (transcript) {
+    // A newly opened conversation starts at its latest message.
+    transcript.scrollTop = transcript.scrollHeight;
+    requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; });
+    const observer = new MutationObserver(() => {
+      transcript.scrollTo({ top: transcript.scrollHeight, behavior: "smooth" });
+    });
+    observer.observe(transcript, { childList: true, subtree: true });
+  }
+
+  const expandButton = document.querySelector("[data-composer-expand]");
+  const composer = expandButton?.closest(".composer");
+  const textarea = composer?.querySelector("textarea");
+  const resizeTextarea = () => {
+    if (!textarea) return;
+    const maxHeight = composer.classList.contains("is-expanded")
+      ? Math.round(window.innerHeight * 0.35)
+      : 192;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  };
+  textarea?.addEventListener("input", resizeTextarea);
+  textarea?.addEventListener("change", resizeTextarea);
+  resizeTextarea();
+  expandButton?.addEventListener("click", () => {
+    const expanded = composer.classList.toggle("is-expanded");
+    expandButton.setAttribute("aria-expanded", String(expanded));
+    expandButton.setAttribute("aria-label", expanded ? "Recolher caixa de mensagem" : "Expandir caixa de mensagem");
+    expandButton.title = expanded ? "Recolher caixa de mensagem" : "Expandir caixa de mensagem";
+    resizeTextarea();
+    textarea?.focus();
+  });
+
   for (const form of document.querySelectorAll("[data-chat-form], [data-agent-retry-form]")) {
     form.addEventListener("submit", (event) => {
       if (!form.checkValidity()) return;

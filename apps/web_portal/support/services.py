@@ -159,6 +159,13 @@ def request_human_support(
     conversation.updated_at = now
     conversation.save(update_fields=("status", "updated_at"))
     handoff = SupportHandoff.objects.create(conversation=conversation, requested_at=now)
+    Message.objects.create(
+        conversation=conversation,
+        sender_type=Message.SenderType.SYSTEM,
+        sender_user=None,
+        body="Iniciado atendimento com a Central de Relacionamento Getnet.",
+        processing_status=Message.ProcessingStatus.COMPLETED,
+    )
     return HandoffOperation(conversation, handoff, created=True)
 
 

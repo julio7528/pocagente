@@ -1,0 +1,290 @@
+/* Loaded only by the CLIENT chat. Each workspace owns its scrolling. */
+.client-page {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.client-page .site-header { padding: .85rem 1.5rem; }
+.client-page .site-footer { padding: .45rem 1.5rem; font-size: .75rem; }
+.client-page .client-layout { overflow: hidden; }
+.client-page .client-sidebar { min-height: 0; padding: 1.25rem; gap: 1rem; }
+.client-page .new-conversation-link,
+.client-page .sidebar-account { flex-shrink: 0; }
+.client-page .client-sidebar nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: .25rem;
+}
+.client-page .sidebar-account { margin-top: 0; }
+.client-page .client-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1.25rem clamp(1rem, 3vw, 2.5rem);
+  gap: 1rem;
+}
+.client-page .portal-notices {
+  flex-shrink: 0;
+  max-height: 15%;
+  overflow-y: auto;
+  margin: 0;
+}
+.client-page .conversation-context {
+  flex-shrink: 0;
+  max-height: 28%;
+  overflow-y: auto;
+  padding: .25rem;
+}
+.client-page .conversation-heading h1 {
+  font-size: 1.3rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.client-page .conversation-heading > div { min-width: 0; }
+.client-page .state-badge { max-width: 100%; }
+.client-page .state-description { margin: .5rem 0 0; font-size: .9rem; }
+.client-page .human-request-link { margin: .65rem 0 0; font-size: .9rem; }
+.client-page .human-request-link a { color: #8f1020; text-underline-offset: .2em; }
+.client-page .transcript {
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  margin: 0;
+  padding: .25rem .5rem .5rem .25rem;
+}
+.client-page .transcript:focus-visible { outline: 2px solid #2b6de0; outline-offset: 2px; }
+.client-page .chat-welcome {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: clamp(1rem, 7vh, 5rem) .25rem 1rem;
+}
+.client-page .composer {
+  flex-shrink: 0;
+  max-height: 42%;
+  overflow-y: auto;
+  padding: .85rem 1rem;
+}
+.client-page .composer h2 { font-size: .9rem; }
+.client-page .composer .field { margin: .65rem 0; }
+.client-page .composer label { font-size: .85rem; }
+.client-page .composer textarea {
+  height: 4.5rem;
+  min-height: 3rem;
+  max-height: 9rem;
+  resize: vertical;
+}
+.client-page .composer-actions { flex-direction: row; align-items: center; }
+.client-page .composer-actions p { font-size: .8rem; }
+.client-page .composer .submit-status:empty { display: none; }
+.client-page .read-only-note {
+  flex-shrink: 0;
+  max-height: 25%;
+  overflow-y: auto;
+  margin: 0;
+}
+
+@media (max-width: 48rem) {
+  .client-page .site-header { padding: .65rem 1rem; }
+  .client-page .site-footer { padding: .35rem 1rem; }
+  .client-page .client-layout { grid-template-rows: auto minmax(0, 1fr); }
+  .client-page .client-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .5rem .75rem;
+    padding: .65rem 1rem;
+  }
+  .client-page .new-conversation-link { justify-self: start; padding: .55rem .75rem; font-size: .85rem; }
+  .client-page .sidebar-account { grid-area: 1 / 2; padding: 0; border: 0; font-size: .8rem; }
+  .client-page .client-sidebar nav { grid-column: 1 / -1; overflow-x: auto; padding: .2rem; }
+  .client-page .client-sidebar nav h2 { font-size: .75rem; margin-bottom: .25rem; }
+  .client-page .client-sidebar nav > .muted { margin: 0; font-size: .8rem; }
+  .client-page .conversation-list { display: flex; gap: .35rem; }
+  .client-page .conversation-list li { flex: 0 0 auto; max-width: 14rem; }
+  .client-page .conversation-list a {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding: .4rem .6rem;
+    font-size: .8rem;
+  }
+  .client-page .client-main { padding: .75rem; gap: .65rem; }
+  .client-page .conversation-heading { flex-direction: row; flex-wrap: wrap; gap: .4rem; }
+  .client-page .conversation-heading h1 { font-size: 1.05rem; }
+  .client-page .eyebrow { display: none; }
+  .client-page .state-badge { font-size: .75rem; padding: .3rem .55rem; }
+  .client-page .state-description,
+  .client-page .human-request-link { font-size: .8rem; }
+  .client-page .composer { padding: .65rem .75rem; }
+  .client-page .composer h2 { display: none; }
+  .client-page .composer .field { margin: 0 0 .5rem; }
+  .client-page .composer textarea { height: 3.5rem; }
+  .client-page .composer-actions { gap: .5rem; }
+  .client-page .composer-actions button { padding: .6rem .85rem; }
+}
+
+@media (max-height: 35rem) {
+  .client-page .client-main { padding-block: .5rem; gap: .5rem; }
+  .client-page .composer { max-height: 46%; padding: .5rem .65rem; }
+  .client-page .composer h2,
+  .client-page .composer-actions .muted,
+  .client-page .client-sidebar nav h2 { display: none; }
+  .client-page .composer form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+  .client-page .composer .field { margin: 0; }
+  .client-page .composer label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .client-page .composer textarea { height: 3rem; max-height: 5rem; }
+  .client-page .composer .form-errors,
+  .client-page .composer .submit-status { grid-column: 1 / -1; }
+  .client-page .conversation-context { max-height: 26%; }
+}
+
+@media (min-width: 35rem) and (max-width: 48rem) and (max-height: 35rem) {
+  .client-page .client-layout { grid-template-columns: 11rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .client-page .client-sidebar { display: flex; padding: .65rem; border-right: 1px solid #d8e1df; border-bottom: 0; }
+  .client-page .client-sidebar nav { overflow-x: hidden; overflow-y: auto; }
+  .client-page .conversation-list { display: grid; }
+  .client-page .conversation-list li { min-width: 0; }
+  .client-page .sidebar-account { border-top: 1px solid #d8e1df; padding-top: .4rem; }
+}
+
+/* Client application shell */
+.client-page { --client-header-height: 3.9rem; background: #fafafa; }
+.client-page .site-header {
+  position: relative;
+  z-index: 3;
+  height: var(--client-header-height);
+  min-height: var(--client-header-height);
+  background: #fff;
+  border-color: #e8e8e8;
+}
+.client-page .site-footer { background: #fff; border-color: #e8e8e8; }
+.client-brand { display: inline-flex; align-items: center; gap: .5rem; color: #242424; font-size: clamp(.75rem, 3.9vw, 1rem); letter-spacing: -.02em; white-space: nowrap; }
+.client-brand img { display: block; flex: none; width: auto; height: calc(var(--client-header-height) * .46); max-width: 5rem; object-fit: contain; }
+.client-menu-wrap { position: relative; }
+.client-menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border-radius: .55rem;
+  background: transparent;
+  color: #505050;
+  letter-spacing: .1em;
+  font-size: 1rem;
+  line-height: 1;
+}
+.client-menu-trigger:hover, .client-menu-trigger[aria-expanded="true"] { background: #f1f1f1; }
+.client-menu {
+  position: absolute;
+  top: calc(100% + .5rem);
+  right: 0;
+  width: 11.75rem;
+  padding: .35rem;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: .7rem;
+  box-shadow: 0 .8rem 2rem rgb(0 0 0 / 12%);
+}
+.client-menu[hidden] { display: none; }
+.client-menu form { margin: 0; }
+.client-menu-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  padding: .65rem .75rem;
+  background: transparent;
+  border-radius: .4rem;
+  color: #242424;
+  text-align: left;
+  font-size: .88rem;
+  font-weight: 500;
+}
+.client-menu-item > span:first-child { display: inline-grid; place-items: center; width: 1rem; font-size: 1rem; }
+.client-menu-item:hover { background: #f3f3f3; }
+.client-page .client-layout { grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr); }
+.client-page .client-sidebar { padding-right: 0; background: #f7f7f7; border-color: #ececec; }
+.client-page .client-sidebar nav { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+.client-page .client-sidebar > .new-conversation-link { margin-right: 1.25rem; }
+.client-page .client-sidebar h2 { color: #777; font-size: .77rem; font-weight: 650; }
+.client-page .conversation-scroll { width: 100%; max-width: 100%; flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 0; }
+.client-page .new-conversation-link { align-self: stretch; padding: .7rem .8rem; background: #a51224; border-radius: .55rem; font-size: .87rem; }
+.client-page .new-conversation-link:hover { background: #86101e; }
+.client-page .conversation-list a { color: #343434; font-size: .88rem; }
+.client-page .conversation-list a:hover { background: #ececec; }
+.client-page .conversation-list a[aria-current="page"] { background: #eaeaea; color: #171717; font-weight: 650; }
+.client-page .client-main { max-width: none; width: 100%; min-width: 0; margin: 0; padding: 1rem clamp(.9rem, 3vw, 2.25rem); background: #fff; }
+.client-page .conversation-context { max-height: 31%; }
+.client-page .conversation-heading h1 { color: #202020; font-size: 1.2rem; }
+.client-page .state-badge { background: #f2f2f2; color: #444; }
+.client-page .transcript { gap: 1.1rem; }
+.client-page .message-bubble { border-color: #ebebeb; border-radius: 1rem; box-shadow: none; }
+.client-page .sender-client .message-bubble { background: #f8eff0; border-color: #f8eff0; }
+.client-page .sender-system .message-bubble { background: #f5f5f5; }
+.client-page .sender-label { color: #292929; }
+.client-page .chat-welcome { display: flex; flex-direction: column; justify-content: center; padding: 1rem; text-align: center; }
+.client-page .chat-welcome h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); letter-spacing: -.035em; }
+.client-page .chat-welcome p { margin-inline: auto; }
+.client-page .composer {
+  max-height: min(48%, 22rem);
+  padding: .75rem .85rem;
+  border-color: #dfdfdf;
+  border-radius: 1rem;
+  box-shadow: 0 .3rem 1.2rem rgb(0 0 0 / 5%);
+}
+.client-page .composer h2 { font-size: .84rem; color: #5f5f5f; }
+.client-page .composer .field { margin: .45rem 0 .35rem; }
+.client-page .composer label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.client-page .composer textarea { height: 3.4rem; min-height: 3.4rem; max-height: 12rem; padding: .55rem .25rem; border: 0; background: transparent; color: #222; resize: none; line-height: 1.45; }
+.client-page .composer textarea:focus-visible { outline: 0; }
+.client-page .composer:focus-within { border-color: #a51224; box-shadow: 0 0 0 2px rgb(165 18 36 / 10%); }
+.client-page .composer.is-expanded { max-height: min(70%, 34rem); }
+.client-page .composer.is-expanded textarea { height: clamp(8rem, 24vh, 16rem); max-height: 35vh; resize: vertical; }
+.client-page .composer-actions { justify-content: flex-start; gap: .7rem; }
+.client-page .composer-actions .muted { flex: 1; font-size: .72rem; }
+.client-page .composer-expand { width: 2rem; height: 2rem; padding: 0; background: transparent; color: #686868; font-size: 1.3rem; font-weight: 400; }
+.client-page .composer-expand:hover { background: #f0f0f0; }
+.client-page .composer-send { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; padding: 0; border-radius: 50%; flex: none; }
+.client-page .composer-send:hover { background: #86101e; }
+.client-page .composer .submit-status { margin-top: .25rem; font-size: .82rem; }
+.client-page .conversation-scroll, .client-page .transcript, .client-page .composer, .client-page .conversation-context {
+  scrollbar-width: thin;
+  scrollbar-color: #c7c7c7 transparent;
+}
+.client-page .conversation-scroll::-webkit-scrollbar, .client-page .transcript::-webkit-scrollbar { width: 6px; }
+.client-page .conversation-scroll::-webkit-scrollbar-thumb, .client-page .transcript::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 8px; }
+
+@media (max-width: 48rem) {
+  .client-page .client-header { gap: .5rem; }
+  .client-page .client-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .client-page .client-sidebar { display: flex; padding: .55rem 0 .55rem .75rem; gap: .25rem; }
+  .client-page .new-conversation-link { align-self: flex-start; margin-right: .75rem; padding: .5rem .7rem; }
+  .client-page .client-sidebar nav { flex: none; max-width: 100%; }
+.client-page .client-sidebar nav h2 { display: none; }
+.client-page .client-sidebar > .new-conversation-link { margin-right: .75rem; }
+.client-page .conversation-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 0; scrollbar-gutter: auto; }
+  .client-page .conversation-list { display: flex; width: max-content; min-width: 100%; }
+  .client-page .client-main { padding: .65rem .75rem; }
+  .client-page .composer { max-height: 45%; }
+  .client-page .composer.is-expanded { max-height: 65%; }
+  .client-page .composer-actions .muted { display: none; }
+  .client-page .composer-send { margin-left: auto; }
+}
