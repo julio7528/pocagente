@@ -14,6 +14,10 @@
   <script src="{% static 'client-chat.js' %}" defer></script>
   <script src="{% static 'portal-header.js' %}" defer></script>
   <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
+  {% if debugger_enabled %}
+  <link rel="stylesheet" href="{% static 'client-debugger.css' %}">
+  <script src="{% static 'client-debugger.js' %}" defer></script>
+  {% endif %}
 </head>
 
 <body class="client-page">
@@ -87,6 +91,7 @@
             {% if item.agent_retry_available %}
             <form method="post" action="{% url 'chat-retry-agent' conversation.id item.id %}" data-agent-retry-form>
               {% csrf_token %}
+              {% if debugger_enabled %}<input type="hidden" name="debugger_mode" value="off" data-debugger-mode-input>{% endif %}
               <button type="submit" aria-describedby="turn-status-{{ item.id }}">Tentar obter resposta
                 novamente</button>
               <span class="submit-status" role="status" aria-live="polite" data-submit-status></span>
@@ -116,6 +121,7 @@
           action="{% if conversation %}{% url 'chat-message' conversation.id %}{% else %}{% url 'chat-new' %}{% endif %}"
           data-chat-form>
           {% csrf_token %}
+          {% if debugger_enabled %}<input type="hidden" name="debugger_mode" value="off" data-debugger-mode-input>{% endif %}
           {{ form.client_turn_key }}
           {% if form.client_turn_key.errors %}<div class="form-errors" role="alert">Atualize a página e tente enviar
             novamente.</div>{% endif %}
@@ -144,7 +150,30 @@
         nova conversa.</p>
       {% endif %}
     </main>
+    {% if debugger_enabled %}
+    <aside class="client-debugger-drawer" id="client-debugger-drawer" aria-labelledby="client-debugger-title"
+      data-debugger-drawer hidden>
+      <div class="client-debugger-heading"><h2 id="client-debugger-title">🐞 Debugger</h2></div>
+      <div class="client-debugger-scroll" data-debugger-scroll>
+        <p class="client-debugger-status" role="status" aria-live="polite" data-debugger-status>Mantenha o Debugger aberto e envie uma mensagem para registrar o processamento.</p>
+        <ol class="client-debugger-events" data-debugger-events></ol>
+        <dl class="client-debugger-summary" data-debugger-summary hidden></dl>
+      </div>
+    </aside>
+    {% endif %}
   </div>
+  {% if debugger_enabled %}
+  <div class="client-debugger-launcher">
+    <div class="client-debugger-tooltip" id="client-debugger-tooltip" role="tooltip">
+      <strong>Debugger Mode</strong>
+      <span>Exibe o processamento interno da mensagem atual.</span>
+    </div>
+    <button class="client-debugger-toggle" type="button" aria-label="Debugger Mode"
+      aria-describedby="client-debugger-tooltip" aria-controls="client-debugger-drawer"
+      aria-expanded="false" data-debugger-toggle><span aria-hidden="true">🐞</span></button>
+  </div>
+  {{ debugger_payload|json_script:"client-debugger-payload" }}
+  {% endif %}
   <footer class="site-footer">Portal Getnet Support</footer>
 </body>
 

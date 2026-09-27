@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError
@@ -14,6 +15,12 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.web_portal.accounts.models import User
 from apps.web_portal.accounts.views import role_required
 from apps.web_portal.conversations.forms import ClientMessageForm
+from apps.web_portal.conversations.debugger import (
+    clear_debug_turn,
+    consume_debug_turn,
+    debugger_requested,
+    remember_debug_turn,
+)
 from apps.web_portal.conversations.human_support_intent import requests_human_support
 from apps.web_portal.conversations.models import Conversation, Message
 from apps.web_portal.conversations.services import (
@@ -68,7 +75,8 @@ def _update_retry_session(request: HttpRequest, message_id: uuid.UUID, *, allowe
 
 
 def _attempt_agent_turn(
-    request: HttpRequest, conversation: Conversation, client_message, *, retry: bool = False
+    request: HttpRequest, conversation: Conversation, client_message, *,
+    retry: bool = False, debug: bool = False,
 ) -> None:
     try:
         result = execute_agent_turn(
@@ -76,8 +84,14 @@ def _attempt_agent_turn(
             conversation_id=conversation.pk,
             client_message_id=client_message.pk,
             retry=retry,
+            debug=debug,
         )
     except AgentChatUnavailable as error:
+        if debug:
+            remember_debug_turn(
+                request, conversation_id=conversation.pk,
+                message_id=client_message.pk, state="error",
+            )
         try:
             mark_client_turn_failed(
                 conversation=conversation, client_message=client_message
@@ -95,7 +109,26 @@ def _attempt_agent_turn(
         )
         return
     except DatabaseError:
+        if debug:
+            remember_debug_turn(
+                request, conversation_id=conversation.pk,
+                message_id=client_message.pk, state="error",
+            )
         return
+
+    if debug:
+        remember_debug_turn(
+            request,
+            conversation_id=conversation.pk,
+            message_id=client_message.pk,
+            state=(
+                "complete" if result.response is not None and result.outcome in {"COMPLETED", "NO_ANSWER"}
+                else "error" if result.response is not None else "no_runtime"
+            ),
+            trace=result.trace,
+            response=result.response,
+            trace_truncated=result.trace_truncated,
+        )
 
     if result.outcome == "COMPLETED":
         _update_retry_session(request, client_message.pk, allowed=False)
@@ -135,11 +168,12 @@ def _route_client_turn(
     client_message: Message,
     *,
     retry: bool = False,
+    debug: bool = False,
 ) -> None:
     """Send an explicit human request to the handoff flow, otherwise use automation."""
 
     if not requests_human_support(client_message.body):
-        _attempt_agent_turn(request, conversation, client_message, retry=retry)
+        _attempt_agent_turn(request, conversation, client_message, retry=retry, debug=debug)
         return
 
     _update_retry_session(request, client_message.pk, allowed=False)
@@ -229,6 +263,15 @@ def _render_chat(
         f"{conversation.status}:{conversation.updated_at.isoformat()}:{history[-1].pk if history else ''}"
         if conversation is not None else ""
     )
+    debugger_payload = (
+        consume_debug_turn(
+            request,
+            conversation_id=conversation.pk if conversation else None,
+            message_ids={str(item.pk) for item in history},
+        )
+        if settings.PORTAL_DEBUGGER_ENABLED and request.method == "GET"
+        else None
+    )
     return render(
         request,
         "conversations/chat.html",
@@ -241,6 +284,8 @@ def _render_chat(
             "state_label": label,
             "state_description": description,
             "live_version": live_version,
+            "debugger_enabled": settings.PORTAL_DEBUGGER_ENABLED,
+            "debugger_payload": debugger_payload,
         },
         status=status,
     )
@@ -255,6 +300,8 @@ def chat_home(request: HttpRequest) -> HttpResponse:
 @role_required(User.Role.CLIENT)
 @require_POST
 def new_conversation(request: HttpRequest) -> HttpResponse:
+    clear_debug_turn(request)
+    debug = debugger_requested(request)
     form = ClientMessageForm(request.POST)
     if not form.is_valid():
         return _render_chat(request, form=form, status=400)
@@ -273,8 +320,13 @@ def new_conversation(request: HttpRequest) -> HttpResponse:
     except DatabaseError:
         return _unavailable(request)
     messages.success(request, "Mensagem registrada.")
+    if debug:
+        remember_debug_turn(
+            request, conversation_id=created.conversation.pk,
+            message_id=created.first_message.pk, state="no_runtime",
+        )
     if created.created and created.conversation.status == Conversation.Status.ACTIVE:
-        _route_client_turn(request, created.conversation, created.first_message)
+        _route_client_turn(request, created.conversation, created.first_message, debug=debug)
     return redirect("chat-detail", conversation_id=created.conversation.id)
 
 
@@ -312,6 +364,8 @@ def conversation_updates(request: HttpRequest, conversation_id: uuid.UUID) -> Js
 @role_required(User.Role.CLIENT)
 @require_POST
 def append_message(request: HttpRequest, conversation_id: uuid.UUID) -> HttpResponse:
+    clear_debug_turn(request)
+    debug = debugger_requested(request)
     try:
         conversation = get_owned_conversation(
             owner=request.user, conversation_id=conversation_id
@@ -346,8 +400,13 @@ def append_message(request: HttpRequest, conversation_id: uuid.UUID) -> HttpResp
     except DatabaseError:
         return _unavailable(request)
     messages.success(request, "Mensagem registrada.")
+    if debug:
+        remember_debug_turn(
+            request, conversation_id=conversation.pk,
+            message_id=persisted.message.pk, state="no_runtime",
+        )
     if persisted.created and conversation.status == Conversation.Status.ACTIVE:
-        _route_client_turn(request, conversation, persisted.message)
+        _route_client_turn(request, conversation, persisted.message, debug=debug)
     return redirect("chat-detail", conversation_id=conversation.id)
 
 
@@ -356,6 +415,8 @@ def append_message(request: HttpRequest, conversation_id: uuid.UUID) -> HttpResp
 def retry_agent_message(
     request: HttpRequest, conversation_id: uuid.UUID, message_id: uuid.UUID
 ) -> HttpResponse:
+    clear_debug_turn(request)
+    debug = debugger_requested(request)
     try:
         conversation = get_owned_conversation(
             owner=request.user, conversation_id=conversation_id
@@ -386,5 +447,10 @@ def retry_agent_message(
         messages.info(request, "Esta conversa não está disponível para uma nova resposta automática.")
         return redirect("chat-detail", conversation_id=conversation.pk)
 
-    _route_client_turn(request, conversation, client_message, retry=True)
+    if debug:
+        remember_debug_turn(
+            request, conversation_id=conversation.pk,
+            message_id=client_message.pk, state="no_runtime",
+        )
+    _route_client_turn(request, conversation, client_message, retry=True, debug=debug)
     return redirect("chat-detail", conversation_id=conversation.pk)

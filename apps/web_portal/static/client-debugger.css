@@ -1,0 +1,109 @@
+/* Optional CLIENT trace drawer. When open, it gets its own grid column. */
+.client-debugger-drawer {
+  position: relative;
+  z-index: 5;
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  color: #242424;
+  background: #fff;
+  border-left: 1px solid #dedee2;
+  box-shadow: -.65rem 0 1.75rem rgb(0 0 0 / 10%);
+}
+.client-debugger-drawer[hidden] { display: none; }
+.client-page .client-layout.client-layout--debugger-open {
+  grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr) clamp(16rem, 30vw, 22rem);
+}
+.client-debugger-heading { flex: none; padding: 1rem 1.2rem; border-bottom: 1px solid #e5e5e5; }
+.client-debugger-heading h2 { margin: 0; font-size: 1.05rem; }
+.client-debugger-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem 1.2rem 5rem;
+}
+.client-debugger-status { margin: 0 0 1rem; font-size: .9rem; font-weight: 650; }
+.client-debugger-events { display: grid; gap: .65rem; list-style: none; margin: 0; padding: 0; }
+.client-debugger-event { padding: .7rem .8rem; border: 1px solid #e8e8e8; border-radius: .55rem; background: #fafafa; }
+.client-debugger-event strong { display: block; margin-bottom: .3rem; font-size: .84rem; }
+.client-debugger-event-detail { display: flex; justify-content: space-between; gap: .75rem; font-size: .82rem; overflow-wrap: anywhere; }
+.client-debugger-event-duration { flex: none; color: #606066; font-variant-numeric: tabular-nums; }
+.client-debugger-summary { display: grid; gap: .7rem; margin: 1.25rem 0 0; padding-top: 1rem; border-top: 1px solid #e5e5e5; }
+.client-debugger-summary[hidden] { display: none; }
+.client-debugger-summary div { display: grid; gap: .2rem; }
+.client-debugger-summary dt { color: #68686d; font-size: .72rem; font-weight: 700; letter-spacing: .05em; }
+.client-debugger-summary dd { margin: 0; font-size: .88rem; overflow-wrap: anywhere; }
+.client-debugger-truncated { color: #755619; font-size: .8rem; }
+.client-debugger-launcher {
+  position: fixed;
+  z-index: 7;
+  top: 50%;
+  right: 1.25rem;
+  transform: translateY(-50%);
+}
+.client-page.client-debugger-open .client-debugger-launcher {
+  right: calc(clamp(16rem, 30vw, 22rem) + .5rem);
+}
+.client-debugger-toggle {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border-radius: 50%;
+  background: #a51224;
+  box-shadow: 0 .4rem 1.1rem rgb(0 0 0 / 22%);
+  font-size: 1.35rem;
+}
+.client-debugger-toggle[aria-expanded="true"] { background: #73101c; }
+.client-debugger-tooltip {
+  position: absolute;
+  right: calc(100% + .6rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  width: min(17rem, calc(100vw - 2rem));
+  padding: .7rem .85rem;
+  border: 1px solid #dedee2;
+  border-radius: .6rem;
+  background: #fff;
+  color: #242424;
+  box-shadow: 0 .4rem 1rem rgb(0 0 0 / 12%);
+  font-size: .8rem;
+}
+.client-debugger-tooltip strong,
+.client-debugger-tooltip span { display: block; }
+.client-debugger-tooltip strong { margin-bottom: .25rem; }
+.client-debugger-launcher:hover .client-debugger-tooltip,
+.client-debugger-launcher:focus-within .client-debugger-tooltip { display: block; }
+html[data-theme="dark"] .client-debugger-drawer,
+html[data-theme="dark"] .client-debugger-tooltip { color: #f1f1f2; background: #222225; border-color: #424248; }
+html[data-theme="dark"] .client-debugger-heading,
+html[data-theme="dark"] .client-debugger-summary { border-color: #424248; }
+html[data-theme="dark"] .client-debugger-event { color: #f1f1f2; background: #2c2c30; border-color: #424248; }
+html[data-theme="dark"] .client-debugger-event-duration,
+html[data-theme="dark"] .client-debugger-summary dt { color: #b8b8be; }
+html[data-theme="dark"] .client-debugger-truncated { color: #ebca89; }
+
+@media (max-width: 48rem) {
+  .client-page .client-layout.client-layout--debugger-open {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) minmax(10rem, 30vh);
+  }
+  .client-page .client-layout--debugger-open .client-sidebar { grid-column: 1; grid-row: 1; }
+  .client-page .client-layout--debugger-open .client-main { grid-column: 1; grid-row: 2; }
+  .client-page .client-layout--debugger-open .client-debugger-drawer {
+    grid-column: 1;
+    grid-row: 3;
+    border-top: 1px solid #dedee2;
+    border-left: 0;
+  }
+  .client-debugger-launcher { right: .8rem; }
+  .client-page.client-debugger-open .client-debugger-launcher { right: .8rem; }
+}

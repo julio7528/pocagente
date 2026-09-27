@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements-docker.txt /tmp/web-portal-requirements.txt
+COPY apps/web_portal/requirements-docker.txt /tmp/web-portal-requirements.txt
 
 RUN python -m pip install --no-cache-dir -r /tmp/web-portal-requirements.txt \
     && python -m pip check \
@@ -16,7 +16,10 @@ RUN python -m pip install --no-cache-dir -r /tmp/web-portal-requirements.txt \
     && mkdir -p /home/app \
     && chown -R app:app /home/app
 
-COPY --chown=app:app . /app/apps/web_portal
+COPY --chown=app:app apps/web_portal /app/apps/web_portal
+COPY --chown=app:app apps/agent_api/app/__init__.py /app/apps/agent_api/app/__init__.py
+COPY --chown=app:app apps/agent_api/app/telemetry.py /app/apps/agent_api/app/telemetry.py
+COPY --chown=app:app apps/agent_api/app/telemetry_presentation.py /app/apps/agent_api/app/telemetry_presentation.py
 
 USER app
 

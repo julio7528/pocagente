@@ -23,7 +23,7 @@ def trusted_service_headers(
     """Derive internal headers from an active server-loaded portal identity.
 
     OPS claims are accepted only for CLIENT/SUPPORT_AGENT calls to the typed
-    /chat boundary. Other internal APIs retain their explicit role policies.
+    chat boundaries. Other internal APIs retain their explicit role policies.
     """
 
     if (
@@ -36,7 +36,8 @@ def trusted_service_headers(
     if role not in {"ADMIN", "CLIENT", "SUPPORT_AGENT"}:
         raise InternalServicePrincipalError
     if ops_authorized and (
-        role not in {"CLIENT", "SUPPORT_AGENT"} or endpoint != "/chat"
+        role not in {"CLIENT", "SUPPORT_AGENT"}
+        or endpoint not in {"/chat", "/internal/chat/debug"}
     ):
         raise InternalServicePrincipalError
     token = settings.AGENT_API_SERVICE_TOKEN

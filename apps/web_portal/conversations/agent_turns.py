@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
+from apps.agent_api.app.telemetry import RuntimeTelemetryEvent
 from apps.web_portal.accounts.authorization import require_client, require_client_conversation
 from apps.web_portal.accounts.models import User
 from apps.web_portal.conversations.context import build_agent_context
@@ -35,6 +36,8 @@ class AgentTurnResult:
     outcome: Literal["COMPLETED", "ALREADY_COMPLETED", "NO_ANSWER", "SUSPENDED"]
     response_message: Message | None = None
     response: AgentChatResponse | None = None
+    trace: tuple[RuntimeTelemetryEvent, ...] = ()
+    trace_truncated: bool = False
 
 
 def _safe_citation_url(value: str | None) -> str | None:
@@ -142,7 +145,7 @@ def _prepare_turn(
 
 def execute_agent_turn(
     *, actor: User, conversation_id: uuid.UUID | str,
-    client_message_id: uuid.UUID | str, retry: bool = False,
+    client_message_id: uuid.UUID | str, retry: bool = False, debug: bool = False,
 ) -> AgentTurnResult:
     """Run one authorized turn without holding a portal DB transaction over HTTP."""
 
@@ -155,13 +158,25 @@ def execute_agent_turn(
     if isinstance(prepared, AgentTurnResult):
         return prepared
     current_actor, conversation, client_message, turn = prepared
-    response = AgentChatClient(current_actor).execute(turn)
+    client = AgentChatClient(current_actor)
+    if debug:
+        execution = client.execute_debug(turn)
+        response = execution.response
+        trace = execution.trace
+        trace_truncated = execution.trace_truncated
+    else:
+        response = client.execute(turn)
+        trace = ()
+        trace_truncated = False
     body = _transcript_answer(response)
     if not body:
         mark_client_turn_failed(
             conversation=conversation, client_message=client_message
         )
-        return AgentTurnResult(outcome="NO_ANSWER", response=response)
+        return AgentTurnResult(
+            outcome="NO_ANSWER", response=response, trace=trace,
+            trace_truncated=trace_truncated,
+        )
     try:
         persisted = append_agent_message(
             conversation=conversation,
@@ -174,19 +189,27 @@ def execute_agent_turn(
         mark_client_turn_failed(
             conversation=conversation, client_message=client_message
         )
-        return AgentTurnResult(outcome="SUSPENDED", response=response)
+        return AgentTurnResult(
+            outcome="SUSPENDED", response=response, trace=trace,
+            trace_truncated=trace_truncated,
+        )
     except IdempotencyConflictError:
         existing = get_agent_response_for_turn(
             conversation=conversation, client_message=client_message
         )
         if existing is not None:
             return AgentTurnResult(
-                outcome="ALREADY_COMPLETED", response_message=existing, response=response
+                outcome="ALREADY_COMPLETED", response_message=existing, response=response,
+                trace=trace, trace_truncated=trace_truncated,
             )
         mark_client_turn_failed(
             conversation=conversation, client_message=client_message
         )
-        return AgentTurnResult(outcome="NO_ANSWER", response=response)
+        return AgentTurnResult(
+            outcome="NO_ANSWER", response=response, trace=trace,
+            trace_truncated=trace_truncated,
+        )
     return AgentTurnResult(
-        outcome="COMPLETED", response_message=persisted.message, response=response
+        outcome="COMPLETED", response_message=persisted.message, response=response,
+        trace=trace, trace_truncated=trace_truncated,
     )

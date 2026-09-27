@@ -60,7 +60,11 @@ from apps.agent_api.app.security.dashboard_service import (
     SecurityDashboardUnavailable,
 )
 from apps.agent_api.app.security.models import SecurityEventType
-from apps.agent_api.app.telemetry import RuntimeTelemetrySink
+from apps.agent_api.app.telemetry import (
+    CollectorTelemetrySink,
+    RuntimeTelemetryEvent,
+    RuntimeTelemetrySink,
+)
 
 
 class HealthResponse(BaseModel):
@@ -72,6 +76,15 @@ class ReadinessResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     status: Literal["ready", "not-ready"]
     detail: str
+
+
+class DebugChatResponse(BaseModel):
+    """Internal chat result with only approved, typed runtime events."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    response: ChatResponse
+    trace: tuple[RuntimeTelemetryEvent, ...] = Field(default=(), max_length=CollectorTelemetrySink.MAX_EVENTS)
+    trace_truncated: bool = False
 
 
 class HandoffTransitionRequest(BaseModel):
@@ -183,6 +196,35 @@ AuditDashboardFilters = Annotated[
 ]
 
 
+async def _execute_chat(
+    chat_request: ChatRequest,
+    principal: AuthenticatedPrincipal,
+    service: ChatApplicationService,
+    telemetry_sink: RuntimeTelemetrySink | None,
+) -> ChatResponse:
+    """Share authorization, runtime execution, and safe errors across chat routes."""
+
+    if principal.role is PrincipalRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CHAT_ROLE_FORBIDDEN")
+    try:
+        return await service.handle(chat_request, principal, telemetry_sink=telemetry_sink)
+    except ChatAuthorizationError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="APPLICATION_OPERATION_FORBIDDEN",
+        ) from None
+    except ChatUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ORCHESTRATION_UNAVAILABLE",
+        ) from None
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="APPLICATION_RUNTIME_UNAVAILABLE",
+        ) from None
+
+
 def create_app(
     *,
     chat_service: ChatApplicationService | None = None,
@@ -279,32 +321,39 @@ def create_app(
         principal: Principal,
         service: ChatService,
     ) -> ChatResponse:
-        if principal.role is PrincipalRole.ADMIN:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="CHAT_ROLE_FORBIDDEN",
-            )
+        return await _execute_chat(
+            chat_request,
+            principal,
+            service,
+            getattr(http_request.app.state, "telemetry_sink", None),
+        )
+
+    @application.post(
+        "/internal/chat/debug",
+        response_model=DebugChatResponse,
+        responses={
+            401: {"model": SafeErrorResponse},
+            403: {"model": SafeErrorResponse},
+            422: {"model": SafeErrorResponse},
+            503: {"model": SafeErrorResponse},
+        },
+    )
+    async def debug_chat(
+        chat_request: ChatRequest,
+        principal: Principal,
+        service: ChatService,
+    ) -> DebugChatResponse:
+        collector = CollectorTelemetrySink()
+        response = await _execute_chat(chat_request, principal, service, collector)
         try:
-            return await service.handle(
-                chat_request,
-                principal,
-                telemetry_sink=getattr(http_request.app.state, "telemetry_sink", None),
+            return DebugChatResponse(
+                response=response,
+                trace=collector.events,
+                trace_truncated=collector.truncated,
             )
-        except ChatAuthorizationError:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="APPLICATION_OPERATION_FORBIDDEN",
-            ) from None
-        except ChatUnavailableError:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="ORCHESTRATION_UNAVAILABLE",
-            ) from None
         except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="APPLICATION_RUNTIME_UNAVAILABLE",
-            ) from None
+            # The normal result is still returned if debug serialization fails.
+            return DebugChatResponse(response=response)
 
     @application.get(
         "/internal/admin/audit/summary",

@@ -96,6 +96,35 @@ class RuntimeTelemetrySink(Protocol):
     def emit(self, event: RuntimeTelemetryEvent) -> None: ...
 
 
+class CollectorTelemetrySink:
+    """Request-local, bounded collection of already validated runtime events."""
+
+    MAX_EVENTS = 256
+
+    def __init__(self) -> None:
+        self._events: list[RuntimeTelemetryEvent] = []
+        self.truncated = False
+
+    def emit(self, event: RuntimeTelemetryEvent) -> None:
+        try:
+            if not isinstance(event, RuntimeTelemetryEvent):
+                return
+            if len(self._events) >= self.MAX_EVENTS:
+                self.truncated = True
+                return
+            self._events.append(event)
+        except Exception:
+            # A collector is observational and cannot change the turn outcome.
+            return
+
+    @property
+    def events(self) -> tuple[RuntimeTelemetryEvent, ...]:
+        try:
+            return tuple(self._events)
+        except Exception:
+            return ()
+
+
 _CURRENT_SINK: ContextVar[RuntimeTelemetrySink | None] = ContextVar(
     "getnet_runtime_telemetry_sink", default=None
 )

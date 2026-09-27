@@ -54,8 +54,8 @@ services:
 
   web-portal:
     build:
-      context: ./apps/web_portal
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web_portal/Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
@@ -67,6 +67,7 @@ services:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost}
       WEB_PORTAL_SECURE_COOKIES: ${WEB_PORTAL_SECURE_COOKIES:-false}
+      PORTAL_DEBUGGER_ENABLED: ${PORTAL_DEBUGGER_ENABLED:-false}
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}

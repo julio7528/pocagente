@@ -9,6 +9,7 @@ from typing import Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from apps.agent_api.app.telemetry import CollectorTelemetrySink, RuntimeTelemetryEvent
 from apps.web_portal.accounts.models import User
 from apps.web_portal.conversations.context import ContextRole, ConversationContext
 from apps.web_portal.integrations.internal_service import (
@@ -64,6 +65,18 @@ class AgentChatResponse(BaseModel):
     requires_human: bool = False
     human: AgentChatHumanState | None = None
     reason: str = Field(min_length=1, max_length=128)
+
+
+class AgentChatDebugResponse(BaseModel):
+    """Internal debug envelope; events remain the runtime's strict type."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    response: AgentChatResponse
+    trace: tuple[RuntimeTelemetryEvent, ...] = Field(
+        default=(), max_length=CollectorTelemetrySink.MAX_EVENTS
+    )
+    trace_truncated: bool = False
 
 
 class AgentChatContextMessage(BaseModel):
@@ -126,14 +139,44 @@ def build_agent_chat_turn(
 
 
 class AgentChatClient:
-    """Call only the existing internal FastAPI ``/chat`` execution boundary."""
+    """Call the trusted FastAPI chat boundaries with the same portal turn."""
 
     ENDPOINT = "/chat"
+    DEBUG_ENDPOINT = "/internal/chat/debug"
 
     def __init__(self, actor: User) -> None:
         self._actor = actor
 
     def execute(self, turn: AgentChatTurn) -> AgentChatResponse:
+        response = self._send(turn, endpoint=self.ENDPOINT)
+        self._require_success(response)
+        try:
+            parsed = AgentChatResponse.model_validate(response.json())
+        except (ValidationError, TypeError, ValueError):
+            raise AgentChatContractFailure from None
+        self._validate_human_conversation(parsed, turn)
+        return parsed
+
+    def execute_debug(self, turn: AgentChatTurn) -> AgentChatDebugResponse:
+        response = self._send(turn, endpoint=self.DEBUG_ENDPOINT)
+        if response.status_code in {404, 405}:
+            # A portal may be deployed before the private debug boundary.
+            return AgentChatDebugResponse(response=self.execute(turn))
+        self._require_success(response)
+        try:
+            parsed = AgentChatDebugResponse.model_validate_json(response.content)
+        except (ValidationError, TypeError, ValueError):
+            # Preserve a successful chat response if only its trace is malformed.
+            try:
+                payload = response.json()
+                chat_response = AgentChatResponse.model_validate(payload["response"])
+                parsed = AgentChatDebugResponse(response=chat_response)
+            except (KeyError, ValidationError, TypeError, ValueError):
+                raise AgentChatContractFailure from None
+        self._validate_human_conversation(parsed.response, turn)
+        return parsed
+
+    def _send(self, turn: AgentChatTurn, *, endpoint: str) -> httpx.Response:
         if (
             not getattr(self._actor, "is_authenticated", False)
             or not self._actor.is_active
@@ -147,7 +190,10 @@ class AgentChatClient:
             "client_turn_id": str(turn.client_turn_id),
             "conversation_context": [item.model_dump() for item in turn.conversation_context],
         }
-        response = self._request_with_bounded_retry(payload)
+        return self._request_with_bounded_retry(payload, endpoint=endpoint)
+
+    @staticmethod
+    def _require_success(response: httpx.Response) -> None:
         if response.status_code in {401, 403}:
             raise AgentChatAuthorizationFailure
         if response.status_code == 422:
@@ -156,18 +202,18 @@ class AgentChatClient:
             raise AgentChatUnavailable(retryable=True)
         if response.status_code != 200:
             raise AgentChatUnavailable(retryable=response.status_code >= 500)
-        try:
-            parsed = AgentChatResponse.model_validate(response.json())
-        except (ValidationError, TypeError, ValueError):
-            raise AgentChatContractFailure from None
+
+    @staticmethod
+    def _validate_human_conversation(parsed: AgentChatResponse, turn: AgentChatTurn) -> None:
         if (
             parsed.human is not None
             and parsed.human.conversation_id != str(turn.conversation_id)
         ):
             raise AgentChatContractFailure
-        return parsed
 
-    def _request_with_bounded_retry(self, payload: dict):
+    def _request_with_bounded_retry(
+        self, payload: dict, *, endpoint: str = ENDPOINT
+    ) -> httpx.Response:
         last_error: Exception | None = None
         for attempt in range(2):
             try:
@@ -175,7 +221,7 @@ class AgentChatClient:
                     # Active CLIENTs receive the owner-approved read-only OPS
                     # query capability through this authenticated chat boundary.
                     # The claim comes from the server-loaded actor, never browser input.
-                    "POST", self.ENDPOINT, actor=self._actor, ops_authorized=True, json=payload
+                    "POST", endpoint, actor=self._actor, ops_authorized=True, json=payload
                 )
             except (InternalServiceConfigurationError, InternalServicePrincipalError):
                 raise AgentChatUnavailable
