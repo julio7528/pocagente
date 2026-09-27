@@ -30,6 +30,7 @@ from apps.agent_api.app.security.dashboard_models import (
     SecurityDashboardEventPage,
     SecurityDashboardFilters,
     SecurityDashboardPage,
+    SecurityDashboardRecentActivity,
     SecurityDashboardSummary,
 )
 from apps.agent_api.app.rag.models import SearchCandidate
@@ -238,6 +239,14 @@ class AuditRepositoryContract(Protocol):
         self,
         filters: SecurityDashboardFilters,
     ) -> SecurityDashboardSummary: ...
+
+    async def get_recent_dashboard_activity(
+        self,
+        *,
+        window_start: datetime,
+        window_end: datetime,
+        event_limit: int = 6,
+    ) -> SecurityDashboardRecentActivity: ...
 
     async def get_dashboard_timeseries(
         self,

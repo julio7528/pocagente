@@ -51,6 +51,7 @@ from apps.agent_api.app.security.dashboard_models import (
     SecurityDashboardEventPage,
     SecurityDashboardFilters,
     SecurityDashboardPage,
+    SecurityDashboardRecentActivity,
     SecurityDashboardSummary,
 )
 from apps.agent_api.app.security.dashboard_service import (
@@ -366,6 +367,22 @@ def create_app(
     ) -> SecurityDashboardSummary:
         try:
             return await service.summary(filters)
+        except SecurityDashboardUnavailable:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AUDIT_DASHBOARD_UNAVAILABLE",
+            ) from None
+
+    @application.get(
+        "/internal/admin/audit/recent-activity",
+        response_model=SecurityDashboardRecentActivity,
+    )
+    async def audit_dashboard_recent_activity(
+        _principal: AdminPrincipal,
+        service: AuditDashboardService,
+    ) -> SecurityDashboardRecentActivity:
+        try:
+            return await service.recent_activity()
         except SecurityDashboardUnavailable:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

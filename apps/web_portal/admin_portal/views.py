@@ -10,6 +10,7 @@ from django.db import DatabaseError
 from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.web_portal.accounts.models import ROLE_VALUES, User
@@ -28,6 +29,10 @@ from apps.web_portal.admin_portal.forms import (
     AdminSetPasswordForm,
     RoleChangeForm,
     UserCreateForm,
+)
+from apps.web_portal.integrations.audit_dashboard import (
+    AuditDashboardClient,
+    AuditDashboardUnavailable,
 )
 
 
@@ -85,8 +90,57 @@ def overview(request: HttpRequest) -> HttpResponse:
     except DatabaseError:
         messages.error(request, "Não foi possível carregar o resumo de usuários.")
         counts = {key: 0 for key in ("total", "active", "inactive", "clients", "support_agents", "admins")}
-        return render(request, "admin_portal/overview.html", {"counts": counts}, status=503)
-    return render(request, "admin_portal/overview.html", {"counts": counts})
+        return render(
+            request,
+            "admin_portal/overview.html",
+            {"counts": counts, "security_unavailable": True},
+            status=503,
+        )
+    recent_security = None
+    security_unavailable = False
+    try:
+        activity = AuditDashboardClient(request.user).recent_activity()
+    except AuditDashboardUnavailable:
+        security_unavailable = True
+    else:
+        total = activity.total_events
+        recent_security = {
+            "window_start": activity.window_start,
+            "window_end": activity.window_end,
+            "total_events": total,
+            "distinct_event_types": activity.distinct_event_types,
+            "event_types": [
+                {
+                    "value": item.value,
+                    "count": item.count,
+                    "bar_percent": max(1, round(item.count / total * 100)) if total else 0,
+                }
+                for item in activity.event_types
+            ],
+            "events": [
+                {
+                    "event_id": item.event_id,
+                    "occurred_at": item.occurred_at,
+                    "event_type": item.event_type,
+                    "source_component": item.source_component,
+                    "action_taken": item.action_taken,
+                    "detail_url": reverse(
+                        "admin-security-event-detail", kwargs={"event_id": item.event_id}
+                    ),
+                }
+                for item in activity.events
+            ],
+        }
+
+    return render(
+        request,
+        "admin_portal/overview.html",
+        {
+            "counts": counts,
+            "recent_security": recent_security,
+            "security_unavailable": security_unavailable,
+        },
+    )
 
 
 @role_required(User.Role.ADMIN)

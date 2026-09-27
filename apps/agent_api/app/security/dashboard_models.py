@@ -111,6 +111,19 @@ class SecurityDashboardEventRow(BaseModel):
     review_status: SecurityReviewStatus
 
 
+class SecurityDashboardRecentActivity(BaseModel):
+    """Exact rolling 24-hour security activity for the ADMIN overview."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    window_start: datetime
+    window_end: datetime
+    total_events: int = Field(ge=0)
+    distinct_event_types: int = Field(ge=0)
+    event_types: tuple[SecurityDashboardBreakdownRow, ...]
+    events: tuple[SecurityDashboardEventRow, ...]
+
+
 class SecurityDashboardEventPage(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 

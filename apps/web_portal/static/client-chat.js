@@ -2,14 +2,24 @@ document.addEventListener("DOMContentLoaded", () => {
   renderAgentFormatting();
 
   const transcript = document.querySelector(".client-page .transcript");
+  let followLatest = true;
   if (transcript) {
-    // A newly opened conversation starts at its latest message.
-    transcript.scrollTop = transcript.scrollHeight;
-    requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; });
-    const observer = new MutationObserver(() => {
+    announceIncomingMessage(transcript);
+    const savedScroll = restoreTranscriptScroll(transcript);
+    followLatest = savedScroll?.followLatest ?? true;
+    transcript.addEventListener("scroll", () => {
+      followLatest = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 96;
+    }, { passive: true });
+    const observer = new MutationObserver((records) => {
+      const addedMessage = records.some((record) =>
+        record.target === transcript && record.addedNodes.length > 0
+      );
+      if (!addedMessage || !followLatest) return;
       transcript.scrollTo({ top: transcript.scrollHeight, behavior: "smooth" });
     });
-    observer.observe(transcript, { childList: true, subtree: true });
+    observer.observe(transcript, { childList: true });
+  } else {
+    clearPendingChatSend();
   }
 
   const expandButton = document.querySelector("[data-composer-expand]");
@@ -44,6 +54,9 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       form.dataset.submitting = "true";
+      if (form.hasAttribute("data-chat-form")) {
+        try { sessionStorage.setItem("getnet-chat-pending-send", String(Date.now())); } catch (_) {}
+      }
       const status = form.querySelector("[data-submit-status]");
       if (status) {
         status.textContent = form.hasAttribute("data-agent-retry-form")
@@ -51,9 +64,38 @@ document.addEventListener("DOMContentLoaded", () => {
           : "Enviando mensagem…";
       }
       const button = form.querySelector('button[type="submit"]');
-      if (button) button.disabled = true;
+      form.setAttribute("aria-busy", "true");
+      if (button) {
+        button.disabled = true;
+        if (form.hasAttribute("data-chat-form")) {
+          button.classList.add("is-loading");
+          button.setAttribute("aria-busy", "true");
+          button.setAttribute("aria-label", "Enviando mensagem");
+          button.title = "Enviando mensagem";
+        }
+      }
     });
   }
+
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    for (const form of document.querySelectorAll("[data-chat-form], [data-agent-retry-form]")) {
+      delete form.dataset.submitting;
+      form.removeAttribute("aria-busy");
+      const button = form.querySelector('button[type="submit"]');
+      button?.removeAttribute("aria-busy");
+      button?.classList.remove("is-loading");
+      if (button) {
+        button.disabled = false;
+        if (form.hasAttribute("data-chat-form")) {
+          button.setAttribute("aria-label", "Enviar mensagem");
+          button.title = "Enviar mensagem";
+        }
+      }
+      const status = form.querySelector("[data-submit-status]");
+      if (status) status.textContent = "";
+    }
+  });
 
   const liveRegion = document.querySelector("[data-live-poll-url]");
   if (!liveRegion) return;
@@ -73,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const payload = await response.json();
       failures = 0;
       if (payload.version !== liveRegion.dataset.liveVersion) {
+        if (transcript) rememberTranscriptScroll(transcript, followLatest);
         window.location.reload();
         return;
       }
@@ -89,6 +132,109 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   timer = window.setTimeout(poll, 12000);
 });
+
+function announceIncomingMessage(transcript) {
+  const conversationId = transcript.dataset.conversationId;
+  const messages = transcript.querySelectorAll(".transcript-item[data-message-id]");
+  const latestMessage = messages[messages.length - 1];
+  if (!conversationId || !latestMessage) return;
+
+  const messageId = latestMessage.dataset.messageId;
+  const senderType = latestMessage.dataset.senderType;
+  const storageKey = `getnet-chat-last-message:${conversationId}`;
+  let previousMessageId = null;
+  try { previousMessageId = sessionStorage.getItem(storageKey); } catch (_) {}
+  let pendingSendAt = null;
+  try {
+    const value = sessionStorage.getItem("getnet-chat-pending-send");
+    pendingSendAt = value ? Number(value) : null;
+    sessionStorage.removeItem("getnet-chat-pending-send");
+  } catch (_) {}
+
+  const pendingAge = pendingSendAt === null ? null : Date.now() - pendingSendAt;
+  const firstResponseAfterSend = !previousMessageId
+    && pendingAge !== null
+    && pendingAge >= 0
+    && pendingAge < 5 * 60 * 1000;
+  const isIncomingAgentMessage = ["AGENT", "SUPPORT_AGENT"].includes(senderType);
+  const messageChanged = previousMessageId && previousMessageId !== messageId;
+
+  if (isIncomingAgentMessage && (messageChanged || firstResponseAfterSend)) {
+    latestMessage.classList.add("is-arriving");
+    playArrivalPing();
+  }
+
+  try { sessionStorage.setItem(storageKey, messageId); } catch (_) {}
+}
+
+function clearPendingChatSend() {
+  try { sessionStorage.removeItem("getnet-chat-pending-send"); } catch (_) {}
+}
+
+function restoreTranscriptScroll(transcript) {
+  const conversationId = transcript.dataset.conversationId;
+  if (!conversationId) return null;
+  const storageKey = `getnet-chat-scroll:${conversationId}`;
+  let saved = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+    sessionStorage.removeItem(storageKey);
+  } catch (_) {}
+
+  if (saved && Number.isFinite(saved.scrollTop) && typeof saved.followLatest === "boolean") {
+    requestAnimationFrame(() => {
+      transcript.scrollTop = saved.followLatest
+        ? transcript.scrollHeight
+        : Math.min(saved.scrollTop, transcript.scrollHeight);
+    });
+    return saved;
+  }
+
+  // A newly opened conversation starts at its latest message.
+  transcript.scrollTop = transcript.scrollHeight;
+  requestAnimationFrame(() => { transcript.scrollTop = transcript.scrollHeight; });
+  return null;
+}
+
+function rememberTranscriptScroll(transcript, followLatest) {
+  const conversationId = transcript.dataset.conversationId;
+  if (!conversationId) return;
+  try {
+    sessionStorage.setItem(`getnet-chat-scroll:${conversationId}`, JSON.stringify({
+      scrollTop: transcript.scrollTop,
+      followLatest,
+    }));
+  } catch (_) {}
+}
+
+function playArrivalPing() {
+  const AudioContextType = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextType) return;
+
+  let context;
+  try { context = new AudioContextType(); } catch (_) { return; }
+  const closeIfBlocked = window.setTimeout(() => {
+    if (context.state !== "running") context.close().catch(() => {});
+  }, 800);
+  context.resume().then(() => {
+    window.clearTimeout(closeIfBlocked);
+    if (context.state !== "running") return;
+    const start = context.currentTime;
+    const tone = context.createOscillator();
+    const volume = context.createGain();
+    tone.type = "sine";
+    tone.frequency.setValueAtTime(540, start);
+    tone.frequency.exponentialRampToValueAtTime(760, start + 0.12);
+    volume.gain.setValueAtTime(0.0001, start);
+    volume.gain.exponentialRampToValueAtTime(0.035, start + 0.02);
+    volume.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+    tone.connect(volume);
+    volume.connect(context.destination);
+    tone.addEventListener("ended", () => { context.close().catch(() => {}); }, { once: true });
+    tone.start(start);
+    tone.stop(start + 0.17);
+  }).catch(() => { context.close().catch(() => {}); });
+}
 
 function renderAgentFormatting() {
   const tokenPattern = /\*\*[^*\n]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\)/g;

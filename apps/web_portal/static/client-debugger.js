@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
       input.value = open ? "on" : "off";
     }
   };
-  const clearContent = (message = "Mantenha o Debugger aberto e envie uma mensagem para registrar o processamento.") => {
+  const clearContent = (message = "Mantenha o Debugger Trace aberto e envie uma mensagem para registrar o processamento.") => {
     status.textContent = message;
     events.replaceChildren();
     summary.replaceChildren();

@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="home-document">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,6 +13,10 @@
   <script src="{% static 'home-carousel.js' %}" defer></script>
   <script src="{% static 'home-overview.js' %}" defer></script>
   <script src="{% static 'home-how-it-works.js' %}" defer></script>
+  <script src="{% static 'home-rag.js' %}" defer></script>
+  <script src="{% static 'home-security.js' %}" defer></script>
+  <script src="{% static 'home-human-support.js' %}" defer></script>
+  <script src="{% static 'home-roadmap.js' %}" defer></script>
 </head>
 <body class="home-page">
   <header class="home-header">
@@ -23,9 +27,9 @@
         </a>
 
         <nav class="home-header__nav" aria-label="Navegação principal">
-          <a class="home-header__nav-item brand-link" role="link" aria-disabled="true" tabindex="0">Produtos</a>
-          <a class="home-header__nav-item brand-link" role="link" aria-disabled="true" tabindex="0">Soluções</a>
-          <a class="home-header__nav-item brand-link" role="link" aria-disabled="true" tabindex="0">Sobre a Getnet</a>
+          <a class="home-header__nav-item brand-link" href="#visao-geral">Projeto</a>
+          <a class="home-header__nav-item brand-link" href="#arquitetura">Arquitetura</a>
+          <a class="home-header__nav-item brand-link" href="#roadmap">Roadmap</a>
         </nav>
 
         <div class="home-header__actions">
@@ -36,7 +40,7 @@
     </div>
   </header>
   <main class="home-main">
-    <section class="home-carousel" data-home-carousel role="region" aria-roledescription="carrossel" aria-label="Destaques Getnet">
+    <section class="home-carousel" id="inicio" data-home-carousel role="region" aria-roledescription="carrossel" aria-label="Destaques Getnet">
       <div class="home-carousel__viewport">
         <div class="home-carousel__track" data-carousel-track aria-live="off">
           <div class="home-carousel__slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="1 de 3">
@@ -63,7 +67,7 @@
       </button>
     </section>
 
-    <section class="home-overview" data-home-overview aria-labelledby="home-overview-title">
+    <section class="home-overview" id="visao-geral" data-home-overview aria-labelledby="home-overview-title">
       <div class="home-container">
         <header class="home-overview__heading">
           <p class="home-overview__eyebrow">Visão geral da POC</p>
@@ -203,7 +207,8 @@
       </template>
     </section>
 
-    <section class="home-how-it-works" aria-labelledby="home-how-it-works-title">
+    <section class="home-how-it-works" id="arquitetura" aria-labelledby="home-how-it-works-title">
+      <span class="home-anchor" id="como-funciona" aria-hidden="true"></span>
       <div class="home-container">
         <header class="home-how-it-works__header">
           <p class="home-how-it-works__eyebrow">Arquitetura em execução</p>
@@ -580,6 +585,501 @@
         </aside>
       </div>
     </section>
+    <section class="home-rag" id="rag" data-home-rag aria-labelledby="home-rag-title">
+      <span class="home-anchor" id="dados" aria-hidden="true"></span>
+      <div class="home-container">
+        <header class="home-rag__header">
+          <p class="home-rag__eyebrow">RAG EM DETALHE</p>
+          <h2 id="home-rag-title">Como funciona o RAG</h2>
+          <p>Da preparação dos documentos à busca híbrida, cada resposta parte de evidências recuperadas e organizadas para grounding.</p>
+        </header>
+
+        <div class="home-rag__switch" role="tablist" aria-label="Visualizações do RAG" data-rag-tabs>
+          <button class="home-rag__tab is-active" id="home-rag-tab-ingestion" type="button" role="tab" aria-selected="true" aria-controls="home-rag-panel-ingestion" tabindex="0" data-rag-tab="ingestion">Ingestão</button>
+          <button class="home-rag__tab" id="home-rag-tab-retrieval" type="button" role="tab" aria-selected="false" aria-controls="home-rag-panel-retrieval" tabindex="-1" data-rag-tab="retrieval">Retrieval</button>
+          <button class="home-rag__tab" id="home-rag-tab-numbers" type="button" role="tab" aria-selected="false" aria-controls="home-rag-panel-numbers" tabindex="-1" data-rag-tab="numbers">Números do Projeto</button>
+        </div>
+
+        <div class="home-rag__panels">
+          <section class="home-rag__panel" id="home-rag-panel-ingestion" role="tabpanel" aria-labelledby="home-rag-tab-ingestion" tabindex="0" data-rag-panel="ingestion">
+            <div class="home-rag__panel-heading">
+              <h3>Do conteúdo aprovado ao conhecimento consultável</h3>
+              <p>A ingestão valida e prepara cada fonte antes de publicar chunks completos no PostgreSQL.</p>
+            </div>
+            <div class="home-rag__diagram" data-rag-diagram>
+              <svg class="home-rag__svg home-rag__svg--desktop" viewBox="0 0 1190 230" role="group" aria-labelledby="home-rag-ingestion-title home-rag-ingestion-desc">
+                <title id="home-rag-ingestion-title">Pipeline de ingestão RAG</title>
+                <desc id="home-rag-ingestion-desc">Fontes aprovadas passam por loader, normalização, checksum e chunking estrutural. FastEmbed gera vetores antes da publicação atômica no PostgreSQL, que também prepara a busca textual.</desc>
+                <defs><marker id="home-rag-ingestion-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" /></marker></defs>
+                <path class="home-rag__edge" data-rag-edge="documents loader" d="M155 108h17" marker-end="url(#home-rag-ingestion-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="loader normalization" d="M322 108h17" marker-end="url(#home-rag-ingestion-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="normalization checksum" d="M489 108h17" marker-end="url(#home-rag-ingestion-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="checksum chunking" d="M656 108h17" marker-end="url(#home-rag-ingestion-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="chunking fastembed" d="M823 108h17" marker-end="url(#home-rag-ingestion-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="fastembed storage" d="M990 108h17" marker-end="url(#home-rag-ingestion-arrow)" />
+                <g id="home-rag-node-documents" class="home-rag-node" transform="translate(10 68)" role="button" tabindex="0" aria-pressed="false" aria-label="Documentos: fontes aprovadas que alimentam a base RAG" data-rag-node="documents" data-rag-tab="ingestion" data-title="Fontes aprovadas" data-description="Markdown interno curado e fontes públicas registradas com aprovação explícita alimentam a preparação." data-detail="O loader interno aceita arquivos Markdown UTF-8 dentro da árvore aprovada. O registro público é validado como allowlist e não rastreia links automaticamente." data-meta-label="Origem" data-meta="Conteúdo controlado e identidade de fonte validada.">
+                  <title>Fontes aprovadas</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">01</text><text class="home-rag-node__label" x="16" y="49">Documentos</text><text class="home-rag-node__hint" x="16" y="67">fontes aprovadas</text>
+                </g>
+                <g id="home-rag-node-loader" class="home-rag-node" transform="translate(177 68)" role="button" tabindex="0" aria-pressed="false" aria-label="Loader: lê as fontes preparadas pelo fluxo aprovado" data-rag-node="loader" data-rag-tab="ingestion" data-title="Loader" data-description="Lê a fonte e entrega seu conteúdo ao pipeline de preparação." data-detail="O loader interno lê Markdown UTF-8 somente de arquivos aprovados. O loader do registro público valida metadados sem buscar URLs ou fazer crawling." data-meta-label="Entrada" data-meta="Fonte e metadados de origem.">
+                  <title>Loader</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">02</text><text class="home-rag-node__label" x="16" y="49">Loader</text><text class="home-rag-node__hint" x="16" y="67">leitura validada</text>
+                </g>
+                <g id="home-rag-node-normalization" class="home-rag-node" transform="translate(344 68)" role="button" tabindex="0" aria-pressed="false" aria-label="Normalização: padroniza finais de linha e rejeita conteúdo vazio" data-rag-node="normalization" data-rag-tab="ingestion" data-title="Normalização e validação" data-description="Padroniza finais de linha sem reescrever o significado do conteúdo." data-detail="O conteúdo é normalizado para quebras de linha LF e validado quanto a fonte, identidade e conteúdo antes da decisão de ingestão." data-meta-label="Regra" data-meta="Normalização determinística, sem reescrita semântica.">
+                  <title>Normalização e validação</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">03</text><text class="home-rag-node__label" x="16" y="47">Normalização</text><text class="home-rag-node__hint" x="16" y="66">e validação</text>
+                </g>
+                <g id="home-rag-node-checksum" class="home-rag-node" transform="translate(511 68)" role="button" tabindex="0" aria-pressed="false" aria-label="Checksum: compara SHA-256 e decide entre ingestão, reingestão ou conteúdo inalterado" data-rag-node="checksum" data-rag-tab="ingestion" data-title="Checksum SHA-256" data-description="Calcula o hash do conteúdo normalizado e identifica alterações." data-detail="O checksum determina se o documento deve ser ingerido, reingerido ou marcado como inalterado. Conteúdo idêntico não é re-embutido nem tem chunks substituídos." data-meta-label="Decisão" data-meta="INGEST · REINGEST · SKIPPED_UNCHANGED">
+                  <title>Checksum e decisão de reprocessamento</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">04</text><text class="home-rag-node__label" x="16" y="49">Checksum</text><text class="home-rag-node__hint" x="16" y="67">SHA-256</text>
+                </g>
+                <g id="home-rag-node-chunking" class="home-rag-node" transform="translate(678 68)" role="button" tabindex="0" aria-pressed="false" aria-label="Chunking estrutural: divide o documento por títulos e fronteiras estruturais" data-rag-node="chunking" data-rag-tab="ingestion" data-title="Chunking estrutural" data-description="Divide o Markdown por títulos e fronteiras estruturais, preservando unidades de contexto." data-detail="O chunker reconhece seções, regras de negócio e símbolos técnicos. Blocos excepcionalmente grandes são divididos apenas em fronteiras de parágrafo, com salvaguarda de 4.000 caracteres." data-meta-label="Saída" data-meta="Chunks determinísticos com ordem, seção e proveniência.">
+                  <title>Chunking estrutural</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">05</text><text class="home-rag-node__label" x="16" y="47">Chunking</text><text class="home-rag-node__hint" x="16" y="66">estrutural</text>
+                </g>
+                <g id="home-rag-node-fastembed" class="home-rag-node" transform="translate(845 68)" role="button" tabindex="0" aria-pressed="false" aria-label="FastEmbed: gera embeddings vetoriais locais de 384 dimensões" data-rag-node="fastembed" data-rag-tab="ingestion" data-title="FastEmbed" data-description="Gera embeddings locais de 384 dimensões para os chunks preparados." data-detail="O modelo multilíngue aprovado executa localmente via ONNX/CPU. Todos os vetores são validados antes de abrir a transação de publicação." data-meta-label="Modelo" data-meta="paraphrase-multilingual-MiniLM-L12-v2 · 384 dimensões">
+                  <title>FastEmbed</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">06</text><text class="home-rag-node__label" x="16" y="49">FastEmbed</text><text class="home-rag-node__hint" x="16" y="67">vetores locais</text>
+                </g>
+                <g id="home-rag-node-storage" class="home-rag-node" transform="translate(1012 68)" role="button" tabindex="0" aria-pressed="false" aria-label="PostgreSQL: publica chunks, embeddings, proveniência e vetor de busca textual atomicamente" data-rag-node="storage" data-rag-tab="ingestion" data-title="PostgreSQL · RAG storage" data-description="Publica chunks completos, metadados, embeddings e busca textual na mesma transação." data-detail="O serviço grava documentos e substitui seus chunks de forma atômica. O PostgreSQL sintetiza o tsvector com pesos para título, seção, conteúdo e símbolos técnicos." data-meta-label="Persistência" data-meta="Transação atômica; nenhum documento fica parcialmente pesquisável.">
+                  <title>PostgreSQL · RAG storage</title><rect class="home-rag-node__shape" width="145" height="80" rx="12" /><text class="home-rag-node__step" x="16" y="23">07</text><text class="home-rag-node__label" x="16" y="47">PostgreSQL</text><text class="home-rag-node__hint" x="16" y="66">vetor + FTS</text>
+                </g>
+              </svg>
+              <ol class="home-rag__mobile-flow" aria-label="Etapas da ingestão">
+                <li><button type="button" data-rag-ref="home-rag-node-documents">Fontes aprovadas</button></li>
+                <li><button type="button" data-rag-ref="home-rag-node-loader">Loader</button></li>
+                <li><button type="button" data-rag-ref="home-rag-node-normalization">Normalização e validação</button></li>
+                <li><button type="button" data-rag-ref="home-rag-node-checksum">Checksum SHA-256</button></li>
+                <li><button type="button" data-rag-ref="home-rag-node-chunking">Chunking estrutural</button></li>
+                <li><button type="button" data-rag-ref="home-rag-node-fastembed">FastEmbed · 384 dimensões</button></li>
+                <li><button type="button" data-rag-ref="home-rag-node-storage">PostgreSQL · vetores e FTS</button></li>
+              </ol>
+            </div>
+          </section>
+
+          <section class="home-rag__panel" id="home-rag-panel-retrieval" role="tabpanel" aria-labelledby="home-rag-tab-retrieval" tabindex="0" data-rag-panel="retrieval" hidden>
+            <div class="home-rag__panel-heading">
+              <h3>Duas buscas, um ranking por evidências</h3>
+              <p>Busca lexical e semântica consultam a mesma fotografia consistente dos dados e convergem antes do grounding.</p>
+            </div>
+            <div class="home-rag__diagram" data-rag-diagram>
+              <svg class="home-rag__svg home-rag__svg--desktop" viewBox="0 0 1200 700" role="group" aria-labelledby="home-rag-retrieval-title home-rag-retrieval-desc">
+                <title id="home-rag-retrieval-title">Retrieval híbrido, RRF e grounding</title>
+                <desc id="home-rag-retrieval-desc">Uma pergunta alimenta PostgreSQL FTS e pgvector, cada canal traz até dez candidatos; o RRF funde rankings por posição, deduplica chunks e limita a cinco evidências para grounding e geração.</desc>
+                <defs><marker id="home-rag-retrieval-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" /></marker></defs>
+                <path class="home-rag__edge" data-rag-edge="question fts" d="M600 86v22H290v24" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="question vector" d="M600 86v22h310v24" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="fts fts-top" d="M290 208v34" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="vector vector-top" d="M910 208v34" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="fts-top rrf" d="M290 312v24h310v24" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="vector-top rrf" d="M910 312v24H600v24" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="rrf top5" d="M600 448v28" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="top5 grounding" d="M600 554v22" marker-end="url(#home-rag-retrieval-arrow)" />
+                <path class="home-rag__edge" data-rag-edge="grounding llm" d="M600 636v22" marker-end="url(#home-rag-retrieval-arrow)" />
+                <g id="home-rag-node-question" class="home-rag-node" transform="translate(500 18)" role="button" tabindex="0" aria-pressed="false" aria-label="Pergunta: consulta os dois canais de retrieval" data-rag-node="question" data-rag-tab="retrieval" data-title="Pergunta" data-description="A solicitação de conhecimento inicia a busca nos canais lexical e semântico." data-detail="O Knowledge Agent entrega a consulta ao HybridRetriever. Para escopos persistentes, os dois canais executam dentro da mesma transação somente leitura em REPEATABLE READ." data-meta-label="Consulta" data-meta="Uma pergunta alimenta ambos os canais."><title>Pergunta</title><rect class="home-rag-node__shape" width="200" height="68" rx="12" /><text class="home-rag-node__label" x="100" y="30" text-anchor="middle">Pergunta</text><text class="home-rag-node__hint" x="100" y="50" text-anchor="middle">consulta controlada</text></g>
+                <g id="home-rag-node-fts" class="home-rag-node" transform="translate(155 132)" role="button" tabindex="0" aria-pressed="false" aria-label="PostgreSQL FTS: busca lexical no texto indexado" data-rag-node="fts" data-rag-tab="retrieval" data-title="PostgreSQL FTS" data-description="Procura termos relevantes nos vetores de busca textual em português e símbolos técnicos." data-detail="A busca lexical usa o tsvector mantido no PostgreSQL, com pesos para título, seção, texto do chunk e termos técnicos. Ela retorna até dez candidatos por consulta." data-meta-label="Canal" data-meta="Busca lexical · até 10 candidatos"><title>PostgreSQL FTS</title><rect class="home-rag-node__shape" width="270" height="76" rx="12" /><text class="home-rag-node__label" x="135" y="32" text-anchor="middle">PostgreSQL FTS</text><text class="home-rag-node__hint" x="135" y="53" text-anchor="middle">busca lexical</text></g>
+                <g id="home-rag-node-vector" class="home-rag-node" transform="translate(775 132)" role="button" tabindex="0" aria-pressed="false" aria-label="pgvector: busca semântica por distância vetorial" data-rag-node="vector" data-rag-tab="retrieval" data-title="pgvector" data-description="Compara o embedding da pergunta aos vetores de chunks armazenados." data-detail="FastEmbed gera o vetor da consulta; o PostgreSQL com pgvector recupera os candidatos semanticamente próximos, limitados a dez." data-meta-label="Canal" data-meta="Busca semântica · até 10 candidatos"><title>pgvector</title><rect class="home-rag-node__shape" width="270" height="76" rx="12" /><text class="home-rag-node__label" x="135" y="32" text-anchor="middle">pgvector</text><text class="home-rag-node__hint" x="135" y="53" text-anchor="middle">busca semântica</text></g>
+                <g id="home-rag-node-fts-top" class="home-rag-node" transform="translate(180 242)" role="button" tabindex="0" aria-pressed="false" aria-label="Top 10 lexical" data-rag-node="fts-top" data-rag-tab="retrieval" data-title="Até 10 candidatos lexicais" data-description="A recuperação lexical é limitada a dez resultados candidatos." data-detail="A ordenação lexical vem do PostgreSQL FTS. Esses resultados seguem para fusão com os candidatos do canal semântico." data-meta-label="Limite" data-meta="10 candidatos"><title>Top 10 lexical</title><rect class="home-rag-node__shape home-rag-node__shape--limit" width="220" height="70" rx="12" /><text class="home-rag-node__label" x="110" y="31" text-anchor="middle">Até 10 lexicais</text><text class="home-rag-node__hint" x="110" y="51" text-anchor="middle">ranking FTS</text></g>
+                <g id="home-rag-node-vector-top" class="home-rag-node" transform="translate(800 242)" role="button" tabindex="0" aria-pressed="false" aria-label="Top 10 semânticos" data-rag-node="vector-top" data-rag-tab="retrieval" data-title="Até 10 candidatos semânticos" data-description="A recuperação vetorial é limitada a dez resultados candidatos." data-detail="A busca semântica usa distância vetorial no pgvector e retorna seus candidatos ranqueados para a fusão híbrida." data-meta-label="Limite" data-meta="10 candidatos"><title>Top 10 semânticos</title><rect class="home-rag-node__shape home-rag-node__shape--limit" width="220" height="70" rx="12" /><text class="home-rag-node__label" x="110" y="31" text-anchor="middle">Até 10 semânticos</text><text class="home-rag-node__hint" x="110" y="51" text-anchor="middle">ranking vetorial</text></g>
+                <g id="home-rag-node-rrf" class="home-rag-node" transform="translate(500 360)" role="button" tabindex="0" aria-pressed="false" aria-label="RRF: funde rankings por posição com k igual a 60 e deduplica por chunk" data-rag-node="rrf" data-rag-tab="retrieval" data-title="RRF · Reciprocal Rank Fusion" data-description="Combina posições dos dois rankings com k=60, sem somar os scores brutos dos canais." data-detail="O RRF agrega 1/(60 + posição) por chunk físico. Resultados repetidos são unidos por chunk_id; empates usam melhor posição e depois o identificador estável." data-meta-label="Fusão" data-meta="Rankings por posição · k = 60 · deduplicação por chunk_id"><title>RRF</title><rect class="home-rag-node__shape home-rag-node__shape--accent" width="200" height="88" rx="14" /><text class="home-rag-node__label" x="100" y="37" text-anchor="middle">RRF</text><text class="home-rag-node__hint" x="100" y="59" text-anchor="middle">fusão por posição · k=60</text></g>
+                <g id="home-rag-node-top5" class="home-rag-node" transform="translate(500 476)" role="button" tabindex="0" aria-pressed="false" aria-label="Top 5: no máximo cinco chunks entram no contexto de grounding" data-rag-node="top5" data-rag-tab="retrieval" data-title="Top 5 final" data-description="O ranking híbrido seleciona até cinco chunks para formar o contexto." data-detail="Após a deduplicação física e o ranking RRF, o sistema limita a seleção final a cinco resultados recuperados." data-meta-label="Saída" data-meta="Até 5 chunks ranqueados"><title>Top 5 final</title><rect class="home-rag-node__shape home-rag-node__shape--limit" width="200" height="78" rx="12" /><text class="home-rag-node__label" x="100" y="34" text-anchor="middle">Top 5</text><text class="home-rag-node__hint" x="100" y="55" text-anchor="middle">chunks finais</text></g>
+                <g id="home-rag-node-grounding" class="home-rag-node" transform="translate(500 576)" role="button" tabindex="0" aria-pressed="false" aria-label="Grounding: valida evidências, proveniência e citações antes da geração" data-rag-node="grounding" data-rag-tab="retrieval" data-title="Grounding" data-description="Constrói um contexto imutável com evidências utilizáveis e citações determinísticas." data-detail="O ContextBuilder valida conteúdo e proveniência, remove duplicatas e sinaliza evidência suficiente ou insuficiente. A geração só recebe o contexto estruturado e suas citações disponíveis." data-meta-label="Função" data-meta="Evidência e proveniência antes da geração"><title>Grounding</title><rect class="home-rag-node__shape" width="200" height="60" rx="12" /><text class="home-rag-node__label" x="100" y="37" text-anchor="middle">Grounding</text></g>
+                <g id="home-rag-node-llm" class="home-rag-node" transform="translate(500 658)" role="button" tabindex="0" aria-pressed="false" aria-label="LLM: produz resposta estruturada apoiada nas evidências fornecidas" data-rag-node="llm" data-rag-tab="retrieval" data-title="Geração grounded" data-description="O provedor de linguagem recebe pergunta, instruções de grounding e blocos de evidência." data-detail="A resposta precisa seguir o contrato estruturado e citar identificadores disponíveis no contexto. Sem evidências utilizáveis, o fluxo encerra controladamente como insuficiente." data-meta-label="Limite" data-meta="O modelo não realiza a recuperação nem decide a proveniência."><title>Geração grounded</title><rect class="home-rag-node__shape" width="200" height="40" rx="12" /><text class="home-rag-node__label" x="100" y="26" text-anchor="middle">LLM</text></g>
+              </svg>
+              <div class="home-rag__mobile-retrieval" aria-label="Etapas do retrieval em telas pequenas">
+                <button type="button" data-rag-ref="home-rag-node-question">Pergunta</button>
+                <div class="home-rag__mobile-branches">
+                  <div><button type="button" data-rag-ref="home-rag-node-fts">PostgreSQL FTS</button><span aria-hidden="true">até 10 lexicais</span><button type="button" data-rag-ref="home-rag-node-fts-top">candidatos</button></div>
+                  <div><button type="button" data-rag-ref="home-rag-node-vector">pgvector</button><span aria-hidden="true">até 10 semânticos</span><button type="button" data-rag-ref="home-rag-node-vector-top">candidatos</button></div>
+                </div>
+                <button type="button" data-rag-ref="home-rag-node-rrf">RRF · k=60</button>
+                <button type="button" data-rag-ref="home-rag-node-top5">Top 5</button>
+                <button type="button" data-rag-ref="home-rag-node-grounding">Grounding</button>
+                <button type="button" data-rag-ref="home-rag-node-llm">LLM · resposta grounded</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="home-rag__panel" id="home-rag-panel-numbers" role="tabpanel" aria-labelledby="home-rag-tab-numbers" tabindex="0" data-rag-panel="numbers" hidden>
+            <div class="home-rag__panel-heading">
+              <h3>Parâmetros concretos do retrieval</h3>
+              <p>Os limites são explícitos no projeto; candidatos repetidos podem aparecer nos dois canais e são deduplicados pelo RRF.</p>
+            </div>
+            <div class="home-rag__metrics" aria-label="Métricas do pipeline RAG">
+              <button id="home-rag-node-metric-embedding" class="home-rag__metric" type="button" aria-pressed="false" data-rag-node="metric-embedding" data-rag-tab="numbers" data-title="384 dimensões" data-description="Tamanho validado de cada embedding gerado pelo FastEmbed." data-detail="O modelo aprovado produz vetores de 384 dimensões, compatíveis com a coluna VECTOR(384) do domínio RAG." data-meta-label="Uso" data-meta="Representação vetorial de chunks e consultas."><span class="home-rag__metric-value">384</span><span class="home-rag__metric-label">dimensões por embedding</span></button>
+              <button id="home-rag-node-metric-fts" class="home-rag__metric" type="button" aria-pressed="false" data-rag-node="metric-fts" data-rag-tab="numbers" data-title="10 candidatos lexicais" data-description="Limite superior configurado para PostgreSQL FTS." data-detail="A configuração padrão limita a busca lexical a dez candidatos por consulta; pode retornar menos se não houver correspondências." data-meta-label="Parâmetro" data-meta="lexical_candidate_limit = 10"><span class="home-rag__metric-value">10</span><span class="home-rag__metric-label">candidatos FTS</span></button>
+              <button id="home-rag-node-metric-semantic" class="home-rag__metric" type="button" aria-pressed="false" data-rag-node="metric-semantic" data-rag-tab="numbers" data-title="10 candidatos semânticos" data-description="Limite superior configurado para pgvector." data-detail="A busca vetorial retorna até dez candidatos semânticos para a fusão com o canal lexical." data-meta-label="Parâmetro" data-meta="semantic_candidate_limit = 10"><span class="home-rag__metric-value">10</span><span class="home-rag__metric-label">candidatos semânticos</span></button>
+              <button id="home-rag-node-metric-topk" class="home-rag__metric" type="button" aria-pressed="false" data-rag-node="metric-topk" data-rag-tab="numbers" data-title="Top-K final: 5" data-description="Limite de chunks recuperados pelo ranking híbrido." data-detail="Depois da fusão e da deduplicação por chunk físico, o retrieval seleciona no máximo cinco resultados para grounding." data-meta-label="Parâmetro" data-meta="final_top_k = 5"><span class="home-rag__metric-value">5</span><span class="home-rag__metric-label">chunks para grounding</span></button>
+              <button id="home-rag-node-metric-rrf" class="home-rag__metric" type="button" aria-pressed="false" data-rag-node="metric-rrf" data-rag-tab="numbers" data-title="RRF k = 60" data-description="Constante da fusão Reciprocal Rank Fusion." data-detail="O ranker combina posições com a contribuição 1/(60 + posição); não soma nem normaliza os scores brutos das buscas." data-meta-label="Parâmetro" data-meta="RRFRanker.k = 60"><span class="home-rag__metric-value">60</span><span class="home-rag__metric-label">constante k do RRF</span></button>
+            </div>
+            <div class="home-rag__chart">
+              <div class="home-rag__chart-heading">
+                <div><p class="home-rag__eyebrow">LIMITES POR CONSULTA</p><h4>Da recuperação ao conjunto final</h4></div>
+                <p>Até 20 posições candidatas entre os dois canais; a quantidade de chunks únicos pode ser menor após a deduplicação.</p>
+              </div>
+              <div class="home-rag__chart-rows" role="group" aria-label="Comparação dos limites de recuperação">
+                <button class="home-rag__chart-row" type="button" aria-pressed="false" data-rag-ref="home-rag-node-metric-fts"><span class="home-rag__chart-label">FTS lexical</span><span class="home-rag__chart-track"><span class="home-rag__chart-fill" style="--rag-bar: 100%"></span></span><span class="home-rag__chart-value">10</span></button>
+                <button class="home-rag__chart-row" type="button" aria-pressed="false" data-rag-ref="home-rag-node-metric-semantic"><span class="home-rag__chart-label">pgvector</span><span class="home-rag__chart-track"><span class="home-rag__chart-fill" style="--rag-bar: 100%"></span></span><span class="home-rag__chart-value">10</span></button>
+                <button class="home-rag__chart-row" type="button" aria-pressed="false" data-rag-ref="home-rag-node-metric-topk"><span class="home-rag__chart-label">Após RRF</span><span class="home-rag__chart-track"><span class="home-rag__chart-fill" style="--rag-bar: 50%"></span></span><span class="home-rag__chart-value">5</span></button>
+              </div>
+              <p class="home-rag__chart-caption">Grounding valida a evidência e sua proveniência antes da geração.</p>
+            </div>
+          </section>
+        </div>
+
+        <aside class="home-rag__details" data-rag-details aria-live="polite" aria-atomic="true" aria-labelledby="home-rag-details-title">
+          <div class="home-rag__details-mark" aria-hidden="true"><span></span></div>
+          <div>
+            <p class="home-rag__details-eyebrow">DETALHES DA ETAPA</p>
+            <h3 id="home-rag-details-title" data-rag-details-title>Explore o pipeline</h3>
+            <p data-rag-details-description>Selecione uma etapa para entender como o conhecimento é preparado para o RAG.</p>
+            <p class="home-rag__details-meta" data-rag-details-meta hidden><strong data-rag-details-meta-label></strong><span data-rag-details-meta-value></span></p>
+          </div>
+        </aside>
+        <div class="home-rag-tooltip" id="home-rag-tooltip" role="tooltip" data-rag-tooltip hidden></div>
+      </div>
+    </section>
+    <section class="home-security" id="seguranca" data-home-security aria-labelledby="home-security-title">
+      <div class="home-container">
+        <header class="home-security__header">
+          <p class="home-security__eyebrow">SEGURANÇA POR CAMADAS</p>
+          <h2 id="home-security-title">Segurança e Guardrails</h2>
+          <p>Verificações de entrada, análise semântica, controles da resposta e auditoria sanitizada fazem parte do runtime da aplicação.</p>
+        </header>
+
+        <div class="home-security__diagram" data-security-diagram>
+          <svg class="home-security__svg" viewBox="0 0 1200 540" role="group" aria-labelledby="home-security-flow-title home-security-flow-desc">
+            <title id="home-security-flow-title">Controles de segurança de entrada e saída</title>
+            <desc id="home-security-flow-desc">A solicitação passa pelo preflight determinístico e pela classificação semântica antes da rota. Um bloqueio encerra as capabilities normais, sanitiza o evento e persiste somente evidência tipada no Audit. Respostas de agentes e recusas seguras passam por redaction e revisão de saída antes de serem devolvidas.</desc>
+            <defs><marker id="home-security-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10z" /></marker></defs>
+            <rect class="home-security__lane" x="12" y="20" width="1176" height="190" rx="16" />
+            <rect class="home-security__lane home-security__lane--output" x="12" y="352" width="1176" height="164" rx="16" />
+            <text class="home-security__lane-label" x="32" y="47">SEGURANÇA DE ENTRADA</text>
+            <text class="home-security__lane-label" x="32" y="379">SEGURANÇA DE SAÍDA</text>
+
+            <path class="home-security-edge" data-security-edge="request preflight" d="M195 115h38" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="preflight semantic" d="M428 115h38" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="semantic router" d="M696 115h38" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="router runtime" d="M917 115h43" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="preflight terminal" d="M330 159v49H705v52" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="semantic terminal" d="M575 159v31H815v70" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="router terminal" d="M825 159v101" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="terminal sanitization" d="M925 292h35" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="sanitization audit" d="M1068 313v13" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="audit response" d="M1068 390v8" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="runtime response" d="M1175 115h8v315h-3" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="response redaction" d="M950 430h-50" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="redaction output-review" d="M680 430h-50" marker-end="url(#home-security-arrow)" />
+            <path class="home-security-edge" data-security-edge="output-review safe-response" d="M410 430h-50" marker-end="url(#home-security-arrow)" />
+            <text class="home-security__edge-label" x="310" y="198">BLOCK</text>
+            <text class="home-security__edge-label" x="578" y="181">BLOCK</text>
+            <text class="home-security__edge-label" x="832" y="205">BLOCK</text>
+
+            <g id="home-security-node-request" class="home-security-node" transform="translate(25 71)" role="button" tabindex="0" aria-pressed="false" aria-label="Solicitação, entrada não confiável do usuário" data-security-node="request" data-title="Solicitação" data-description="A mensagem entra como conteúdo não confiável e não concede autorização." data-detail="O limite autenticado fornece identidade e referência da requisição. Texto enviado pelo usuário nunca cria permissão para acessar ferramentas ou infraestrutura." data-meta-label="Momento" data-meta="Antes de qualquer capability de negócio."><title>Solicitação</title><rect class="home-security-node__shape" width="170" height="88" rx="12" /><text class="home-security-node__label" x="85" y="38" text-anchor="middle">Solicitação</text><text class="home-security-node__hint" x="85" y="60" text-anchor="middle">entrada não confiável</text></g>
+            <g id="home-security-node-preflight" class="home-security-node" transform="translate(233 71)" role="button" tabindex="0" aria-pressed="false" aria-label="Security Preflight, verificações determinísticas antes do roteamento" data-security-node="preflight" data-title="Security Preflight" data-description="O Router executa regras determinísticas para solicitações protegidas antes do roteamento normal." data-detail="Padrões de acesso a credenciais, infraestrutura, caminhos protegidos, prompt injection e bypass podem gerar um bloqueio tipado. O caminho bloqueado não segue para RAG, web ou OPS." data-meta-label="Tipo" data-meta="Verificação determinística no Router."><title>Security Preflight</title><rect class="home-security-node__shape" width="195" height="88" rx="12" /><text class="home-security-node__label" x="97" y="38" text-anchor="middle">Security Preflight</text><text class="home-security-node__hint" x="97" y="60" text-anchor="middle">regras determinísticas</text></g>
+            <g id="home-security-node-semantic" class="home-security-node" transform="translate(466 71)" role="button" tabindex="0" aria-pressed="false" aria-label="Semantic Security, classifica a solicitação sob uma política fechada" data-security-node="semantic" data-title="Semantic Security" data-description="Uma classificação semântica tipada complementa as regras do preflight antes da escolha da capability." data-detail="O classificador recebe política fechada e retorna ação, categoria e necessidade de auditoria. Se falha ou devolve conteúdo inválido, o Router não libera uma capability normal e encerra em estado controlado." data-meta-label="Tipo" data-meta="Classificação semântica com saída estruturada."><title>Semantic Security</title><rect class="home-security-node__shape" width="230" height="88" rx="12" /><text class="home-security-node__label" x="115" y="38" text-anchor="middle">Semantic Security</text><text class="home-security-node__hint" x="115" y="60" text-anchor="middle">classificação tipada</text></g>
+            <g id="home-security-node-router" class="home-security-node" transform="translate(734 71)" role="button" tabindex="0" aria-pressed="false" aria-label="Router, decide a rota depois dos controles de segurança" data-security-node="router" data-title="Router" data-description="A escolha da rota ocorre depois dos controles de segurança de entrada." data-detail="Quando permitido, o Router direciona para a capability compatível com a solicitação. A rota SECURITY_BLOCK segue para o terminal de segurança e não é reinterpretada como uma solicitação normal." data-meta-label="Responsabilidade" data-meta="Roteamento tipado no LangGraph."><title>Router</title><rect class="home-security-node__shape" width="183" height="88" rx="12" /><text class="home-security-node__label" x="91" y="38" text-anchor="middle">Router</text><text class="home-security-node__hint" x="91" y="60" text-anchor="middle">decisão de rota</text></g>
+            <g id="home-security-node-runtime" class="home-security-node" transform="translate(960 71)" role="button" tabindex="0" aria-pressed="false" aria-label="Runtime, encaminha solicitações permitidas às capabilities" data-security-node="runtime" data-title="Runtime de agentes" data-description="Solicitações permitidas seguem para as capabilities delimitadas do grafo." data-detail="RAG, busca web e consultas OPS são etapas distintas, com limites próprios. Conteúdo recuperado e texto do usuário continuam sendo dados não confiáveis." data-meta-label="Fluxo" data-meta="Somente após a decisão de segurança e roteamento."><title>Runtime de agentes</title><rect class="home-security-node__shape" width="215" height="88" rx="12" /><text class="home-security-node__label" x="107" y="38" text-anchor="middle">Runtime de agentes</text><text class="home-security-node__hint" x="107" y="60" text-anchor="middle">capabilities autorizadas</text></g>
+
+            <g id="home-security-node-terminal" class="home-security-node" transform="translate(705 260)" role="button" tabindex="0" aria-pressed="false" aria-label="Security terminal, encerra a rota protegida" data-security-node="terminal" data-title="Security terminal" data-description="O caminho de bloqueio termina antes da execução das capabilities normais." data-detail="Uma solicitação protegida é tratada como evento de política. O fluxo exige semântica tipada e auditoria quando aplicável; auditoria indisponível mantém o caminho bloqueado." data-meta-label="Resultado" data-meta="Sem continuação normal para RAG, Web ou OPS."><title>Security terminal</title><rect class="home-security-node__shape home-security-node__shape--blocked" width="220" height="64" rx="12" /><text class="home-security-node__label" x="110" y="29" text-anchor="middle">Security terminal</text><text class="home-security-node__hint" x="110" y="48" text-anchor="middle">interrompe a rota</text></g>
+            <g id="home-security-node-sanitization" class="home-security-node" transform="translate(960 229)" role="button" tabindex="0" aria-pressed="false" aria-label="Sanitização, remove valores sensíveis antes da persistência em Audit" data-security-node="sanitization" data-title="Sanitização e redaction" data-description="O conteúdo protegido é transformado em uma descrição segura antes de chegar ao sink de auditoria." data-detail="O sanitizer aplica regras determinísticas a DSNs, credenciais, tokens, chaves, caminhos protegidos e outras formas reconhecidas. Quando não pode preservar um fragmento seguro, usa uma descrição neutra ou não persiste o conteúdo." data-meta-label="Ordem" data-meta="Sanitização antes de AuditRepository."><title>Sanitização antes de Audit</title><rect class="home-security-node__shape" width="215" height="84" rx="12" /><text class="home-security-node__label" x="107" y="36" text-anchor="middle">Sanitização</text><text class="home-security-node__hint" x="107" y="57" text-anchor="middle">redaction determinística</text></g>
+            <g id="home-security-node-audit" class="home-security-node" transform="translate(960 326)" role="button" tabindex="0" aria-pressed="false" aria-label="AUDIT, persiste evento tipado e sanitizado em audit.security_events" data-security-node="audit" data-title="Audit · security_events" data-description="Uma fronteira tipada persiste evidência de segurança e governança, não o transcript da conversa." data-detail="O SecurityAuditService entrega eventos sanitizados ao sink PostgreSQL, que abre uma transação e usa AuditRepository. O registro contém metadados allowlisted como tipo, origem, correlação, categoria, ação e conteúdo sanitizado." data-meta-label="Persistência" data-meta="audit.security_events · sem payload bruto."><title>AUDIT · security_events</title><rect class="home-security-node__shape" width="215" height="64" rx="12" /><text class="home-security-node__label" x="107" y="28" text-anchor="middle">AUDIT</text><text class="home-security-node__hint" x="107" y="48" text-anchor="middle">security_events tipados</text></g>
+
+            <g id="home-security-node-response" class="home-security-node" transform="translate(950 398)" role="button" tabindex="0" aria-pressed="false" aria-label="Resposta candidata ou recusa segura, ambas passam por revisão de saída" data-security-node="response" data-title="Resposta candidata ou recusa" data-description="Tanto respostas de capabilities como recusas seguras passam pelo controle de saída." data-detail="O caminho de bloqueio produz uma resposta de política depois do evento de segurança. Respostas do runtime e recusas seguem para a mesma fronteira de saída antes da entrega." data-meta-label="Entrada" data-meta="Resposta da capability ou resposta segura de política."><title>Resposta candidata ou recusa segura</title><rect class="home-security-node__shape" width="230" height="64" rx="12" /><text class="home-security-node__label" x="115" y="28" text-anchor="middle">Candidata / recusa</text><text class="home-security-node__hint" x="115" y="48" text-anchor="middle">conteúdo a revisar</text></g>
+            <g id="home-security-node-redaction" class="home-security-node" transform="translate(680 398)" role="button" tabindex="0" aria-pressed="false" aria-label="Output redaction, remove spans sensíveis reconhecidos no conteúdo de saída" data-security-node="redaction" data-title="Output redaction" data-description="Uma etapa determinística remove spans reconhecidos antes da revisão semântica da resposta." data-detail="O gate trata a resposta estruturada, incluindo seus campos textuais, e substitui formatos sensíveis reconhecidos por uma marca neutra. Uma resposta redigida permanece protegida mesmo se a revisão seguinte falhar." data-meta-label="Ordem" data-meta="Primeiro redaction; depois revisão da saída."><title>Output redaction</title><rect class="home-security-node__shape" width="220" height="64" rx="12" /><text class="home-security-node__label" x="110" y="28" text-anchor="middle">Output redaction</text><text class="home-security-node__hint" x="110" y="48" text-anchor="middle">remoção determinística</text></g>
+            <g id="home-security-node-output-review" class="home-security-node" transform="translate(410 398)" role="button" tabindex="0" aria-pressed="false" aria-label="Output Security, revisa a resposta e bloqueia se a revisão não puder ser concluída" data-security-node="output-review" data-title="Output Security" data-description="A resposta passa por revisão semântica depois da remoção determinística de spans sensíveis." data-detail="O gate pode permitir, redigir ou bloquear a resposta. Se a revisão não estiver disponível ou não produzir uma classificação válida, o candidato não é liberado; a aplicação usa resposta segura e exige auditoria quando aplicável." data-meta-label="Falha" data-meta="Revisão indisponível segue pelo bloqueio controlado."><title>Output Security</title><rect class="home-security-node__shape" width="220" height="64" rx="12" /><text class="home-security-node__label" x="110" y="28" text-anchor="middle">Output Security</text><text class="home-security-node__hint" x="110" y="48" text-anchor="middle">revisão semântica</text></g>
+            <g id="home-security-node-safe-response" class="home-security-node" transform="translate(140 398)" role="button" tabindex="0" aria-pressed="false" aria-label="Resposta segura entregue após os controles de saída" data-security-node="safe-response" data-title="Resposta segura" data-description="A resposta liberada passou pelos controles de saída da aplicação." data-detail="Se a resposta for bloqueada, o conteúdo candidato não é devolvido; a aplicação produz uma recusa segura. Falhas críticas mantêm o resultado controlado e não são apresentadas como sucesso." data-meta-label="Saída" data-meta="Conteúdo liberado depois da revisão."><title>Resposta segura</title><rect class="home-security-node__shape" width="220" height="64" rx="12" /><text class="home-security-node__label" x="110" y="38" text-anchor="middle">Resposta segura</text></g>
+          </svg>
+
+          <div class="home-security__mobile-flow" aria-label="Etapas de segurança em telas pequenas">
+            <button type="button" data-security-ref="home-security-node-request">Solicitação</button>
+            <button type="button" data-security-ref="home-security-node-preflight">Security Preflight</button>
+            <button type="button" data-security-ref="home-security-node-semantic">Semantic Security</button>
+            <button type="button" data-security-ref="home-security-node-router">Router</button>
+            <div class="home-security__mobile-branches">
+              <div><span>Permitido</span><button type="button" data-security-ref="home-security-node-runtime">Runtime e capabilities</button></div>
+              <div><span>Bloqueado</span><button type="button" data-security-ref="home-security-node-terminal">Security terminal</button><button type="button" data-security-ref="home-security-node-sanitization">Sanitização</button><button type="button" data-security-ref="home-security-node-audit">AUDIT sanitizado</button></div>
+            </div>
+            <button type="button" data-security-ref="home-security-node-response">Resposta candidata ou recusa segura</button>
+            <button type="button" data-security-ref="home-security-node-redaction">Output redaction</button>
+            <button type="button" data-security-ref="home-security-node-output-review">Output Security</button>
+            <button type="button" data-security-ref="home-security-node-safe-response">Resposta segura</button>
+          </div>
+          <div class="home-security-tooltip" id="home-security-tooltip" role="tooltip" data-security-tooltip hidden></div>
+        </div>
+
+        <div class="home-security__capabilities" role="group" aria-label="Capacidades de segurança">
+          <button class="home-security-capability" type="button" aria-pressed="false" data-security-node="prompt-injection" data-title="Prompt Injection Protection" data-description="Detecta instruções para ignorar, sobrescrever ou desativar controles do sistema." data-detail="O Router possui detecção determinística para padrões compostos de prompt injection e a classificação semântica também pode bloquear esse tipo de tentativa. Perguntas de arquitetura em alto nível continuam permitidas quando não facilitam acesso protegido." data-meta-label="Proteção" data-meta="As instruções do usuário não alteram a política.">
+            <span class="home-security-capability__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6z"/><path d="M12 8v4m0 3h.01"/></svg></span><span class="home-security-capability__title">Prompt Injection Protection</span><span class="home-security-capability__summary">Tentativas de manipular as regras são tratadas como eventos de política.</span><span class="home-security-capability__action">Explorar controle <span aria-hidden="true">↗</span></span>
+          </button>
+          <button class="home-security-capability" type="button" aria-pressed="false" data-security-node="sensitive-data" data-title="Sensitive Data Protection" data-description="Redaction determinística protege formatos sensíveis reconhecidos na entrada auditada e na saída." data-detail="Os sanitizadores tratam formatos como DSNs, bearer tokens, JWTs, chaves privadas, cookies, caminhos sensíveis e SQL. A saída também remove spans reconhecidos antes da revisão semântica." data-meta-label="Cobertura" data-meta="Detecção de formas reconhecidas; não é uma busca geral por segredos.">
+            <span class="home-security-capability__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></svg></span><span class="home-security-capability__title">Sensitive Data Protection</span><span class="home-security-capability__summary">Valores reconhecidos são removidos antes de auditoria ou entrega.</span><span class="home-security-capability__action">Explorar controle <span aria-hidden="true">↗</span></span>
+          </button>
+          <button class="home-security-capability" type="button" aria-pressed="false" data-security-node="audit-trail" data-title="Audit Trail" data-description="Eventos tipados registram a decisão e a ação protetiva sem guardar o transcript." data-detail="O AuditRepository persiste somente os campos allowlisted do modelo de segurança, como tipo, origem, referência, categoria, ação e conteúdo sanitizado. O evento é tratado em transação pelo sink PostgreSQL." data-meta-label="Tabela" data-meta="audit.security_events · evidência de segurança/governança.">
+            <span class="home-security-capability__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5m-9 4h5m-5 4h5m-5 4h3"/></svg></span><span class="home-security-capability__title">Audit Trail</span><span class="home-security-capability__summary">Registra eventos de segurança com conteúdo sanitizado.</span><span class="home-security-capability__action">Explorar controle <span aria-hidden="true">↗</span></span>
+          </button>
+          <button class="home-security-capability" type="button" aria-pressed="false" data-security-node="fail-closed" data-title="Fail-Closed Security" data-description="Falhas de classificação ou auditoria não liberam silenciosamente uma rota protegida." data-detail="Se a classificação semântica não fornece uma decisão válida, o Router não escolhe capability de negócio. Se a auditoria obrigatória está indisponível, o caminho continua bloqueado e a fronteira HTTP retorna um erro controlado." data-meta-label="Comportamento" data-meta="Sem decisão segura, não há liberação normal.">
+            <span class="home-security-capability__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="home-security-capability__title">Fail-Closed Security</span><span class="home-security-capability__summary">Falhas críticas seguem por um resultado controlado.</span><span class="home-security-capability__action">Explorar controle <span aria-hidden="true">↗</span></span>
+          </button>
+          <button class="home-security-capability" type="button" aria-pressed="false" data-security-node="no-secret-persistence" data-title="No Secret Persistence" data-description="A fronteira de auditoria recebe somente evento tipado e descrição sanitizada." data-detail="O serviço sanitiza o texto antes de construir o evento que o sink envia ao AuditRepository. O schema guarda evidência sanitizada e metadados allowlisted, não credenciais nem o corpo integral da conversa." data-meta-label="Limite" data-meta="O conteúdo sensível não é persistido em forma bruta.">
+            <span class="home-security-capability__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-5 5 3 3m-6 0 3 3"/></svg></span><span class="home-security-capability__title">No Secret Persistence</span><span class="home-security-capability__summary">Credenciais não fazem parte dos registros de auditoria.</span><span class="home-security-capability__action">Explorar controle <span aria-hidden="true">↗</span></span>
+          </button>
+        </div>
+
+        <aside class="home-security__highlight">
+          <span class="home-security__highlight-mark" aria-hidden="true">✓</span>
+          <div><h3>O LLM não decide sozinho o que é seguro.</h3><p>Os limites pertencem ao runtime: regras determinísticas, rotas tipadas, revisão da resposta e auditoria sanitizada.</p></div>
+        </aside>
+
+        <aside class="home-security-details" data-security-details aria-live="polite" aria-atomic="true" aria-labelledby="home-security-details-title">
+          <p class="home-security-details__eyebrow">DETALHES DO CONTROLE</p>
+          <h3 id="home-security-details-title" data-security-details-title>Explore os controles de segurança</h3>
+          <p data-security-details-description>Selecione uma etapa para entender como o Getnet Support protege solicitações, respostas e registros de auditoria.</p>
+          <p class="home-security-details__meta" data-security-details-meta hidden><strong data-security-details-meta-label></strong><span data-security-details-meta-value></span></p>
+        </aside>
+      </div>
+    </section>
+    <section class="home-human" id="atendimento-humano" data-home-human aria-labelledby="home-human-title">
+      <div class="home-container home-human__container">
+        <header class="home-human__header">
+          <p class="home-human__eyebrow">CONTINUIDADE DO ATENDIMENTO</p>
+          <h2 id="home-human-title">Atendimento Humano</h2>
+          <p>Quando a automação precisa de apoio, a solicitação segue para uma fila e continua na conversa original.</p>
+        </header>
+
+        <div class="home-human__diagram-wrap">
+          <svg class="home-human__svg" viewBox="0 0 1200 430" role="group" aria-labelledby="home-human-diagram-title home-human-diagram-description">
+            <title id="home-human-diagram-title">Ciclo do atendimento humano</title>
+            <desc id="home-human-diagram-description">O cliente solicita atendimento ou confirma uma oferta. A conversa vai para a fila, um atendente a assume e responde na mesma conversa até finalizá-la.</desc>
+            <defs>
+              <marker id="home-human-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 8 4 0 8z" /></marker>
+            </defs>
+            <path class="home-human-edge" data-human-edge="direct-waiting" d="M220 105H270" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="offer-confirm" d="M220 270H255" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="confirm-waiting" d="M355 230V155" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="waiting-queue" d="M465 105H520" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="queue-claim" d="M690 105H735" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="claim-human" d="M875 105H920" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="human-thread" d="M1015 145V245" marker-end="url(#home-human-arrow)" />
+            <path class="home-human-edge" data-human-edge="thread-resolve" d="M920 285H875" marker-end="url(#home-human-arrow)" />
+
+            <g class="home-human-node" transform="translate(20 65)" role="button" tabindex="0" aria-pressed="false" aria-label="Pedido explícito de atendimento humano" data-human-node="direct" data-title="Pedido explícito" data-description="Quando o cliente pede uma pessoa, o portal reconhece o pedido e encaminha a conversa para atendimento humano." data-detail="Esse caminho não inicia um novo turno de IA. A aplicação registra a confirmação explícita do cliente e solicita a transição para WAITING_HUMAN." data-meta-label="Origem" data-meta="Pedido feito pelo cliente no chat.">
+              <title>Pedido explícito do cliente</title><rect class="home-human-node__shape" width="200" height="80" rx="12"/><text class="home-human-node__label" x="100" y="34" text-anchor="middle">Pedido explícito</text><text class="home-human-node__hint" x="100" y="55" text-anchor="middle">quero falar com alguém</text>
+            </g>
+            <g class="home-human-node" transform="translate(20 230)" role="button" tabindex="0" aria-pressed="false" aria-label="O agente oferece atendimento humano" data-human-node="offer" data-title="Oferta do agente" data-description="O agente pode oferecer ajuda humana quando a solicitação precisa de suporte adicional." data-detail="A oferta cria o estado WAITING_CONFIRMATION. Ela ainda não coloca a conversa na fila: o cliente precisa confirmar antes da transferência." data-meta-label="Estado" data-meta="WAITING_CONFIRMATION · ainda sem entrada na fila.">
+              <title>Oferta do agente</title><rect class="home-human-node__shape" width="200" height="80" rx="12"/><text class="home-human-node__label" x="100" y="34" text-anchor="middle">Oferta do agente</text><text class="home-human-node__hint" x="100" y="55" text-anchor="middle">aguarda confirmação</text>
+            </g>
+            <g class="home-human-node" transform="translate(255 230)" role="button" tabindex="0" aria-pressed="false" aria-label="O cliente confirma a transferência" data-human-node="confirm" data-title="Confirmação do cliente" data-description="O cliente precisa aceitar a oferta para iniciar o handoff." data-detail="A transição CONFIRM valida a confirmação e leva o runtime a WAITING_HUMAN. No portal, a conversa passa a WAITING_HUMAN e uma solicitação é criada para a fila." data-meta-label="Transição" data-meta="CONFIRM → WAITING_HUMAN.">
+              <title>Confirmação do cliente</title><rect class="home-human-node__shape" width="200" height="80" rx="12"/><text class="home-human-node__label" x="100" y="34" text-anchor="middle">Cliente confirma</text><text class="home-human-node__hint" x="100" y="55" text-anchor="middle">transferência explícita</text>
+            </g>
+            <g class="home-human-node" transform="translate(270 65)" role="button" tabindex="0" aria-pressed="false" aria-label="WAITING_HUMAN, solicitação confirmada na fila de atendimento" data-human-node="waiting" data-title="WAITING_HUMAN · fila" data-description="Depois da confirmação, a conversa fica disponível para a equipe de suporte." data-detail="A aplicação persiste a conversa como WAITING_HUMAN, cria um SupportHandoff WAITING e acrescenta uma mensagem de sistema à mesma thread. A oferta sem confirmação não aparece nessa fila." data-meta-label="Persistência" data-meta="Conversation + SupportHandoff WAITING.">
+              <title>WAITING_HUMAN</title><rect class="home-human-node__shape home-human-node__shape--accent" width="195" height="80" rx="12"/><text class="home-human-node__label" x="97" y="34" text-anchor="middle">WAITING_HUMAN</text><text class="home-human-node__hint" x="97" y="55" text-anchor="middle">solicitação na fila</text>
+            </g>
+            <g class="home-human-node" transform="translate(520 65)" role="button" tabindex="0" aria-pressed="false" aria-label="Fila de suporte com atendimento aguardando" data-human-node="queue" data-title="Fila de suporte" data-description="Atendentes autorizados consultam as conversas que aguardam atendimento." data-detail="A listagem mostra itens WAITING. A aceitação usa bloqueio transacional para que apenas um atendente reivindique aquela conversa." data-meta-label="Estado da solicitação" data-meta="SupportHandoff WAITING.">
+              <title>Fila de suporte</title><rect class="home-human-node__shape" width="170" height="80" rx="12"/><text class="home-human-node__label" x="85" y="34" text-anchor="middle">Fila de suporte</text><text class="home-human-node__hint" x="85" y="55" text-anchor="middle">aguardando atendente</text>
+            </g>
+            <g class="home-human-node" transform="translate(735 65)" role="button" tabindex="0" aria-pressed="false" aria-label="Atendente autorizado aceita atomicamente a conversa" data-human-node="claim" data-title="Aceite atômico" data-description="Um único atendente autorizado assume a conversa." data-detail="O serviço bloqueia a conversa e o handoff durante a reivindicação, chama ACCEPT e persiste o operador retornado pelo runtime. Reivindicações concorrentes não produzem dois responsáveis." data-meta-label="Transição" data-meta="ACCEPT → HUMAN · operador atribuído.">
+              <title>Aceite do atendente</title><rect class="home-human-node__shape" width="140" height="80" rx="12"/><text class="home-human-node__label" x="70" y="34" text-anchor="middle">Atendente</text><text class="home-human-node__hint" x="70" y="55" text-anchor="middle">aceite único</text>
+            </g>
+            <g class="home-human-node" transform="translate(920 65)" role="button" tabindex="0" aria-pressed="false" aria-label="HUMAN, conversa assumida por atendente e automação suspensa" data-human-node="human" data-title="HUMAN · automação suspensa" data-description="Depois do aceite, o atendente atribuído assume a responsabilidade pela conversa." data-detail="O runtime confirma o operador e automation_suspended=true. As mensagens humanas são persistidas na conversa original; uma resposta automática em andamento revalida o estado antes de ser gravada." data-meta-label="Transição" data-meta="HUMAN · responsável atribuído · automação suspensa.">
+              <title>HUMAN</title><rect class="home-human-node__shape home-human-node__shape--accent" width="190" height="80" rx="12"/><text class="home-human-node__label" x="95" y="34" text-anchor="middle">HUMAN</text><text class="home-human-node__hint" x="95" y="55" text-anchor="middle">automação suspensa</text>
+            </g>
+            <g class="home-human-node" transform="translate(920 245)" role="button" tabindex="0" aria-pressed="false" aria-label="Atendimento continua na mesma conversa" data-human-node="thread" data-title="Mesma conversa" data-description="Cliente, agente e atendente compartilham o histórico da thread original." data-detail="Mensagens do atendente são armazenadas como SUPPORT_AGENT na mesma conversa, preservando o contexto e evitando a criação de um ticket paralelo para este fluxo." data-meta-label="Continuidade" data-meta="Uma conversa · uma linha do tempo.">
+              <title>Mesma conversa</title><rect class="home-human-node__shape" width="190" height="80" rx="12"/><text class="home-human-node__label" x="95" y="34" text-anchor="middle">Mesma conversa</text><text class="home-human-node__hint" x="95" y="55" text-anchor="middle">histórico contínuo</text>
+            </g>
+            <g class="home-human-node" transform="translate(665 245)" role="button" tabindex="0" aria-pressed="false" aria-label="Atendente finaliza e encerra a conversa" data-human-node="resolve" data-title="RESOLVED · CLOSED" data-description="O atendente responsável finaliza o atendimento e encerra a conversa." data-detail="Somente o atendente atribuído pode resolver. A transição RESOLVE conclui o handoff e fecha a conversa; o portal não oferece reabertura ou segundo handoff." data-meta-label="Transição terminal" data-meta="RESOLVE → RESOLVED / CLOSED.">
+              <title>Conversa encerrada</title><rect class="home-human-node__shape" width="210" height="80" rx="12"/><text class="home-human-node__label" x="105" y="34" text-anchor="middle">RESOLVED · CLOSED</text><text class="home-human-node__hint" x="105" y="55" text-anchor="middle">encerramento do ciclo</text>
+            </g>
+          </svg>
+
+          <div class="home-human__mobile-flow" role="group" aria-label="Etapas do atendimento humano em telas pequenas">
+            <div class="home-human__mobile-branch">
+              <p>Origem A · pedido direto do cliente</p>
+              <button type="button" data-human-ref="direct">Pedido explícito de atendimento</button>
+            </div>
+            <div class="home-human__mobile-branch">
+              <p>Origem B · oferta do agente</p>
+              <button type="button" data-human-ref="offer">Oferta aguarda confirmação</button>
+              <button type="button" data-human-ref="confirm">Cliente confirma a transferência</button>
+            </div>
+            <button type="button" data-human-ref="waiting">WAITING_HUMAN · entrada na fila</button>
+            <button type="button" data-human-ref="queue">Fila de suporte</button>
+            <button type="button" data-human-ref="claim">Aceite atômico por um atendente</button>
+            <button type="button" data-human-ref="human">HUMAN · automação suspensa</button>
+            <button type="button" data-human-ref="thread">Mensagens na mesma conversa</button>
+            <button type="button" data-human-ref="resolve">RESOLVED · CLOSED</button>
+          </div>
+        </div>
+
+        <div class="home-human__capabilities" role="group" aria-label="Características do atendimento humano">
+          <button class="home-human-capability" type="button" aria-pressed="false" data-human-node="entry" data-title="Confirmação antes da fila" data-description="O fluxo só cria a solicitação de fila depois de um pedido explícito ou da confirmação de uma oferta." data-detail="Há duas origens: o pedido explícito do cliente chega como confirmação no portal; uma oferta iniciada pelo agente aguarda confirmação em WAITING_CONFIRMATION. Sem aceite, não há handoff na fila." data-meta-label="Proteção" data-meta="A oferta pendente não é tratada como consentimento.">
+            <span class="home-human-capability__number">01</span><span><strong>Confirmação explícita</strong><small>O cliente decide quando a solicitação vai para a fila.</small></span>
+          </button>
+          <button class="home-human-capability" type="button" aria-pressed="false" data-human-node="claim" data-title="Uma reivindicação vencedora" data-description="A fila usa uma transição concorrente segura para atribuir a conversa." data-detail="A conversa e o handoff são bloqueados durante o claim; o atendente atribuído é validado com o resultado tipado do runtime antes da persistência local." data-meta-label="Concorrência" data-meta="Somente um operador ativo por handoff.">
+            <span class="home-human-capability__number">02</span><span><strong>Atribuição única</strong><small>Um atendente autorizado assume a conversa.</small></span>
+          </button>
+          <button class="home-human-capability" type="button" aria-pressed="false" data-human-node="thread" data-title="Contexto contínuo" data-description="A conversa segue na thread já aberta pelo cliente." data-detail="As mensagens do suporte entram no mesmo histórico e as respostas automáticas só podem ser gravadas enquanto a conversa continua ACTIVE. A persistência valida novamente o estado sob lock, cobrindo uma resposta que estava em andamento quando a transferência ocorreu." data-meta-label="Persistência" data-meta="Sem transcript paralelo para o handoff.">
+            <span class="home-human-capability__number">03</span><span><strong>Mesma conversa</strong><small>Histórico e contexto continuam juntos.</small></span>
+          </button>
+          <button class="home-human-capability" type="button" aria-pressed="false" data-human-node="resolve" data-title="Ciclo de vida controlado" data-description="O atendente responsável encerra o handoff por uma transição terminal." data-detail="RESOLVE limpa a atribuição, marca o handoff como resolvido e fecha a conversa. O portal não expõe retorno à automação, reabertura ou um segundo ciclo de transferência." data-meta-label="Estado final" data-meta="RESOLVED · CLOSED.">
+            <span class="home-human-capability__number">04</span><span><strong>Encerramento definido</strong><small>O atendimento termina em um estado terminal.</small></span>
+          </button>
+        </div>
+
+        <aside class="home-human-details" data-human-details aria-live="polite" aria-atomic="true" aria-labelledby="home-human-details-title">
+          <p class="home-human-details__eyebrow">DETALHES DO ATENDIMENTO</p>
+          <h3 id="home-human-details-title" data-human-details-title>Como a conversa chega ao suporte</h3>
+          <p data-human-details-description>Selecione uma etapa ou característica para explorar as regras do handoff.</p>
+          <p class="home-human-details__meta" data-human-details-meta hidden><strong data-human-details-meta-label></strong><span data-human-details-meta-value></span></p>
+        </aside>
+      </div>
+    </section>
+    <section class="home-roadmap" id="roadmap" data-home-roadmap aria-labelledby="home-roadmap-title">
+      <div class="home-container">
+        <header class="home-roadmap__header">
+          <p class="home-roadmap__eyebrow">EVOLUÇÃO DA POC</p>
+          <h2 id="home-roadmap-title">Roadmap / Evolução</h2>
+          <p>Da fundação técnica ao portal integrado, o projeto avançou em etapas incrementais e verificáveis.</p>
+        </header>
+
+        <div class="home-roadmap__legend" aria-label="Legenda dos estados do roadmap">
+          <span><strong aria-hidden="true">✓</strong> Concluído</span>
+          <span><strong aria-hidden="true">●</strong> Atual</span>
+          <span><strong aria-hidden="true">○</strong> Futuro</span>
+        </div>
+
+        <div class="home-roadmap__timeline" role="group" aria-label="Etapas da evolução do projeto">
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 01, Foundation, concluído" data-roadmap-step data-title="01 · Foundation" data-summary="Stack, limites de responsabilidade e infraestrutura local definidos." data-detail="A base aprovou Django para portal e sessão, FastAPI para runtime de agentes, LangGraph para orquestração e PostgreSQL com pgvector. Docker Compose estabeleceu a infraestrutura local persistente." data-status="Concluído · Fase 1">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">01</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4.3 7.7 12 12l7.7-4.3M12 12v9"/></svg></span><strong>Foundation</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Stack e fronteiras técnicas.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 02, RAG, concluído" data-roadmap-step data-title="02 · RAG" data-summary="Corpus curado, regras de evidência, proveniência e avaliação definidos." data-detail="O projeto organizou conhecimento interno e fontes públicas aprovadas, com políticas de citação, prioridade de fontes, evidência insuficiente e proteção contra prompt injection. A arquitetura e os contratos do RAG foram estabelecidos antes da execução." data-status="Concluído · Fases 2 e 3">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">02</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v12H8a3 3 0 0 1-3-3zM8 4.5V17a3 3 0 0 0 3 3M9 9h6m-6 4h6"/></svg></span><strong>RAG</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Fontes e regras de evidência.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 03, PostgreSQL, concluído" data-roadmap-step data-title="03 · PostgreSQL" data-summary="Schemas rag, ops e audit, tabelas e repositories foram materializados." data-detail="PostgreSQL 17 e pgvector sustentam os dados da POC. Os schemas rag, ops e audit têm responsabilidades separadas; migrations SQL nativas e repositories mantêm o acesso delimitado por domínio." data-status="Concluído · Fase 4">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">03</span><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7.5" ry="3"/><path d="M4.5 5v7c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V5M4.5 12v7c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-7"/></svg></span><strong>PostgreSQL</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Persistência por domínio.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 04, Ingestion, concluído" data-roadmap-step data-title="04 · Ingestion" data-summary="Preparação validada, checksum, chunking e publicação atômica." data-detail="A ingestão curada normaliza e valida fontes, calcula checksum e decide entre INGEST, REINGEST ou SKIPPED_UNCHANGED. Chunks estruturais, embeddings FastEmbed e vetores FTS são publicados em transação no PostgreSQL." data-status="Concluído · Fases 5 e 6">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">04</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M5 14v6h14v-6"/></svg></span><strong>Ingestion</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Preparação e publicação.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 05, Hybrid Retrieval, concluído" data-roadmap-step data-title="05 · Hybrid Retrieval" data-summary="Busca lexical e semântica combinadas com RRF." data-detail="PostgreSQL Full Text Search e pgvector recuperam até dez candidatos cada. A fusão Reciprocal Rank Fusion usa k=60, remove duplicatas por chunk e entrega no máximo cinco evidências finais." data-status="Concluído · Fase 7">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">05</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M8 10.5h5M10.5 8v5"/></svg></span><strong>Hybrid Retrieval</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">FTS + pgvector + RRF.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 06, Grounding, concluído" data-roadmap-step data-title="06 · Grounding" data-summary="Respostas delimitadas por evidências, suficiência e citações." data-detail="O ContextBuilder produz contexto imutável com proveniência e avaliação de suficiência. A geração usa evidências selecionadas e valida citações, retornando resultado controlado quando a base disponível não sustenta uma resposta." data-status="Concluído · Fase 8">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">06</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4.5 4.5L19 7"/><circle cx="12" cy="12" r="9"/></svg></span><strong>Grounding</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Proveniência e suficiência.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 07, Multi-Agent, concluído" data-roadmap-step data-title="07 · Multi-Agent" data-summary="Agentes e tools tipadas coordenados por LangGraph." data-detail="Router, Knowledge, Customer Support, Web Search e Human Escalation atuam por capabilities tipadas no grafo. Ferramentas OPS retornam fatos observados e o agente separa esses fatos das inferências." data-status="Concluído · Fase 9">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">07</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4m0 0-7 5m7-5 7 5"/></svg></span><strong>Multi-Agent</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Capacidades especializadas.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 08, Security, concluído" data-roadmap-step data-title="08 · Security" data-summary="Controles de entrada, saída, sanitização e auditoria." data-detail="A segurança de runtime combina preflight determinístico, classificação semântica e revisão de saída. Eventos tipados são sanitizados antes de Audit; falha de classificação ou auditoria não libera a rota protegida." data-status="Concluído · Fase 10">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">08</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6z"/><path d="m9 12 2 2 4-4"/></svg></span><strong>Security</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">Fail-closed e Audit sanitizado.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 09, Evaluation, concluído" data-roadmap-step data-title="09 · Evaluation" data-summary="Runner, relatórios determinísticos e critérios de fechamento." data-detail="A fase de avaliação foi encerrada com 27 casos de RAG/grounding/segurança e 14 cenários do desafio. O roadmap registra resultado geral PASS e a fase 11 como CLOSED." data-status="Concluído · Fase 11">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">09</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V5m0 15h17M7 16l4-5 3 2 5-7"/><circle cx="19" cy="6" r="1.5"/></svg></span><strong>Evaluation</strong><span class="home-roadmap-step__status home-roadmap-step__status--done">✓ Concluído</span><span class="home-roadmap-step__summary">27 casos + 14 cenários.</span>
+          </button>
+          <button class="home-roadmap-step home-roadmap-step--current" type="button" aria-pressed="true" aria-label="Etapa 10, Web Portal, atual" data-roadmap-step data-title="10 · Web Portal" data-summary="Django, integração com FastAPI e experiência por perfil." data-detail="A Phase 12 está em implementação integrada. O roadmap marca 12.1–12.15 como concluídas; 12.16, validação final da fase, aparece como NEXT, e 12.17 aguarda início e revisão do responsável." data-status="Atual · Phase 12.16 NEXT">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">10</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5m4-5v5M7 13h3m4 0h3m-10 4h3"/></svg></span><strong>Web Portal</strong><span class="home-roadmap-step__status home-roadmap-step__status--current">● Atual</span><span class="home-roadmap-step__summary">Phase 12 · integração final.</span>
+          </button>
+          <button class="home-roadmap-step" type="button" aria-pressed="false" aria-label="Etapa 11, Entrega da POC, futuro" data-roadmap-step data-title="11 · Entrega da POC" data-summary="Testes finais, documentação e encerramento após a revisão da Phase 12." data-detail="A fase 13 está pendente no roadmap. Ela reúne testes unitários, integração, segurança, avaliação RAG, Docker, documentação e validação final do Harness, depois do fechamento aprovado da Phase 12." data-status="Futuro · Fase 13">
+            <span class="home-roadmap-step__top"><span class="home-roadmap-step__number">11</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg></span><strong>Entrega da POC</strong><span class="home-roadmap-step__status home-roadmap-step__status--future">○ Futuro</span><span class="home-roadmap-step__summary">Testes e fechamento do projeto.</span>
+          </button>
+        </div>
+
+        <aside class="home-roadmap-details" data-roadmap-details aria-live="polite" aria-atomic="true" aria-labelledby="home-roadmap-details-title">
+          <div class="home-roadmap-details__status" data-roadmap-details-status>Atual · Phase 12.16 NEXT</div>
+          <h3 id="home-roadmap-details-title" data-roadmap-details-title>10 · Web Portal</h3>
+          <p data-roadmap-details-description>A Phase 12 está em implementação integrada. O roadmap marca 12.1–12.15 como concluídas; 12.16, validação final da fase, aparece como NEXT, e 12.17 aguarda início e revisão do responsável.</p>
+        </aside>
+        <p class="home-roadmap__source">Estados derivados de <code>docs/project-roadmap.md</code>.</p>
+      </div>
+    </section>
+
+    <section class="home-decisions" id="decisoes" data-home-decisions aria-labelledby="home-decisions-title">
+      <div class="home-container">
+        <header class="home-decisions__header">
+          <p class="home-decisions__eyebrow">ENGINEERING DECISIONS</p>
+          <h2 id="home-decisions-title">Decisões Arquiteturais</h2>
+          <p>Escolhas que definem fronteiras claras, controle de dados e respostas sustentadas por evidências.</p>
+        </header>
+
+        <div class="home-decisions__layout">
+          <div class="home-decisions__list" role="group" aria-label="Decisões de arquitetura">
+            <button class="home-decision" type="button" aria-pressed="true" data-decision-item data-title="PostgreSQL nativo + Psycopg 3" data-decision="O Agent API acessa PostgreSQL com Psycopg 3 assíncrono e SQL parametrizado; ORM não é requisito para esse runtime." data-reason="A solução depende de recursos PostgreSQL como pgvector, Full Text Search, JSONB e transações explícitas." data-result="O banco permanece uma plataforma única, enquanto migrations SQL nativas e o driver assíncrono mantêm o runtime próximo dos recursos usados.">
+              <span class="home-decision__index">01</span><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5m-14 7v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7"/></svg><span>PostgreSQL nativo + Psycopg 3</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Repository Boundary" data-decision="Repositories concretos são a fronteira exclusiva de SQL no Agent API." data-reason="Separar persistência de regras de aplicação e limitar cada componente aos schemas e tabelas sob sua responsabilidade." data-result="RAGRepository, OperationalRepository e AuditRepository operam sobre domínios delimitados; agentes não montam SQL diretamente.">
+              <span class="home-decision__index">02</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 12h8M8 15h5"/></svg><span>Repository Boundary</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Hybrid Retrieval" data-decision="A busca combina PostgreSQL Full Text Search e pgvector semântico." data-reason="Termos exatos e semelhança conceitual recuperam evidências de modos complementares." data-result="Cada canal produz candidatos tipados em um snapshot somente de leitura; a fusão acontece acima do repository.">
+              <span class="home-decision__index">03</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m14.5 14.5 5 5M7 10h6"/></svg><span>Hybrid Retrieval</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Reciprocal Rank Fusion" data-decision="RRF combina rankings lexicais e semânticos usando posição, não uma mistura de scores incompatíveis." data-reason="A fusão é simples de avaliar e não depende de um reranker externo." data-result="Com k=60, os candidatos são deduplicados por chunk_id e o contexto final fica limitado a cinco resultados.">
+              <span class="home-decision__index">04</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18h3V9H5zm6 0h3V5h-3zm6 0h3v-6h-3zM3 21h18"/></svg><span>Reciprocal Rank Fusion</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="FastEmbed local" data-decision="Embeddings são produzidos pelo adapter FastEmbed local, com o modelo multilíngue aprovado de 384 dimensões." data-reason="A POC mantém geração vetorial dentro do runtime local e usa uma interface própria para desacoplar os agentes do SDK." data-result="O vetor encaixa em VECTOR(384) e pode ser publicado atomicamente com os chunks e o payload de busca lexical.">
+              <span class="home-decision__index">05</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h2m4 0h2M8 13h2m4 0h2M8 17h8"/></svg><span>FastEmbed local · 384</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Django separado do AI Runtime" data-decision="Django atua como portal/BFF para apresentação, sessão, autorização e persistência web; FastAPI é a fronteira HTTP do runtime de agentes." data-reason="Manter autenticação e experiência web separadas da orquestração de IA evita duplicar capacidades no portal." data-result="Django encaminha contexto autenticado por uma integração interna tipada. RAG, tools, providers e agentes continuam pertencendo ao Agent API.">
+              <span class="home-decision__index">06</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/><path d="M5 8h4m-4 4h4m6-4h4m-4 4h4"/></svg><span>Django ≠ AI Runtime</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="LangGraph como orquestrador" data-decision="LangGraph compõe o Router e as capabilities especializadas em um grafo acíclico." data-reason="A aplicação precisa encaminhar cada pedido para um papel delimitado, preservando resultados tipados e caminhos de término controlados." data-result="Router decide o caminho; Knowledge, Customer Support, Web, Human Escalation e Security recebem fronteiras explícitas em vez de uma chamada genérica sem controle.">
+              <span class="home-decision__index">07</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5V12m0 0-7 4.5m7-4.5 7 4.5"/></svg><span>LangGraph Orchestration</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Tools OPS · fatos e inferências" data-decision="Consultas operacionais passam por tools tipadas e autorizadas; elas retornam fatos observados, que o agente mantém separados de suas inferências." data-reason="Um status persistido ou um evento de execução é evidência observada; uma explicação provável para a causa é uma interpretação e precisa ser identificada como tal." data-result="O LLM interpreta evidências sanitizadas devolvidas pela tool, sem conexão ou SQL direto ao banco, e comunica fatos e hipóteses em campos distintos.">
+              <span class="home-decision__index">08</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8 4 12l4 4m8-8 4 4-4 4m-3-10-2 12"/></svg><span>Tools OPS · fatos e inferências</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Human Handoff na mesma conversa" data-decision="A transferência para suporte continua na conversa original, com estados e responsável explícitos." data-reason="O cliente e o atendente precisam preservar o contexto enquanto o runtime suspende respostas automáticas sob responsabilidade humana." data-result="O claim é atômico, as mensagens do atendente entram na mesma thread e o atendente atribuído finaliza o ciclo em RESOLVED/CLOSED.">
+              <span class="home-decision__index">09</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v6H4zm9 8h7v6h-7zM11 8h3a2 2 0 0 1 2 2v3m-5-2-2 2"/></svg><span>Human Handoff · mesma conversa</span>
+            </button>
+            <button class="home-decision" type="button" aria-pressed="false" data-decision-item data-title="Fail-closed e Audit sanitizado" data-decision="Rotas protegidas falham fechadas, e os eventos de segurança são sanitizados antes da persistência." data-reason="Uma classificação, validação ou auditoria indisponível não deve liberar uma rota protegida nem gravar secrets em claro." data-result="Eventos allowlisted chegam a audit.security_events pelo AuditRepository; o transcript bruto e credenciais ficam fora desse registro.">
+              <span class="home-decision__index">10</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 7 3v5c0 4.6-2.8 8-7 10-4.2-2-7-5.4-7-10V6z"/><path d="M12 8v4m0 3h.01"/></svg><span>Security · fail-closed</span>
+            </button>
+          </div>
+
+          <article class="home-decision-details" data-decision-details aria-live="polite" aria-atomic="true" aria-labelledby="home-decision-details-title">
+            <p class="home-decision-details__eyebrow">DECISÃO <span data-decision-number>01</span></p>
+            <h3 id="home-decision-details-title" data-decision-title>PostgreSQL nativo + Psycopg 3</h3>
+            <div class="home-decision-details__item"><h4>Decisão</h4><p data-decision-value>O Agent API acessa PostgreSQL com Psycopg 3 assíncrono e SQL parametrizado; ORM não é requisito para esse runtime.</p></div>
+            <div class="home-decision-details__item"><h4>Motivo</h4><p data-decision-reason>A solução depende de recursos PostgreSQL como pgvector, Full Text Search, JSONB e transações explícitas.</p></div>
+            <div class="home-decision-details__item"><h4>Resultado</h4><p data-decision-result>O banco permanece uma plataforma única, enquanto migrations SQL nativas e o driver assíncrono mantêm o runtime próximo dos recursos usados.</p></div>
+          </article>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <footer class="home-footer" aria-label="Rodapé Getnet Support POC">
+    <div class="home-container">
+      <div class="home-footer__grid">
+        <div class="home-footer__identity">
+          <a class="home-footer__brand" href="#inicio" aria-label="Getnet Support POC, voltar ao início"><img src="{% static 'PNG/Logo_Branco_RGB.png' %}" alt="Getnet"></a>
+          <h2>Getnet Support POC</h2>
+          <p>Plataforma inteligente de atendimento com multiagentes, RAG, dados operacionais, segurança e atendimento humano.</p>
+        </div>
+        <nav class="home-footer__column" aria-label="Explore o projeto">
+          <h3>Projeto</h3>
+          <ul class="home-footer__links">
+            <li><a href="#visao-geral">Visão Geral</a></li>
+            <li><a href="#como-funciona">Como funciona?</a></li>
+            <li><a href="#arquitetura">Arquitetura</a></li>
+            <li><a href="#dados">Arquitetura dos Dados</a></li>
+            <li><a href="#rag">RAG</a></li>
+          </ul>
+        </nav>
+        <nav class="home-footer__column" aria-label="Tecnologia">
+          <h3>Tecnologia</h3>
+          <ul class="home-footer__links">
+            <li><a href="#seguranca">Segurança</a></li>
+            <li><a href="#atendimento-humano">Atendimento Humano</a></li>
+            <li><a href="#roadmap">Roadmap</a></li>
+            <li><a href="#decisoes">Decisões Arquiteturais</a></li>
+          </ul>
+        </nav>
+        <div class="home-footer__column home-footer__contact">
+          <h3>Contato</h3>
+          <a href="https://www.linkedin.com/in/juliofgomes/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn de Júlio Gomes (abre em nova aba)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8.5H2V22h3zM3.5 2A1.75 1.75 0 1 0 3.5 5.5 1.75 1.75 0 0 0 3.5 2zM22 13.4c0-4-2.1-5.9-4.9-5.9a4.2 4.2 0 0 0-3.8 2.1V8.5h-3V22h3v-7.5c0-2 .4-3.9 2.8-3.9s2.4 2.3 2.4 4V22h3z"/></svg><span>LinkedIn <small>abre em nova aba</small></span>
+          </a>
+        </div>
+      </div>
+      <div class="home-footer__bottom">
+        <span>Getnet Support POC</span>
+        <span>Desenvolvido por Júlio Gomes</span>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>

@@ -98,3 +98,84 @@ html[data-theme="dark"] .user-metadata div,
 html[data-theme="dark"] .admin-action { border-color: #44444a; }
 html[data-theme="dark"] .button-secondary,
 html[data-theme="dark"] .secondary-button { color: #f2f2f2; background: #414147; }
+
+/* Dark palette for the admin workspace; the shared header keeps its own rules. */
+html[data-theme="dark"] .admin-page {
+  --admin-accent: #ff555d;
+  --admin-accent-deep: #ff9298;
+  --admin-ink: #ececef;
+  --admin-muted: #a9a9b0;
+  --admin-line: #414147;
+  --admin-surface: #222225;
+  --admin-canvas: #171719;
+  --admin-soft: #3a2428;
+  --admin-positive: #8bc6a7;
+  --admin-warning: #f0c56f;
+}
+html[data-theme="dark"] .admin-page .admin-layout { color: var(--admin-ink); background: var(--admin-canvas); }
+html[data-theme="dark"] .admin-page .admin-sidebar,
+html[data-theme="dark"] .admin-page .admin-main .admin-table-wrap,
+html[data-theme="dark"] .admin-page .admin-summary,
+html[data-theme="dark"] .admin-page .admin-filters,
+html[data-theme="dark"] .admin-page .user-metadata,
+html[data-theme="dark"] .admin-page .admin-action,
+html[data-theme="dark"] .admin-page .security-chart-card,
+html[data-theme="dark"] .admin-page .overview-security-section,
+html[data-theme="dark"] .admin-page .security-detail-content,
+html[data-theme="dark"] .admin-page .read-only-note,
+html[data-theme="dark"] .admin-page .security-empty,
+html[data-theme="dark"] .admin-page .security-unavailable,
+html[data-theme="dark"] .admin-page .admin-transcript-message { color: var(--admin-ink); background: var(--admin-surface); border-color: var(--admin-line); }
+html[data-theme="dark"] .admin-page .admin-summary,
+html[data-theme="dark"] .admin-page .security-summary,
+html[data-theme="dark"] .admin-page .overview-summary { background: var(--admin-surface); }
+html[data-theme="dark"] .admin-page .admin-summary div,
+html[data-theme="dark"] .admin-page .user-metadata div,
+html[data-theme="dark"] .admin-page .admin-table th,
+html[data-theme="dark"] .admin-page .admin-table td,
+html[data-theme="dark"] .admin-page .admin-action { border-color: var(--admin-line); }
+html[data-theme="dark"] .admin-page .admin-main,
+html[data-theme="dark"] .admin-page .admin-heading h1,
+html[data-theme="dark"] .admin-page .section-title,
+html[data-theme="dark"] .admin-page .overview-section-heading h2,
+html[data-theme="dark"] .admin-page .overview-security-heading h2,
+html[data-theme="dark"] .admin-page .overview-subheading h3,
+html[data-theme="dark"] .admin-page .security-section-heading h2,
+html[data-theme="dark"] .admin-page .security-chart-card h2,
+html[data-theme="dark"] .admin-page .security-events-heading h2,
+html[data-theme="dark"] .admin-page .admin-summary dd,
+html[data-theme="dark"] .admin-page .user-metadata dd { color: var(--admin-ink); }
+html[data-theme="dark"] .admin-page .admin-sidebar nav a { color: var(--admin-ink); }
+html[data-theme="dark"] .admin-page .admin-sidebar nav a:hover,
+html[data-theme="dark"] .admin-page .admin-sidebar nav a[aria-current="page"] { color: #fff; background: var(--admin-soft); }
+html[data-theme="dark"] .admin-page .admin-sidebar nav a[aria-current="page"] { border-left-color: var(--admin-accent); }
+html[data-theme="dark"] .admin-page .admin-table { color: var(--admin-ink); background: var(--admin-surface); }
+html[data-theme="dark"] .admin-page .admin-table thead th { color: var(--admin-muted); background: #2a2a2e; }
+html[data-theme="dark"] .admin-page .admin-table tbody tr:hover { background: #2b2b30; }
+html[data-theme="dark"] .admin-page .overview-security-total,
+html[data-theme="dark"] .admin-page .security-event-type { color: var(--admin-ink); background: var(--admin-soft); }
+html[data-theme="dark"] .admin-page .security-breakdown-track { background: #414147; }
+html[data-theme="dark"] .admin-page .security-recent-list { border-color: var(--admin-line); }
+html[data-theme="dark"] .admin-page .security-recent-list li { border-color: var(--admin-line); }
+html[data-theme="dark"] .admin-page .security-recent-list a,
+html[data-theme="dark"] .admin-page .security-recent-event strong { color: var(--admin-ink) !important; }
+html[data-theme="dark"] .admin-page .security-recent-event span,
+html[data-theme="dark"] .admin-page .security-updated,
+html[data-theme="dark"] .admin-page .security-quiet-empty { color: var(--admin-muted); }
+html[data-theme="dark"] .admin-page .security-result--success { color: #b5e3c9; background: #244333; }
+html[data-theme="dark"] .admin-page .security-result--partial { color: #ffe0a2; background: #49391d; }
+html[data-theme="dark"] .admin-page .security-result--error { color: #ffdce0; background: #4a252d; }
+html[data-theme="dark"] .admin-page .admin-filters input,
+html[data-theme="dark"] .admin-page .admin-filters select,
+html[data-theme="dark"] .admin-page .admin-form input,
+html[data-theme="dark"] .admin-page .admin-form select { color: var(--admin-ink); background: #2a2a2e; border-color: #62626a; }
+html[data-theme="dark"] .admin-page .admin-filters label,
+html[data-theme="dark"] .admin-page .admin-form label { color: var(--admin-ink); }
+html[data-theme="dark"] .admin-page .conversation-status,
+html[data-theme="dark"] .admin-page .status-closed { color: var(--admin-ink); background: #303034; border-color: #49494e; }
+html[data-theme="dark"] .admin-page .admin-transcript-item.sender-client .admin-transcript-message { background: #39252b; border-color: #523039; }
+html[data-theme="dark"] .admin-page .admin-transcript-item.sender-system .admin-transcript-message { background: #303034; }
+html[data-theme="dark"] .admin-page .security-filter-errors { color: #ffdce0; background: #4a252d; }
+html[data-theme="dark"] .admin-page .button-secondary { color: var(--admin-ink); background: #414147; }
+html[data-theme="dark"] .admin-page .button-danger { color: #fff; background: #95101e; }
+html[data-theme="dark"] .admin-page .security-pagination a { border-color: var(--admin-line); }

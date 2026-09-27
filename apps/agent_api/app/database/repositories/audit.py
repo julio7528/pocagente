@@ -24,6 +24,7 @@ from apps.agent_api.app.security.dashboard_models import (
     SecurityDashboardEventRow,
     SecurityDashboardFilters,
     SecurityDashboardPage,
+    SecurityDashboardRecentActivity,
     SecurityDashboardSummary,
 )
 
@@ -170,6 +171,56 @@ class AuditRepository(BaseRepository):
                 distinct_source_components=0,
             )
         return SecurityDashboardSummary(**row)
+
+    async def get_recent_dashboard_activity(
+        self,
+        *,
+        window_start: datetime,
+        window_end: datetime,
+        event_limit: int = 6,
+    ) -> SecurityDashboardRecentActivity:
+        """Return counts and safe event fields within a bounded time window."""
+
+        if window_end <= window_start or not 1 <= event_limit <= 25:
+            raise ValueError("Invalid recent dashboard activity bounds")
+        parameters = (window_start, window_end)
+        where = " WHERE occurred_at >= %s AND occurred_at < %s"
+
+        async with self._cursor(row_factory=dict_row) as cursor:
+            await cursor.execute(
+                "SELECT COUNT(*)::bigint AS total_events, "
+                "COUNT(DISTINCT event_type)::bigint AS distinct_event_types "
+                "FROM audit.security_events" + where,
+                parameters,
+            )
+            summary = await cursor.fetchone()
+            await cursor.execute(
+                "SELECT event_type AS value, COUNT(*)::bigint AS event_count "
+                "FROM audit.security_events" + where
+                + " GROUP BY event_type ORDER BY event_count DESC, value ASC",
+                parameters,
+            )
+            type_rows = await cursor.fetchall()
+            await cursor.execute(
+                "SELECT event_id, occurred_at, event_type, source_component, "
+                "user_identifier, resource_category, action_taken, result, review_status "
+                "FROM audit.security_events" + where
+                + " ORDER BY occurred_at DESC, event_id DESC LIMIT %s",
+                (*parameters, event_limit),
+            )
+            event_rows = await cursor.fetchall()
+
+        return SecurityDashboardRecentActivity(
+            window_start=window_start,
+            window_end=window_end,
+            total_events=int(summary["total_events"]) if summary else 0,
+            distinct_event_types=int(summary["distinct_event_types"]) if summary else 0,
+            event_types=tuple(
+                SecurityDashboardBreakdownRow(value=row["value"], count=row["event_count"])
+                for row in type_rows
+            ),
+            events=tuple(SecurityDashboardEventRow(**row) for row in event_rows),
+        )
 
     async def get_dashboard_event_detail(
         self,

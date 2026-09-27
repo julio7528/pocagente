@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from apps.agent_api.app.database.connection import PostgresDatabase
@@ -15,6 +15,7 @@ from apps.agent_api.app.security.dashboard_models import (
     SecurityDashboardEventPage,
     SecurityDashboardFilters,
     SecurityDashboardPage,
+    SecurityDashboardRecentActivity,
     SecurityDashboardSummary,
 )
 from apps.agent_api.app.security.sanitization import sanitize_security_content
@@ -30,6 +31,8 @@ class SecurityDashboardEventMissing(Exception):
 
 class SecurityDashboardServiceContract(Protocol):
     async def summary(self, filters: SecurityDashboardFilters) -> SecurityDashboardSummary: ...
+
+    async def recent_activity(self) -> SecurityDashboardRecentActivity: ...
 
     async def timeseries(self, filters: SecurityDashboardFilters) -> tuple[SecurityDashboardDay, ...]: ...
 
@@ -54,6 +57,18 @@ class SecurityDashboardService:
         try:
             async with self._database.connection() as connection:
                 return await AuditRepository(connection).get_dashboard_summary(filters)
+        except SafeDatabaseError as exc:
+            raise SecurityDashboardUnavailable from exc
+
+    async def recent_activity(self) -> SecurityDashboardRecentActivity:
+        window_end = datetime.now(UTC)
+        window_start = window_end - timedelta(hours=24)
+        try:
+            async with self._database.connection() as connection:
+                return await AuditRepository(connection).get_recent_dashboard_activity(
+                    window_start=window_start,
+                    window_end=window_end,
+                )
         except SafeDatabaseError as exc:
             raise SecurityDashboardUnavailable from exc
 

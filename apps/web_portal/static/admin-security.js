@@ -6,7 +6,12 @@
   if (!dataNode || !filterForm || typeof Chart === "undefined") return;
 
   const dashboard = JSON.parse(dataNode.textContent || "{}");
-  const palette = ["#9b1220", "#246b57", "#315e8a", "#a35d17", "#6d5a90", "#477d82", "#8b6c32"];
+  const styles = getComputedStyle(document.body);
+  const accent = styles.getPropertyValue("--admin-accent").trim() || "#EC0000";
+  const ink = styles.getPropertyValue("--admin-ink").trim() || "#242424";
+  const muted = styles.getPropertyValue("--admin-muted").trim() || "#6F7779";
+  const grid = styles.getPropertyValue("--admin-line").trim() || "#E1E4E5";
+  const palette = [accent, "#8B1E37", "#0E5F78", "#4E2A97", "#6F7779", "#C1080F", "#732645"];
 
   const chart = (canvasId, type, labels, values, title, onSelect) => {
     const canvas = document.getElementById(canvasId);
@@ -19,24 +24,29 @@
         datasets: [{
           label: title,
           data: values,
-          backgroundColor: type === "line" ? "rgb(155 18 32 / 16%)" : colors,
-          borderColor: type === "line" ? "#9b1220" : colors,
-          borderWidth: type === "line" ? 2 : 1,
+          backgroundColor: type === "line" ? "rgb(236 0 0 / 14%)" : colors,
+          borderColor: type === "line" ? accent : colors,
+          borderWidth: type === "line" ? 2 : 0,
+          borderRadius: type === "bar" ? 4 : 0,
           fill: type === "line",
-          tension: 0.22,
+          tension: 0.28,
           pointRadius: type === "line" ? 3 : undefined,
+          pointHoverRadius: type === "line" ? 5 : undefined,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: type !== "bar", position: "bottom" },
+          legend: { display: type === "pie" || type === "doughnut", position: "bottom", labels: { color: muted, usePointStyle: true, padding: 18 } },
           title: { display: false, text: title },
+          tooltip: { backgroundColor: "#242424", titleColor: "#fff", bodyColor: "#fff", padding: 10, cornerRadius: 6 },
         },
         scales: type === "line" || type === "bar" ? {
-          y: { beginAtZero: true, ticks: { precision: 0 } },
+          x: { ticks: { color: muted }, grid: { display: false }, border: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0, color: muted }, grid: { color: grid }, border: { display: false } },
         } : {},
+        color: ink,
         onClick: (_event, elements) => {
           if (!elements.length || typeof onSelect !== "function") return;
           const selected = labels[elements[0].index];

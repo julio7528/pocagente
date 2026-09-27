@@ -1,24 +1,112 @@
 {% extends 'admin_portal/base.html' %}
+{% load static tz %}
 {% block title %}Visão geral{% endblock %}
 {% block content %}
-  <div class="admin-heading">
+  <div class="admin-heading overview-heading">
     <div>
-      <p class="eyebrow">Contas do portal</p>
+      <p class="eyebrow">Gestão do portal</p>
       <h1>Visão geral</h1>
-      <p class="muted">Resumo das identidades cadastradas e do estado de acesso.</p>
+      <p class="muted">Acompanhe as contas e a atividade recente de segurança.</p>
     </div>
     <a class="button-link" href="{% url 'admin-users' %}">Gerenciar usuários</a>
   </div>
-  <section aria-labelledby="account-summary-title">
-    <h2 id="account-summary-title" class="section-title">Usuários</h2>
-    <dl class="admin-summary">
-      <div><dt>Total</dt><dd>{{ counts.total }}</dd></div>
-      <div><dt>Ativos</dt><dd>{{ counts.active }}</dd></div>
-      <div><dt>Inativos</dt><dd>{{ counts.inactive }}</dd></div>
-      <div><dt>CLIENT</dt><dd>{{ counts.clients }}</dd></div>
-      <div><dt>SUPPORT_AGENT</dt><dd>{{ counts.support_agents }}</dd></div>
-      <div><dt>ADMIN</dt><dd>{{ counts.admins }}</dd></div>
+
+  <section class="overview-account-section" aria-labelledby="account-summary-title">
+    <div class="overview-section-heading">
+      <div>
+        <p class="eyebrow">Identidades</p>
+        <h2 id="account-summary-title">Contas do portal</h2>
+      </div>
+    </div>
+    <dl class="admin-summary overview-summary">
+      <div class="overview-stat overview-stat--total"><dt>Total de contas</dt><dd>{{ counts.total }}</dd></div>
+      <div class="overview-stat"><dt>Ativas</dt><dd>{{ counts.active }}</dd></div>
+      <div class="overview-stat"><dt>Inativas</dt><dd>{{ counts.inactive }}</dd></div>
+      <div class="overview-stat"><dt>Clientes</dt><dd>{{ counts.clients }}</dd></div>
+      <div class="overview-stat"><dt>Atendimento</dt><dd>{{ counts.support_agents }}</dd></div>
+      <div class="overview-stat"><dt>Administradores</dt><dd>{{ counts.admins }}</dd></div>
     </dl>
   </section>
-  <p class="admin-note">O acesso administrativo não concede autorização para operações.</p>
+
+  <section class="overview-security-section" aria-labelledby="security-overview-title">
+    <header class="overview-security-heading">
+      <div class="overview-security-title">
+        <img src="{% static 'ICONES - PNG/DIVERSOS/ICONES_DOCUMENTO-PROIBIDO.png' %}" alt="" aria-hidden="true">
+        <div>
+          <p class="eyebrow">Monitoramento contínuo</p>
+          <h2 id="security-overview-title">Tentativas de violação de segurança</h2>
+        </div>
+      </div>
+      <div class="overview-security-actions">
+        {% if recent_security %}<p class="security-updated">Atualizado em <time datetime="{{ recent_security.window_end|date:'c' }}">{{ recent_security.window_end|localtime|date:'d/m/Y H:i' }}</time></p>{% endif %}
+        <a class="text-link" href="{% url 'admin-security' %}">Abrir painel de segurança <span aria-hidden="true">→</span></a>
+      </div>
+    </header>
+
+    {% if security_unavailable %}
+      <p class="security-unavailable overview-security-unavailable" role="status">Os dados de segurança estão temporariamente indisponíveis. Tente novamente mais tarde.</p>
+    {% else %}
+      <div class="overview-security-content">
+        <div class="overview-security-total" aria-label="Tentativas bloqueadas nas últimas 24 horas">
+          <span class="overview-security-total__period">Últimas 24 horas</span>
+          <strong>{{ recent_security.total_events|default:0 }}</strong>
+          <span class="overview-security-total__caption">tentativas bloqueadas</span>
+          {% if recent_security %}
+            <span class="overview-security-total__window">De {{ recent_security.window_start|localtime|date:'d/m/Y H:i' }} a {{ recent_security.window_end|localtime|date:'d/m/Y H:i' }}</span>
+          {% endif %}
+        </div>
+
+        <section class="overview-security-breakdown" aria-labelledby="security-types-overview-title">
+          <div class="overview-subheading">
+            <div>
+              <h3 id="security-types-overview-title">Eventos por tipo</h3>
+              <p class="muted">Categorias registradas nesta janela.</p>
+            </div>
+            {% if recent_security %}<span class="security-type-count">{{ recent_security.distinct_event_types }} tipos</span>{% endif %}
+          </div>
+          {% if recent_security.event_types %}
+            <ol class="security-breakdown-list">
+              {% for item in recent_security.event_types %}
+                <li>
+                  <div class="security-breakdown-meta"><span>{{ item.value }}</span><strong>{{ item.count }}</strong></div>
+                  <div class="security-breakdown-track" aria-hidden="true"><span style="width: {{ item.bar_percent }}%"></span></div>
+                </li>
+              {% endfor %}
+            </ol>
+          {% else %}
+            <p class="security-quiet-empty">Nenhum tipo de evento registrado nas últimas 24 horas.</p>
+          {% endif %}
+        </section>
+
+        <section class="overview-security-events" aria-labelledby="security-events-overview-title">
+          <div class="overview-subheading">
+            <div>
+              <h3 id="security-events-overview-title">Eventos recentes</h3>
+              <p class="muted">Registros mais recentes, com acesso ao detalhe.</p>
+            </div>
+          </div>
+          {% if recent_security.events %}
+            <ol class="security-recent-list">
+              {% for event in recent_security.events %}
+                <li>
+                  <a href="{{ event.detail_url }}">
+                    <time datetime="{{ event.occurred_at|date:'c' }}">{{ event.occurred_at|localtime|date:'H:i' }}</time>
+                    <span class="security-recent-event">
+                      <strong>{{ event.event_type }}</strong>
+                      <span>#{{ event.event_id }} · {{ event.source_component }}</span>
+                    </span>
+                    <span class="security-action-label">{{ event.action_taken }}</span>
+                  </a>
+                </li>
+              {% endfor %}
+            </ol>
+          {% else %}
+            <p class="security-quiet-empty">Nenhuma tentativa bloqueada registrada nas últimas 24 horas.</p>
+          {% endif %}
+        </section>
+      </div>
+    {% endif %}
+  </section>
+
+  <p class="admin-note overview-note">O acesso administrativo não concede autorização para operações.</p>
 {% endblock %}

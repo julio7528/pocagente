@@ -74,6 +74,17 @@ class AuditEventRow(BaseModel):
     review_status: str
 
 
+class AuditRecentActivity(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    window_start: datetime
+    window_end: datetime
+    total_events: int = Field(ge=0)
+    distinct_event_types: int = Field(ge=0)
+    event_types: tuple[AuditBreakdownRow, ...]
+    events: tuple[AuditEventRow, ...]
+
+
 class AuditEventPage(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -135,10 +146,11 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class AuditDashboardClient:
-    """Call only the five approved, read-only internal AUDIT endpoints."""
+    """Call only approved, read-only internal AUDIT endpoints."""
 
     _ENDPOINTS = {
         "summary": "/internal/admin/audit/summary",
+        "recent_activity": "/internal/admin/audit/recent-activity",
         "timeseries": "/internal/admin/audit/timeseries",
         "breakdowns": "/internal/admin/audit/breakdowns",
         "events": "/internal/admin/audit/events",
@@ -177,7 +189,9 @@ class AuditDashboardClient:
             if response.status_code == 422:
                 raise AuditDashboardInvalidFilters
             if response.status_code == 404:
-                raise AuditDashboardEventMissing
+                if endpoint.startswith("/internal/admin/audit/events/"):
+                    raise AuditDashboardEventMissing
+                raise AuditDashboardUnavailable
             if response.status_code != 200:
                 raise AuditDashboardUnavailable
             payload = response.json()
@@ -230,4 +244,13 @@ class AuditDashboardClient:
         endpoint = self._ENDPOINTS["event_detail"].format(event_id=event_id)
         result = self._get(endpoint, params=None, response_type=AuditEventDetail)
         assert isinstance(result, AuditEventDetail)
+        return result
+
+    def recent_activity(self) -> AuditRecentActivity:
+        result = self._get(
+            self._ENDPOINTS["recent_activity"],
+            params=None,
+            response_type=AuditRecentActivity,
+        )
+        assert isinstance(result, AuditRecentActivity)
         return result

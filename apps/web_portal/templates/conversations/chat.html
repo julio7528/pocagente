@@ -25,7 +25,10 @@
 
   <div class="client-layout">
     <aside class="client-sidebar" aria-label="Conversas">
-      <a class="button-link new-conversation-link" href="{% url 'client-landing' %}">+ Nova conversa</a>
+      <a class="button-link new-conversation-link" href="{% url 'client-landing' %}">
+        <img class="new-conversation-icon" src="{% static 'ICONES - PNG/WEB/ICONES_MAIS-ADICIONAR.png' %}" alt="" aria-hidden="true">
+        <span>Nova conversa</span>
+      </a>
       <nav aria-label="Histórico de conversas">
         <h2>Suas conversas</h2>
         <div class="conversation-scroll">
@@ -69,9 +72,9 @@
         {% endif %}
       </div>
 
-      <ol class="transcript" aria-label="Mensagens da conversa" tabindex="0">
+      <ol class="transcript" aria-label="Mensagens da conversa" tabindex="0" data-conversation-id="{{ conversation.id }}">
         {% for item in history %}
-        <li class="transcript-item sender-{{ item.sender_type|lower }}">
+        <li class="transcript-item sender-{{ item.sender_type|lower }}" data-message-id="{{ item.id }}" data-sender-type="{{ item.sender_type }}">
           <article class="message-bubble">
             <div class="message-heading">
               <span class="sender-label">
@@ -153,9 +156,9 @@
     {% if debugger_enabled %}
     <aside class="client-debugger-drawer" id="client-debugger-drawer" aria-labelledby="client-debugger-title"
       data-debugger-drawer hidden>
-      <div class="client-debugger-heading"><h2 id="client-debugger-title">🐞 Debugger</h2></div>
+      <div class="client-debugger-heading"><h2 id="client-debugger-title">Debugger Trace</h2></div>
       <div class="client-debugger-scroll" data-debugger-scroll>
-        <p class="client-debugger-status" role="status" aria-live="polite" data-debugger-status>Mantenha o Debugger aberto e envie uma mensagem para registrar o processamento.</p>
+        <p class="client-debugger-status" role="status" aria-live="polite" data-debugger-status>Mantenha o Debugger Trace aberto e envie uma mensagem para registrar o processamento.</p>
         <ol class="client-debugger-events" data-debugger-events></ol>
         <dl class="client-debugger-summary" data-debugger-summary hidden></dl>
       </div>
@@ -165,10 +168,10 @@
   {% if debugger_enabled %}
   <div class="client-debugger-launcher">
     <div class="client-debugger-tooltip" id="client-debugger-tooltip" role="tooltip">
-      <strong>Debugger Mode</strong>
+      <strong>Debugger Trace</strong>
       <span>Exibe o processamento interno da mensagem atual.</span>
     </div>
-    <button class="client-debugger-toggle" type="button" aria-label="Debugger Mode"
+    <button class="client-debugger-toggle" type="button" aria-label="Abrir Debugger Trace"
       aria-describedby="client-debugger-tooltip" aria-controls="client-debugger-drawer"
       aria-expanded="false" data-debugger-toggle><img src="{% static 'debug-script.svg' %}" alt="" aria-hidden="true"></button>
   </div>

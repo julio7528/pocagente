@@ -18,12 +18,27 @@
   <div class="admin-layout">
     <aside class="admin-sidebar" aria-label="Navegação administrativa">
       <p class="eyebrow">Gestão</p>
-      <nav>
-        <a href="{% url 'admin-overview' %}" {% if section == 'overview' %}aria-current="page"{% endif %}>Visão geral</a>
-        <a href="{% url 'admin-users' %}" {% if section == 'users' or section == 'user-detail' or section == 'user-create' %}aria-current="page"{% endif %}>Usuários</a>
-        <a href="{% url 'admin-security' %}" {% if section == 'security' %}aria-current="page"{% endif %}>Segurança</a>
-        <a href="{% url 'admin-conversations' %}" {% if section == 'conversations' %}aria-current="page"{% endif %}>Conversas</a>
-        <a href="{% url 'admin-password-requests' %}" {% if section == 'password-requests' %}aria-current="page"{% endif %}>Solicitações de senha</a>
+      <nav aria-label="Navegação do portal administrativo">
+        <a href="{% url 'admin-overview' %}" {% if section == 'overview' %}aria-current="page"{% endif %}>
+          <img class="admin-nav-icon" src="{% static 'ICONES - PNG/WEB/ICONES_HOME.png' %}" alt="" aria-hidden="true">
+          <span>Visão geral</span>
+        </a>
+        <a href="{% url 'admin-users' %}" {% if section == 'users' or section == 'user-detail' or section == 'user-create' %}aria-current="page"{% endif %}>
+          <img class="admin-nav-icon" src="{% static 'ICONES - PNG/INSTITUCIONAL/ICONES_PESSOAS.png' %}" alt="" aria-hidden="true">
+          <span>Usuários</span>
+        </a>
+        <a href="{% url 'admin-security' %}" {% if section == 'security' %}aria-current="page"{% endif %}>
+          <img class="admin-nav-icon" src="{% static 'ICONES - PNG/WEB/ICONES_COMPUTADOR-LOCK.png' %}" alt="" aria-hidden="true">
+          <span>Segurança</span>
+        </a>
+        <a href="{% url 'admin-conversations' %}" {% if section == 'conversations' %}aria-current="page"{% endif %}>
+          <img class="admin-nav-icon" src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CHAT.png' %}" alt="" aria-hidden="true">
+          <span>Conversas</span>
+        </a>
+        <a href="{% url 'admin-password-requests' %}" {% if section == 'password-requests' %}aria-current="page"{% endif %}>
+          <img class="admin-nav-icon" src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LOCK-CADEADO.png' %}" alt="" aria-hidden="true">
+          <span>Solicitações de senha</span>
+        </a>
       </nav>
       <p class="admin-sidebar-note">O histórico das conversas é somente leitura. As ações disponíveis alteram apenas o estado do portal.</p>
     </aside>

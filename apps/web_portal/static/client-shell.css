@@ -232,3 +232,238 @@
   .client-page .composer-actions .muted { display: none; }
   .client-page .composer-send { margin-left: auto; }
 }
+
+/* Chat workspace polish: keep the shared header and footer styles untouched. */
+.client-page .client-layout { grid-template-columns: clamp(15.5rem, 22vw, 18rem) minmax(0, 1fr); }
+.client-page .client-sidebar {
+  gap: .9rem;
+  padding: 1rem .9rem;
+  background: #f5f5f6;
+  border-color: #e6e6e8;
+}
+.client-page .client-sidebar nav h2 {
+  margin: 0 0 .5rem .55rem;
+  color: #6f7779;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+.client-page .client-sidebar > .new-conversation-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  min-height: 2.85rem;
+  margin-right: 0;
+  padding: .65rem .8rem;
+  border-radius: .7rem;
+  background: #ec0000;
+  color: #fff;
+  font-size: .88rem;
+  font-weight: 650;
+  text-align: center;
+  transition: background-color .16s ease, transform .16s ease;
+}
+.client-page .new-conversation-link:hover { background: #c1080f; }
+.client-page .new-conversation-link:active { transform: translateY(1px); }
+.client-page .new-conversation-icon {
+  display: block;
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+.client-page .client-sidebar nav { gap: .1rem; }
+.client-page .conversation-scroll { padding-right: .2rem; }
+.client-page .conversation-list { gap: .28rem; }
+.client-page .conversation-list a {
+  display: -webkit-box;
+  padding: .65rem .7rem;
+  border-radius: .55rem;
+  color: #343438;
+  font-size: .86rem;
+  line-height: 1.35;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  transition: background-color .16s ease, color .16s ease;
+}
+.client-page .conversation-list a:hover { background: #fff; color: #95101e; }
+.client-page .conversation-list a[aria-current="page"] {
+  background: #fff0f0;
+  box-shadow: inset 3px 0 #ec0000;
+  color: #95101e;
+  font-weight: 650;
+}
+.client-page .conversation-list a:focus-visible,
+.client-page .new-conversation-link:focus-visible { outline-color: #ec0000; }
+.client-page .transcript { gap: .95rem; padding: .2rem .55rem .75rem .2rem; }
+.client-page .message-bubble {
+  max-width: min(100%, 52rem);
+  padding: .9rem 1.05rem;
+  border-color: #e8e8ea;
+  border-radius: 1rem;
+}
+.client-page .sender-client .message-bubble {
+  background: #fff1f1;
+  border-color: #ffe0e0;
+}
+.client-page .sender-system .message-bubble { background: #f5f5f6; }
+.client-page .sender-support_agent .message-bubble { border-left: 3px solid #ec0000; }
+.client-page .composer-send {
+  background: #ec0000;
+  transition: background-color .16s ease, transform .16s ease;
+}
+.client-page .composer-send:hover { background: #c1080f; }
+.client-page .composer-send:active { transform: scale(.96); }
+.client-page .composer-send:disabled {
+  opacity: 1;
+  background: #ec0000;
+  color: #fff;
+  cursor: wait;
+}
+.client-page .composer-send.is-loading svg { visibility: hidden; }
+.client-page .composer-send.is-loading::after {
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgb(255 255 255 / 42%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  content: "";
+  animation: client-chat-spin .72s linear infinite;
+}
+.client-page .composer-send.is-loading { position: relative; }
+.client-page .transcript-item.is-arriving .message-bubble {
+  animation: client-message-arrive .32s ease-out both;
+}
+@keyframes client-chat-spin { to { transform: rotate(360deg); } }
+@keyframes client-message-arrive {
+  from { opacity: 0; transform: translateY(.45rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+html[data-theme="dark"] .client-page .client-sidebar {
+  background: #202023;
+  border-color: #39393e;
+}
+html[data-theme="dark"] .client-page .client-sidebar nav h2 { color: #a9a9b0; }
+html[data-theme="dark"] .client-page .conversation-list a:hover { background: #303034; }
+html[data-theme="dark"] .client-page .conversation-list a[aria-current="page"] {
+  background: #39252b;
+  box-shadow: inset 3px 0 #ec0000;
+  color: #fff;
+}
+html[data-theme="dark"] .client-page .message-bubble { background: #252528; border-color: #3b3b40; }
+html[data-theme="dark"] .client-page .sender-system .message-bubble { background: #303034; }
+html[data-theme="dark"] .client-page .composer { border-color: #44444a; }
+
+@media (max-width: 48rem) {
+  .client-page .client-sidebar {
+    display: grid;
+    grid-template-columns: minmax(8rem, 10.25rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0 .7rem;
+    padding: .6rem clamp(.65rem, 2.5vw, 1rem);
+    border-right: 0;
+    border-bottom: 1px solid #e6e6e8;
+  }
+  .client-page .client-sidebar > .new-conversation-link {
+    grid-column: 1;
+    align-self: center;
+    min-height: 2.55rem;
+    margin: 0;
+    padding: .55rem .65rem;
+    font-size: .8rem;
+  }
+  .client-page .new-conversation-icon { width: 1rem; height: 1rem; }
+  .client-page .client-sidebar nav {
+    grid-column: 2;
+    align-self: stretch;
+    max-width: none;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .client-page .client-sidebar nav h2 { display: none; }
+  .client-page .conversation-scroll {
+    height: 2.75rem;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 0 .1rem;
+    scrollbar-width: none;
+  }
+  .client-page .conversation-scroll::-webkit-scrollbar { display: none; }
+  .client-page .conversation-list {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    align-items: center;
+    gap: .35rem;
+    padding: .1rem .1rem .2rem;
+  }
+  .client-page .conversation-list li { flex: 0 0 auto; max-width: 12rem; }
+  .client-page .conversation-list a {
+    display: block;
+    max-width: 12rem;
+    padding: .5rem .65rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .78rem;
+    line-height: 1.25;
+    -webkit-line-clamp: unset;
+  }
+  .client-page .client-sidebar nav > .muted {
+    align-self: center;
+    margin: 0 .25rem;
+    font-size: .78rem;
+    white-space: nowrap;
+  }
+  .client-page .client-main { padding: .7rem clamp(.65rem, 2.5vw, 1rem); }
+  .client-page .transcript { padding-inline: .1rem; }
+  .client-page .message-bubble { max-width: 94%; padding: .75rem .85rem; }
+  .client-page .sender-client .message-bubble { max-width: 90%; }
+}
+
+@media (max-width: 23rem) {
+  .client-page .client-sidebar { grid-template-columns: minmax(0, 1fr); gap: .45rem; }
+  .client-page .client-sidebar > .new-conversation-link { justify-self: start; min-width: 11.5rem; }
+  .client-page .client-sidebar nav { grid-column: 1; }
+}
+
+@media (min-width: 35rem) and (max-width: 48rem) and (max-height: 35rem) {
+  .client-page .client-layout { grid-template-columns: 13rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .client-page .client-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: .8rem;
+    padding: .7rem;
+    border-right: 1px solid #e6e6e8;
+    border-bottom: 0;
+  }
+  .client-page .client-sidebar > .new-conversation-link { width: 100%; margin: 0; }
+  .client-page .client-sidebar nav { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+  .client-page .client-sidebar nav h2 { display: block; }
+  .client-page .conversation-scroll { height: auto; flex: 1; overflow-x: hidden; overflow-y: auto; }
+  .client-page .conversation-list { display: grid; width: 100%; min-width: 0; align-items: initial; }
+  .client-page .conversation-list li { max-width: none; }
+  .client-page .conversation-list a {
+    display: -webkit-box;
+    max-width: none;
+    white-space: normal;
+    text-overflow: clip;
+    -webkit-line-clamp: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-page .new-conversation-link,
+  .client-page .composer-send { transition: none; }
+  .client-page .composer-send.is-loading::after { animation: none; border-top-color: transparent; }
+  .client-page .transcript-item.is-arriving .message-bubble { animation: none; }
+}
