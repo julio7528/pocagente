@@ -9,16 +9,577 @@
   <link rel="stylesheet" href="{% static 'portal.css' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'getnet-favicon-32x32.png' %}">
   <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
+  <link rel="stylesheet" href="{% static 'home.css' %}">
+  <script src="{% static 'home-carousel.js' %}" defer></script>
+  <script src="{% static 'home-overview.js' %}" defer></script>
+  <script src="{% static 'home-how-it-works.js' %}" defer></script>
 </head>
-<body>
-  <header class="site-header"><span>Getnet Support</span></header>
-  <main class="auth-shell">
-    <section class="card" aria-labelledby="home-title">
-      <h1 id="home-title">Página inicial</h1>
-      <p class="muted">Esta página está em construção.</p>
-      <a class="button-link" href="{% url 'login' %}">Ir para login</a>
+<body class="home-page">
+  <header class="home-header">
+    <div class="home-container">
+      <div class="home-header__inner">
+        <a class="home-header__brand brand-link" href="{% url 'home' %}" aria-label="Getnet — página inicial">
+          <img src="{% static 'getnet-logo-wide.png' %}" alt="Getnet">
+        </a>
+
+        <nav class="home-header__nav" aria-label="Navegação principal">
+          <a class="home-header__nav-item brand-link" role="link" aria-disabled="true" tabindex="0">Produtos</a>
+          <a class="home-header__nav-item brand-link" role="link" aria-disabled="true" tabindex="0">Soluções</a>
+          <a class="home-header__nav-item brand-link" role="link" aria-disabled="true" tabindex="0">Sobre a Getnet</a>
+        </nav>
+
+        <div class="home-header__actions">
+          <a class="home-header__button home-header__button--outline brand-link" href="{% url 'login' %}">Acesso ao portal</a>
+          <button class="home-header__button home-header__button--primary" type="button" disabled aria-disabled="true">Cadastro</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="home-main">
+    <section class="home-carousel" data-home-carousel role="region" aria-roledescription="carrossel" aria-label="Destaques Getnet">
+      <div class="home-carousel__viewport">
+        <div class="home-carousel__track" data-carousel-track aria-live="off">
+          <div class="home-carousel__slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="1 de 3">
+            <img src="{% static 'hero1ofc.png' %}" alt="Getnet Support POC: plataforma inteligente de atendimento com multiagentes, RAG e atendimento humano." fetchpriority="high" decoding="async">
+          </div>
+          <div class="home-carousel__slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="2 de 3" aria-hidden="true">
+            <img src="{% static 'hero2ofc.png' %}" alt="Arquitetura inteligente: multiagentes, RAG e dados operacionais para respostas mais seguras e contextuais." decoding="async">
+          </div>
+          <div class="home-carousel__slide" data-carousel-slide role="group" aria-roledescription="slide" aria-label="3 de 3" aria-hidden="true">
+            <img src="{% static 'hero3ofc.png' %}" alt="Atendimento automatizado com escalonamento humano, triagem inteligente e continuidade." decoding="async">
+          </div>
+        </div>
+      </div>
+
+      <button class="home-carousel__control home-carousel__control--previous" type="button" data-carousel-previous aria-label="Imagem anterior">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <button class="home-carousel__control home-carousel__control--next" type="button" data-carousel-next aria-label="Próxima imagem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <button class="home-carousel__control home-carousel__control--toggle" type="button" data-carousel-toggle aria-label="Pausar carrossel" title="Pausar carrossel">
+        <svg viewBox="0 0 24 24" data-carousel-pause-icon aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+        <svg viewBox="0 0 24 24" data-carousel-play-icon aria-hidden="true" hidden><path d="m8 5 11 7-11 7z"/></svg>
+      </button>
+    </section>
+
+    <section class="home-overview" data-home-overview aria-labelledby="home-overview-title">
+      <div class="home-container">
+        <header class="home-overview__heading">
+          <p class="home-overview__eyebrow">Visão geral da POC</p>
+          <h1 id="home-overview-title">Como o Getnet Support foi construído</h1>
+          <p class="home-overview__intro">Conheça o desafio, a arquitetura e os recursos que organizam cada resposta.</p>
+        </header>
+
+        <div class="home-overview__grid">
+          <article class="home-overview-card">
+            <img class="home-overview-card__image" src="{% static 'imgs_getnet_22/_CGF3140.jpg' %}" alt="Pagamento presencial com terminal Getnet" loading="lazy" decoding="async">
+            <div class="home-overview-card__body">
+              <p class="home-overview-card__eyebrow">O desafio</p>
+              <h2>Multiagentes com papéis claros</h2>
+              <ul class="home-overview-card__features">
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_EQUIPE-140.png' %}" alt="" aria-hidden="true"><span>Três ou mais agentes especializados</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CONVERSA.png' %}" alt="" aria-hidden="true"><span>Roteamento e coordenação de tarefas</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_COMPUTADOR.png' %}" alt="" aria-hidden="true"><span>API HTTP em JSON e execução em Docker</span></li>
+              </ul>
+              <button class="home-overview-card__more" type="button" data-overview-open="challenge" data-overview-title="O desafio técnico" aria-haspopup="dialog" aria-controls="home-overview-dialog">
+                <span>Saiba mais</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+              </button>
+            </div>
+          </article>
+
+          <article class="home-overview-card">
+            <img class="home-overview-card__image" src="{% static 'imgs_getnet_22/_CGF3415.jpg' %}" alt="Atendimento a cliente em um café com pagamento por cartão" loading="lazy" decoding="async">
+            <div class="home-overview-card__body">
+              <p class="home-overview-card__eyebrow">O problema</p>
+              <h2>Cada pedido pede evidências diferentes</h2>
+              <ul class="home-overview-card__features">
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LIVRO.png' %}" alt="" aria-hidden="true"><span>Conhecimento interno e informações Getnet</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LOCK-CADEADO.png' %}" alt="" aria-hidden="true"><span>Dados operacionais com acesso controlado</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_EQUIPE-140.png' %}" alt="" aria-hidden="true"><span>Busca pública ou apoio humano quando necessário</span></li>
+              </ul>
+              <button class="home-overview-card__more" type="button" data-overview-open="problem" data-overview-title="O problema que a POC resolve" aria-haspopup="dialog" aria-controls="home-overview-dialog">
+                <span>Saiba mais</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+              </button>
+            </div>
+          </article>
+
+          <article class="home-overview-card">
+            <img class="home-overview-card__image" src="{% static 'imgs_getnet_22/_CGF3790.jpg' %}" alt="Empreendedora organizando produtos em sua loja" loading="lazy" decoding="async">
+            <div class="home-overview-card__body">
+              <p class="home-overview-card__eyebrow">O objetivo da POC</p>
+              <h2>Atendimento fundamentado e coordenado</h2>
+              <ul class="home-overview-card__features">
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CHAT.png' %}" alt="" aria-hidden="true"><span>Agentes cooperam além de um chat genérico</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_DOCUMENTO-180.png' %}" alt="" aria-hidden="true"><span>Respostas relacionadas às fontes consultadas</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_GRAFICOS.png' %}" alt="" aria-hidden="true"><span>Qualidade e operação podem ser avaliadas</span></li>
+              </ul>
+              <button class="home-overview-card__more" type="button" data-overview-open="objective" data-overview-title="O objetivo da POC" aria-haspopup="dialog" aria-controls="home-overview-dialog">
+                <span>Saiba mais</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+              </button>
+            </div>
+          </article>
+
+          <article class="home-overview-card">
+            <img class="home-overview-card__image" src="{% static 'imgs_getnet_22/_CGF4026.jpg' %}" alt="Cliente usando um terminal de pagamento Getnet" loading="lazy" decoding="async">
+            <div class="home-overview-card__body">
+              <p class="home-overview-card__eyebrow">Capacidades</p>
+              <h2>Componentes integrados com limites claros</h2>
+              <ul class="home-overview-card__features">
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_BUSCA-LUPA.png' %}" alt="" aria-hidden="true"><span>RAG híbrida, RRF e citações</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_FERRAMENTAS-154.png' %}" alt="" aria-hidden="true"><span>Ferramentas OPS autorizadas e somente leitura</span></li>
+                <li><img src="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LOCK-CADEADO.png' %}" alt="" aria-hidden="true"><span>Busca web, segurança, auditoria e handoff</span></li>
+              </ul>
+              <button class="home-overview-card__more" type="button" data-overview-open="capabilities" data-overview-title="Capacidades implementadas" aria-haspopup="dialog" aria-controls="home-overview-dialog">
+                <span>Saiba mais</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+              </button>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <dialog class="home-overview-dialog" id="home-overview-dialog" data-overview-dialog aria-labelledby="home-overview-dialog-title">
+        <div class="home-overview-dialog__panel">
+          <button class="home-overview-dialog__close" type="button" data-overview-close aria-label="Fechar detalhes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>
+          <p class="home-overview-dialog__eyebrow" data-overview-dialog-eyebrow>Visão geral da POC</p>
+          <h2 id="home-overview-dialog-title" data-overview-dialog-title>Detalhes</h2>
+          <div class="home-overview-dialog__content" data-overview-dialog-content></div>
+        </div>
+      </dialog>
+
+      <template data-overview-detail="challenge">
+        <p>O desafio original propõe um sistema de suporte multiagente: agentes especializados colaboram para interpretar solicitações e produzir respostas úteis.</p>
+        <h3>Requisitos centrais</h3>
+        <ul>
+          <li><strong>Router Agent:</strong> recebe a mensagem e decide qual agente ou sequência de agentes atende ao pedido.</li>
+          <li><strong>Knowledge Agent:</strong> consulta conhecimento interno e informações públicas da Getnet, com RAG e busca na web.</li>
+          <li><strong>Customer Support Agent:</strong> recupera dados operacionais e deve contar com pelo menos duas ferramentas.</li>
+          <li><strong>API e entrega:</strong> endpoint HTTP POST com resposta JSON e aplicação executável em Docker.</li>
+        </ul>
+        <h3>Itens bônus do desafio</h3>
+        <p>O documento também propõe um quarto agente para escalonamento humano, guardrails, handoff e uma estratégia de avaliação e observabilidade. O desafio pede uma estratégia de testes; esta seção não afirma que uma nova bateria de testes foi executada.</p>
+        <p class="home-overview-dialog__sources"><strong>Fontes:</strong> <code>docs/challenge.md</code>; <code>docs/project-roadmap.md</code> (fases 9, 10 e 11).</p>
+      </template>
+
+      <template data-overview-detail="problem">
+        <p>Uma conversa de suporte pode misturar perguntas sobre produtos Getnet, procedimentos internos, registros operacionais privados e informações atuais da web. Cada tipo exige uma fonte e um limite de acesso próprios.</p>
+        <h3>Como as capacidades se separam</h3>
+        <ul>
+          <li>O Router produz uma decisão tipada de capacidade; a orquestração encaminha a tarefa ao agente adequado.</li>
+          <li>O Knowledge Agent responde a partir de evidências recuperadas e fundamentadas; se elas forem insuficientes, retorna esse estado de forma controlada.</li>
+          <li>O Customer Support Agent consulta dados OPS somente por ferramentas aprovadas e com autorização.</li>
+          <li>Informações públicas atuais usam busca web controlada; esse resultado é fundamentado e não é persistido como dado OPS.</li>
+          <li>O escalonamento humano exige confirmação explícita; a automação só é suspensa quando um atendente autorizado assume a conversa.</li>
+        </ul>
+        <p>Essa separação preserva a origem das evidências, distingue fatos observados de inferências e impede que a resposta trate conteúdo recuperado como instrução de sistema.</p>
+        <p class="home-overview-dialog__sources"><strong>Fontes:</strong> <code>docs/challenge.md</code>; <code>docs/project-roadmap.md</code> (fases 8 a 10); <code>apps/agent_api/app/agents/router.py</code>, <code>knowledge.py</code>, <code>customer_support.py</code>, <code>web_knowledge.py</code> e <code>human_escalation.py</code>.</p>
+      </template>
+
+      <template data-overview-detail="objective">
+        <p>A POC demonstra como estruturar e integrar um sistema de suporte inteligente além de uma caixa de chat: com responsabilidades distintas, dados controlados e uma trilha clara até a resposta.</p>
+        <h3>O que a demonstração reúne</h3>
+        <ul>
+          <li>Agentes especializados e um grafo de orquestração com rotas explícitas.</li>
+          <li>RAG funcional que associa respostas às fontes e trata evidência insuficiente.</li>
+          <li>Ferramentas operacionais delimitadas, API, portal e execução conteinerizada.</li>
+          <li>Guardrails, auditoria, observabilidade e conjuntos de avaliação descritos no roadmap.</li>
+        </ul>
+        <p>O objetivo é tornar visíveis as decisões de encaminhamento e os limites de cada recurso, mantendo respostas apoiadas pelas evidências disponíveis.</p>
+        <p class="home-overview-dialog__sources"><strong>Fontes:</strong> <code>docs/challenge.md</code>; <code>docs/project-roadmap.md</code> (fases 1, 9, 11 e 12); <code>apps/agent_api/app/agents/orchestration.py</code>.</p>
+      </template>
+
+      <template data-overview-detail="capabilities">
+        <h3>Conhecimento e busca</h3>
+        <p>O RAG combina busca lexical do PostgreSQL Full Text Search e busca vetorial com pgvector e FastEmbed. O RRF funde os candidatos e entrega até cinco trechos; o grounding registra proveniência e citações e pode encerrar com evidência insuficiente. Tavily fornece evidência pública ao vivo de forma limitada e não persistente.</p>
+        <h3>Dados operacionais</h3>
+        <p>O Customer Support Agent usa ferramentas OPS de leitura, com autorização: consulta status de protocolo, examina evidências de falha e acessa outras consultas delimitadas. O resultado mantém fatos observados separados de inferências identificadas.</p>
+        <h3>Orquestração e proteção</h3>
+        <p>O LangGraph coordena Router, Knowledge, Customer Support, busca web, conversa e escalonamento humano em um fluxo acíclico. Guardrails bloqueiam solicitações protegidas e alimentam auditoria sanitizada. O handoff pede confirmação e só suspende a automação após a assunção por atendente autorizado.</p>
+        <h3>Avaliação e acompanhamento</h3>
+        <p>O roadmap registra um runner de avaliação de RAG com 27 casos e uma suíte do desafio com 14 cenários observáveis, além de métricas para grounding, segurança, roteamento e ferramentas.</p>
+        <p class="home-overview-dialog__sources"><strong>Fontes:</strong> <code>docs/project-roadmap.md</code> (fases 3 e 6 a 12); <code>apps/agent_api/app/agents/orchestration.py</code>, <code>router.py</code>, <code>knowledge.py</code>, <code>customer_support.py</code>, <code>web_knowledge.py</code> e <code>human_escalation.py</code>; <code>apps/agent_api/app/tools/ops.py</code>; módulos <code>rag/</code>, <code>security/</code> e <code>evaluation/</code>.</p>
+      </template>
+    </section>
+
+    <section class="home-how-it-works" aria-labelledby="home-how-it-works-title">
+      <div class="home-container">
+        <header class="home-how-it-works__header">
+          <p class="home-how-it-works__eyebrow">Arquitetura em execução</p>
+          <h2 id="home-how-it-works-title">Como funciona?</h2>
+          <p>Da mensagem do usuário à resposta segura, cada etapa tem uma responsabilidade bem definida.</p>
+        </header>
+
+        <div class="home-how-it-works__diagram" data-flow-surface>
+          <div class="home-flow-tooltip" id="home-flow-tooltip" data-flow-tooltip role="tooltip" hidden>
+            <strong data-flow-tooltip-title></strong>
+            <span data-flow-tooltip-description></span>
+          </div>
+
+          <svg class="home-how-it-works__svg home-how-it-works__svg--desktop" viewBox="0 0 1400 1450" role="group" aria-labelledby="home-flow-desktop-title home-flow-desktop-description">
+            <title id="home-flow-desktop-title">Fluxo de atendimento do Getnet Support</title>
+            <desc id="home-flow-desktop-description">O portal Django envia uma mensagem à Agent API. O LangGraph roteia a solicitação entre capacidades especializadas; as saídas passam pela segurança de resposta e retornam ao portal. Uma trilha separada mostra a fila persistente de atendimento humano.</desc>
+            <defs>
+              <marker id="home-flow-arrow-desktop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="home-flow-arrowhead" />
+              </marker>
+            </defs>
+
+            <rect class="home-flow-frame" x="35" y="220" width="1330" height="765" rx="18" aria-hidden="true" />
+            <rect class="home-flow-handoff-frame" x="35" y="1185" width="1330" height="240" rx="16" aria-hidden="true" />
+            <text class="home-flow-caption" x="60" y="1225" aria-hidden="true">TRILHA DO PORTAL · FORA DO GRAFO DE RESPOSTA</text>
+
+            <path class="home-flow-edge home-flow-edge--request" data-flow-groups="request" d="M245 131 H310" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--request" data-flow-groups="request" d="M520 131 H585" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--request" data-flow-groups="request" d="M690 172 V190 H900 V300" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--request" data-flow-groups="request" d="M1005 339 H1090" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--security" data-flow-groups="security" d="M900 378 V397" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--routing" data-flow-groups="routing" d="M1200 378 V446 H160 M1200 446 H1240" />
+            <path class="home-flow-edge home-flow-edge--routing" data-flow-groups="routing" d="M160 446 V475 M430 446 V475 M700 446 V475 M970 446 V475 M1240 446 V475" marker-end="url(#home-flow-arrow-desktop)" />
+
+            <path class="home-flow-edge home-flow-edge--knowledge" data-flow-groups="knowledge" d="M430 557 V585 M430 643 V650 H356 V658 M430 643 V650 H456 V658 M430 643 V650 H556 V658" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--knowledge" data-flow-groups="knowledge" d="M356 702 V713 H430 M456 702 V713 H430 M556 702 V713 H430 V727 M430 782 V876" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--fallback" data-flow-groups="knowledge web" d="M430 557 V575 H845 V516 H860" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--ops" data-flow-groups="ops" d="M700 557 V585 M700 643 V655 M700 713 V725 M780 754 H850 V876" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--web" data-flow-groups="web" d="M970 557 V585 M970 643 V655 M970 713 V876" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--human" data-flow-groups="human" d="M1240 557 V585 M1240 643 V876" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--conversation" data-flow-groups="conversation" d="M160 557 V876" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--cooperative" data-flow-groups="cooperative knowledge ops" d="M430 782 C448 795 515 804 560 817 M700 783 C682 798 648 808 630 817" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--cooperative" data-flow-groups="cooperative response" d="M700 844 V876" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M1260 876 H270" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--cooperative" data-flow-groups="cooperative ops knowledge" d="M590 516 H560 V460 H540 V516" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M160 912 V1052 H315" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M535 1052 H575" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M795 1052 H835" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M1055 1052 H1095" marker-end="url(#home-flow-arrow-desktop)" />
+
+            <path class="home-flow-edge home-flow-edge--handoff" data-flow-groups="request human" d="M520 131 V190 H1380 V1320 H270" marker-end="url(#home-flow-arrow-desktop)" />
+            <path class="home-flow-edge home-flow-edge--handoff" data-flow-groups="human" d="M270 1320 H310 M530 1320 H570 M790 1320 H830 M1050 1320 H1090" marker-end="url(#home-flow-arrow-desktop)" />
+
+            <g class="home-flow-node home-flow-node--major" transform="translate(35 90)" data-flow-term="user" data-flow-groups="request" role="button" tabindex="0" aria-pressed="false" aria-label="Cliente, envie uma mensagem pelo portal">
+              <title>Cliente: envia uma mensagem pelo navegador</title>
+              <rect class="home-flow-node__shape" width="210" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_EQUIPE-140.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Cliente</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">navegador</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(310 90)" data-flow-term="portal" data-flow-groups="request response" role="button" tabindex="0" aria-pressed="false" aria-label="Portal Django, autentica e controla a conversa">
+              <title>Portal Django: autenticação, conversa e persistência</title>
+              <rect class="home-flow-node__shape" width="210" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_COMPUTADOR.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Portal Django</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">sessão e conversa</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(585 90)" data-flow-term="fastapi" data-flow-groups="request response" role="button" tabindex="0" aria-pressed="false" aria-label="FastAPI, fronteira autenticada da Agent API">
+              <title>FastAPI: fronteira autenticada da Agent API</title>
+              <rect class="home-flow-node__shape" width="210" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_FERRAMENTAS-154.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">FastAPI</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">POST /chat</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--chip" transform="translate(65 240)" data-flow-term="langgraph" data-flow-groups="routing" role="button" tabindex="0" aria-pressed="false" aria-label="LangGraph, grafo acíclico de orquestração">
+              <title>LangGraph: grafo acíclico de orquestração</title>
+              <rect class="home-flow-node__shape" width="235" height="42" rx="21" />
+              <text class="home-flow-node__label" x="117" y="27" text-anchor="middle">LangGraph · grafo acíclico</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(795 300)" data-flow-term="input-security" data-flow-groups="request security" role="button" tabindex="0" aria-pressed="false" aria-label="Segurança de entrada, preflight antes do roteamento">
+              <title>Segurança de entrada: preflight antes do roteamento</title>
+              <rect class="home-flow-node__shape" width="210" height="78" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LOCK-CADEADO.png' %}" x="15" y="22" width="32" height="32" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="58" y="34">Segurança de</text>
+              <text class="home-flow-node__label" x="58" y="54">entrada</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(1090 300)" data-flow-term="router" data-flow-groups="routing request" role="button" tabindex="0" aria-pressed="false" aria-label="Router Agent, decide quais capacidades devem atuar">
+              <title>Router Agent: seleciona capacidades sem executá-las</title>
+              <rect class="home-flow-node__shape" width="220" height="78" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CONVERSA.png' %}" x="16" y="22" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="34">Router Agent</text>
+              <text class="home-flow-node__sub-label" x="62" y="55">decisão de rota</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--audit" transform="translate(815 397)" data-flow-term="audit" data-flow-groups="security" role="button" tabindex="0" aria-pressed="false" aria-label="Audit, registra eventos de segurança sanitizados">
+              <title>Audit: registra eventos sanitizados de segurança</title>
+              <rect class="home-flow-node__shape" width="170" height="42" rx="10" />
+              <text class="home-flow-node__label" x="85" y="27" text-anchor="middle">Audit · evento sanitizado</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--major" transform="translate(50 475)" data-flow-term="conversational" data-flow-groups="conversation response" role="button" tabindex="0" aria-pressed="false" aria-label="Conversational Agent, atende interações conversacionais">
+              <title>Conversational Agent</title>
+              <rect class="home-flow-node__shape" width="220" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CHAT.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Conversational</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">Agent</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(320 475)" data-flow-term="knowledge" data-flow-groups="knowledge response" role="button" tabindex="0" aria-pressed="false" aria-label="Knowledge Agent, produz respostas fundamentadas em evidências">
+              <title>Knowledge Agent: respostas baseadas em evidências</title>
+              <rect class="home-flow-node__shape" width="220" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LIVRO.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Knowledge Agent</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">conhecimento grounded</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(590 475)" data-flow-term="customer-support" data-flow-groups="ops response" role="button" tabindex="0" aria-pressed="false" aria-label="Customer Support Agent, consulta fatos operacionais autorizados">
+              <title>Customer Support Agent: consulta operacional autorizada</title>
+              <rect class="home-flow-node__shape" width="220" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_FERRAMENTAS-154.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Customer Support</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">Agent</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(860 475)" data-flow-term="web-knowledge" data-flow-groups="web response" role="button" tabindex="0" aria-pressed="false" aria-label="Web Knowledge, busca evidência pública atual quando a rota permite">
+              <title>Web Knowledge: busca pública controlada</title>
+              <rect class="home-flow-node__shape" width="220" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_BUSCA-LUPA.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Web Knowledge</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">evidência pública</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(1130 475)" data-flow-term="human-agent" data-flow-groups="human response" role="button" tabindex="0" aria-pressed="false" aria-label="Human Escalation, coordena transições tipadas de atendimento humano">
+              <title>Human Escalation: transições tipadas de atendimento</title>
+              <rect class="home-flow-node__shape" width="220" height="82" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_EQUIPE-140.png' %}" x="16" y="24" width="34" height="34" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="62" y="38">Human Escalation</text>
+              <text class="home-flow-node__sub-label" x="62" y="59">transição tipada</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--small" transform="translate(350 585)" data-flow-term="rag" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="RAG híbrida, combina busca lexical e vetorial">
+              <title>RAG híbrida</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="35" text-anchor="middle">RAG híbrida</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip" transform="translate(310 658)" data-flow-term="fts" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="PostgreSQL Full Text Search, busca lexical">
+              <title>PostgreSQL Full Text Search</title><rect class="home-flow-node__shape" width="92" height="44" rx="10" /><text class="home-flow-node__label" x="46" y="28" text-anchor="middle">FTS</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip" transform="translate(410 658)" data-flow-term="pgvector" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="pgvector, busca por similaridade vetorial">
+              <title>pgvector</title><rect class="home-flow-node__shape" width="92" height="44" rx="10" /><text class="home-flow-node__label" x="46" y="28" text-anchor="middle">pgvector</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip" transform="translate(510 658)" data-flow-term="fastembed" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="FastEmbed, gera embeddings para busca vetorial">
+              <title>FastEmbed</title><rect class="home-flow-node__shape" width="92" height="44" rx="10" /><text class="home-flow-node__label" x="46" y="28" text-anchor="middle">FastEmbed</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(350 727)" data-flow-term="grounding" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="Grounding, associa a resposta às evidências recuperadas">
+              <title>Grounding e evidências citáveis</title><rect class="home-flow-node__shape" width="160" height="55" rx="10" /><text class="home-flow-node__label" x="80" y="34" text-anchor="middle">Grounding</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(620 585)" data-flow-term="ops-tools" data-flow-groups="ops" role="button" tabindex="0" aria-pressed="false" aria-label="OPS Tools, ferramentas autorizadas e somente leitura">
+              <title>OPS Tools: ferramentas autorizadas e somente leitura</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="35" text-anchor="middle">OPS Tools</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(620 655)" data-flow-term="ops-postgres" data-flow-groups="ops" role="button" tabindex="0" aria-pressed="false" aria-label="PostgreSQL OPS, consultado por repositórios e ferramentas">
+              <title>PostgreSQL OPS por meio da camada de repositório</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="35" text-anchor="middle">PostgreSQL OPS</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(620 725)" data-flow-term="ops-facts" data-flow-groups="ops cooperative" role="button" tabindex="0" aria-pressed="false" aria-label="Fatos operacionais observados, separados de inferências">
+              <title>Fatos observados e inferências identificadas</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="27" text-anchor="middle"><tspan x="80">Fatos</tspan><tspan x="80" dy="17">operacionais</tspan></text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(890 585)" data-flow-term="tavily" data-flow-groups="web" role="button" tabindex="0" aria-pressed="false" aria-label="Tavily, provedor de busca pública controlada">
+              <title>Tavily: provedor de busca web</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="35" text-anchor="middle">Tavily</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(890 655)" data-flow-term="public-evidence" data-flow-groups="web" role="button" tabindex="0" aria-pressed="false" aria-label="Evidência pública atual, usada na resposta grounded">
+              <title>Evidência pública atual</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="27" text-anchor="middle"><tspan x="80">Evidência</tspan><tspan x="80" dy="17">pública atual</tspan></text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(1160 585)" data-flow-term="human-transition" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Transição tipada, oferece confirmação, aceite ou resolução">
+              <title>Transição humana tipada</title><rect class="home-flow-node__shape" width="160" height="58" rx="10" /><text class="home-flow-node__label" x="80" y="27" text-anchor="middle"><tspan x="80">Transição</tspan><tspan x="80" dy="17">tipada</tspan></text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--small home-flow-node--cooperative" transform="translate(560 790)" data-flow-term="cooperative-synthesis" data-flow-groups="cooperative knowledge ops response" role="button" tabindex="0" aria-pressed="false" aria-label="Síntese cooperativa, combina fatos OPS e conhecimento fundamentado">
+              <title>Síntese cooperativa: fatos operacionais mais conhecimento grounded</title>
+              <rect class="home-flow-node__shape" width="280" height="54" rx="12" />
+              <text class="home-flow-node__label" x="140" y="24" text-anchor="middle">Síntese cooperativa</text>
+              <text class="home-flow-node__sub-label" x="140" y="42" text-anchor="middle">OPS + evidências RAG</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--assembly" transform="translate(50 840)" data-flow-term="assembly" data-flow-groups="response conversation knowledge ops web human cooperative" role="button" tabindex="0" aria-pressed="false" aria-label="Assembly, reúne a saída da rota antes do retorno da API">
+              <title>Assembly: reúne o resultado final do grafo</title>
+              <rect class="home-flow-node__shape" width="220" height="72" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_DOCUMENTO-180.png' %}" x="16" y="20" width="32" height="32" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="58" y="32">Assembly</text>
+              <text class="home-flow-node__sub-label" x="58" y="52">saída do LangGraph</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--major" transform="translate(315 1013)" data-flow-term="output-security" data-flow-groups="security response" role="button" tabindex="0" aria-pressed="false" aria-label="Output Security, analisa a resposta candidata após o Assembly">
+              <title>Output Security: verifica a resposta candidata após o grafo</title>
+              <rect class="home-flow-node__shape" width="220" height="78" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CHECK-SEGURANÇA.png' %}" x="15" y="22" width="32" height="32" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="58" y="34">Output Security</text>
+              <text class="home-flow-node__sub-label" x="58" y="55">ChatApplicationService</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(575 1013)" data-flow-term="api-response" data-flow-groups="response" role="button" tabindex="0" aria-pressed="false" aria-label="Resposta tipada, contém somente campos permitidos pela API">
+              <title>Resposta tipada e allowlisted</title>
+              <rect class="home-flow-node__shape" width="220" height="78" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_DOCUMENTO-180.png' %}" x="15" y="22" width="32" height="32" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="58" y="34">Resposta tipada</text>
+              <text class="home-flow-node__sub-label" x="58" y="55">campos allowlisted</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(835 1013)" data-flow-term="django-persist" data-flow-groups="response request" role="button" tabindex="0" aria-pressed="false" aria-label="Django persiste a resposta do agente no histórico da conversa">
+              <title>Django: persiste a resposta no histórico da conversa</title>
+              <rect class="home-flow-node__shape" width="220" height="78" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_COMPUTADOR.png' %}" x="15" y="22" width="32" height="32" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="58" y="34">Django persiste</text>
+              <text class="home-flow-node__sub-label" x="58" y="55">histórico da conversa</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major" transform="translate(1095 1013)" data-flow-term="user-response" data-flow-groups="response" role="button" tabindex="0" aria-pressed="false" aria-label="Cliente recebe a resposta pelo portal">
+              <title>Cliente recebe a resposta pelo portal</title>
+              <rect class="home-flow-node__shape" width="220" height="78" rx="12" />
+              <image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CONVERSA.png' %}" x="15" y="22" width="32" height="32" aria-hidden="true" focusable="false" />
+              <text class="home-flow-node__label" x="58" y="34">Cliente recebe</text>
+              <text class="home-flow-node__sub-label" x="58" y="55">resposta no portal</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--small" transform="translate(50 1280)" data-flow-term="explicit-confirmation" data-flow-groups="human request" role="button" tabindex="0" aria-pressed="false" aria-label="Confirmação explícita do cliente para iniciar atendimento humano">
+              <title>Confirmação explícita do cliente</title><rect class="home-flow-node__shape" width="220" height="80" rx="12" /><text class="home-flow-node__label" x="110" y="34" text-anchor="middle"><tspan x="110">Cliente confirma</tspan><tspan x="110" dy="19">atendimento humano</tspan></text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(310 1280)" data-flow-term="transition-api" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="FastAPI valida a transição interna de handoff">
+              <title>FastAPI: transição interna de handoff</title><rect class="home-flow-node__shape" width="220" height="80" rx="12" /><text class="home-flow-node__label" x="110" y="34" text-anchor="middle"><tspan x="110">FastAPI</tspan><tspan x="110" dy="19">transição interna</tspan></text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(570 1280)" data-flow-term="waiting-queue" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Django persiste a fila de conversas em espera">
+              <title>Django: persiste a fila WAITING_HUMAN</title><rect class="home-flow-node__shape" width="220" height="80" rx="12" /><text class="home-flow-node__label" x="110" y="34" text-anchor="middle"><tspan x="110">Fila no Django</tspan><tspan x="110" dy="19">WAITING_HUMAN</tspan></text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(830 1280)" data-flow-term="operator-accept" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Atendente autorizado assume a conversa pela fila">
+              <title>Atendente autorizado aceita a conversa</title><rect class="home-flow-node__shape" width="220" height="80" rx="12" /><text class="home-flow-node__label" x="110" y="34" text-anchor="middle"><tspan x="110">Atendente</tspan><tspan x="110" dy="19">autorizado assume</tspan></text>
+            </g>
+            <g class="home-flow-node home-flow-node--small" transform="translate(1090 1280)" data-flow-term="automation-suspended" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Automação suspensa após o aceite do atendente">
+              <title>Automação suspensa após o aceite</title><rect class="home-flow-node__shape" width="220" height="80" rx="12" /><text class="home-flow-node__label" x="110" y="34" text-anchor="middle"><tspan x="110">Automação</tspan><tspan x="110" dy="19">suspensa ao aceitar</tspan></text>
+            </g>
+          </svg>
+
+          <svg class="home-how-it-works__svg home-how-it-works__svg--mobile" viewBox="0 0 390 3190" role="group" aria-labelledby="home-flow-mobile-title home-flow-mobile-description">
+            <title id="home-flow-mobile-title">Fluxo do Getnet Support em formato vertical</title>
+            <desc id="home-flow-mobile-description">Versão vertical do fluxo: portal, API, segurança, roteamento e capacidades; depois montagem, segurança de saída e persistência. A última trilha mostra o handoff humano persistido pelo Django.</desc>
+            <defs>
+              <marker id="home-flow-arrow-mobile" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="home-flow-arrowhead" />
+              </marker>
+            </defs>
+            <rect class="home-flow-frame" x="18" y="385" width="354" height="1800" rx="18" aria-hidden="true" />
+            <rect class="home-flow-handoff-frame" x="18" y="2660" width="354" height="500" rx="16" aria-hidden="true" />
+            <text class="home-flow-caption" x="38" y="2683" aria-hidden="true">HANDOFF HUMANO · ESTADO PERSISTIDO NO PORTAL</text>
+
+            <path class="home-flow-edge home-flow-edge--request" data-flow-groups="request" d="M195 143 V165 M195 233 V260 M195 328 H350 V499 H315 M195 533 V565" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--security" data-flow-groups="security" d="M75 499 H20 V548" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--routing" data-flow-groups="routing" d="M195 633 V650 H20 V1823" />
+            <path class="home-flow-edge home-flow-edge--routing" data-flow-groups="routing" d="M20 723 H75 M20 823 H75 M20 1175 H75 M20 1543 H75 M20 1823 H75" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--conversation" data-flow-groups="conversation response" d="M345 723 H365 M365 723 V2139 H345" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--knowledge" data-flow-groups="knowledge" d="M210 857 V882 M210 940 V948 H92 V958 M210 948 H195 V958 M210 948 H298 V958 M92 1018 V1028 H210 M195 1018 V1028 M298 1018 V1028 H210 M210 1028 V1038 M305 1065 H365" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--fallback" data-flow-groups="knowledge web" d="M115 1065 H35 V1543 H75" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--cooperative" data-flow-groups="cooperative ops knowledge" d="M75 1175 H52 V823 H75" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--ops" data-flow-groups="ops" d="M210 1209 V1230 M210 1288 V1317 M210 1375 V1404 M305 1433 H365" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--web" data-flow-groups="web" d="M210 1577 V1582 M210 1640 V1669 M305 1698 H365" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--human" data-flow-groups="human" d="M210 1857 V1878 M305 1911 H365" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M365 723 V2139 H345" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--cooperative" data-flow-groups="cooperative knowledge ops" d="M305 1065 H370 V2024 H345 M305 1433 H380 V2024 H345 M195 2053 V2105" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--response" data-flow-groups="response" d="M195 2173 V2210 M195 2278 V2310 M195 2378 V2410 M195 2478 V2510" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--handoff" data-flow-groups="request human" d="M315 199 H380 V2734 H345" marker-end="url(#home-flow-arrow-mobile)" />
+            <path class="home-flow-edge home-flow-edge--handoff" data-flow-groups="human" d="M195 2768 V2820 M195 2888 V2910 M195 2978 V3000 M195 3068 V3090" marker-end="url(#home-flow-arrow-mobile)" />
+
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 75)" data-flow-term="user" data-flow-groups="request" role="button" tabindex="0" aria-pressed="false" aria-label="Cliente, envia a mensagem pelo navegador">
+              <title>Cliente: envia a mensagem pelo navegador</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_EQUIPE-140.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Cliente</text><text class="home-flow-node__sub-label" x="66" y="50">navegador</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 165)" data-flow-term="portal" data-flow-groups="request response" role="button" tabindex="0" aria-pressed="false" aria-label="Portal Django, autentica e controla a conversa">
+              <title>Portal Django: autenticação, conversa e persistência</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_COMPUTADOR.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Portal Django</text><text class="home-flow-node__sub-label" x="66" y="50">sessão e conversa</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 260)" data-flow-term="fastapi" data-flow-groups="request response" role="button" tabindex="0" aria-pressed="false" aria-label="FastAPI, fronteira autenticada da Agent API">
+              <title>FastAPI: fronteira autenticada da Agent API</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_FERRAMENTAS-154.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">FastAPI</text><text class="home-flow-node__sub-label" x="66" y="50">POST /chat</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip home-flow-node--mobile" transform="translate(75 395)" data-flow-term="langgraph" data-flow-groups="routing" role="button" tabindex="0" aria-pressed="false" aria-label="LangGraph, grafo acíclico de orquestração">
+              <title>LangGraph: grafo acíclico de orquestração</title><rect class="home-flow-node__shape" width="240" height="42" rx="21" /><text class="home-flow-node__label" x="120" y="27" text-anchor="middle">LangGraph · grafo acíclico</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 465)" data-flow-term="input-security" data-flow-groups="request security" role="button" tabindex="0" aria-pressed="false" aria-label="Segurança de entrada, preflight antes do roteamento">
+              <title>Segurança de entrada: preflight antes do roteamento</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LOCK-CADEADO.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Segurança de entrada</text><text class="home-flow-node__sub-label" x="66" y="50">preflight</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip home-flow-node--mobile" transform="translate(20 535)" data-flow-term="audit" data-flow-groups="security" role="button" tabindex="0" aria-pressed="false" aria-label="Audit, registra eventos de segurança sanitizados">
+              <title>Audit: eventos de segurança sanitizados</title><rect class="home-flow-node__shape" width="125" height="26" rx="9" /><text class="home-flow-node__label" x="62" y="18" text-anchor="middle">Audit</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 565)" data-flow-term="router" data-flow-groups="routing request" role="button" tabindex="0" aria-pressed="false" aria-label="Router Agent, escolhe as capacidades necessárias">
+              <title>Router Agent: seleciona capacidades</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CONVERSA.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Router Agent</text><text class="home-flow-node__sub-label" x="66" y="50">decisão de rota</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 690)" data-flow-term="conversational" data-flow-groups="conversation response" role="button" tabindex="0" aria-pressed="false" aria-label="Conversational Agent, atende interações conversacionais">
+              <title>Conversational Agent</title><rect class="home-flow-node__shape" width="270" height="67" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CHAT.png' %}" x="18" y="16" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Conversational Agent</text><text class="home-flow-node__sub-label" x="66" y="50">interação conversacional</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 790)" data-flow-term="knowledge" data-flow-groups="knowledge response" role="button" tabindex="0" aria-pressed="false" aria-label="Knowledge Agent, produz respostas fundamentadas em evidências">
+              <title>Knowledge Agent</title><rect class="home-flow-node__shape" width="270" height="67" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_LIVRO.png' %}" x="18" y="16" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Knowledge Agent</text><text class="home-flow-node__sub-label" x="66" y="50">conhecimento grounded</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 882)" data-flow-term="rag" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="RAG híbrida, busca lexical e vetorial">
+              <title>RAG híbrida</title><rect class="home-flow-node__shape" width="190" height="58" rx="10" /><text class="home-flow-node__label" x="95" y="35" text-anchor="middle">RAG híbrida</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip home-flow-node--mobile" transform="translate(45 958)" data-flow-term="fts" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="PostgreSQL Full Text Search, busca lexical">
+              <title>PostgreSQL Full Text Search</title><rect class="home-flow-node__shape" width="94" height="60" rx="10" /><text class="home-flow-node__label" x="47" y="36" text-anchor="middle">FTS</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip home-flow-node--mobile" transform="translate(148 958)" data-flow-term="pgvector" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="pgvector, busca por similaridade vetorial">
+              <title>pgvector</title><rect class="home-flow-node__shape" width="94" height="60" rx="10" /><text class="home-flow-node__label" x="47" y="36" text-anchor="middle">pgvector</text>
+            </g>
+            <g class="home-flow-node home-flow-node--chip home-flow-node--mobile" transform="translate(251 958)" data-flow-term="fastembed" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="FastEmbed, gera embeddings para busca vetorial">
+              <title>FastEmbed</title><rect class="home-flow-node__shape" width="94" height="60" rx="10" /><text class="home-flow-node__label" x="47" y="36" text-anchor="middle">FastEmbed</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1038)" data-flow-term="grounding" data-flow-groups="knowledge" role="button" tabindex="0" aria-pressed="false" aria-label="Grounding, relaciona resposta às evidências">
+              <title>Grounding e evidências citáveis</title><rect class="home-flow-node__shape" width="190" height="55" rx="10" /><text class="home-flow-node__label" x="95" y="34" text-anchor="middle">Grounding</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 1142)" data-flow-term="customer-support" data-flow-groups="ops response" role="button" tabindex="0" aria-pressed="false" aria-label="Customer Support Agent, consulta fatos operacionais autorizados">
+              <title>Customer Support Agent</title><rect class="home-flow-node__shape" width="270" height="67" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_FERRAMENTAS-154.png' %}" x="18" y="16" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Customer Support Agent</text><text class="home-flow-node__sub-label" x="66" y="50">fatos operacionais</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1230)" data-flow-term="ops-tools" data-flow-groups="ops" role="button" tabindex="0" aria-pressed="false" aria-label="OPS Tools, ferramentas autorizadas e somente leitura">
+              <title>OPS Tools</title><rect class="home-flow-node__shape" width="190" height="58" rx="10" /><text class="home-flow-node__label" x="95" y="35" text-anchor="middle">OPS Tools</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1317)" data-flow-term="ops-postgres" data-flow-groups="ops" role="button" tabindex="0" aria-pressed="false" aria-label="PostgreSQL OPS, consultado por repositórios e ferramentas">
+              <title>PostgreSQL OPS por camada autorizada</title><rect class="home-flow-node__shape" width="190" height="58" rx="10" /><text class="home-flow-node__label" x="95" y="35" text-anchor="middle">PostgreSQL OPS</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1404)" data-flow-term="ops-facts" data-flow-groups="ops cooperative" role="button" tabindex="0" aria-pressed="false" aria-label="Fatos operacionais observados, separados de inferências">
+              <title>Fatos operacionais observados</title><rect class="home-flow-node__shape" width="190" height="58" rx="10" /><text class="home-flow-node__label" x="95" y="35" text-anchor="middle">Fatos observados</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 1510)" data-flow-term="web-knowledge" data-flow-groups="web response" role="button" tabindex="0" aria-pressed="false" aria-label="Web Knowledge, busca evidência pública atual quando a rota permite">
+              <title>Web Knowledge</title><rect class="home-flow-node__shape" width="270" height="67" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_BUSCA-LUPA.png' %}" x="18" y="16" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Web Knowledge</text><text class="home-flow-node__sub-label" x="66" y="50">busca pública controlada</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1582)" data-flow-term="tavily" data-flow-groups="web" role="button" tabindex="0" aria-pressed="false" aria-label="Tavily, provedor de busca pública controlada">
+              <title>Tavily</title><rect class="home-flow-node__shape" width="190" height="58" rx="10" /><text class="home-flow-node__label" x="95" y="35" text-anchor="middle">Tavily</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1669)" data-flow-term="public-evidence" data-flow-groups="web" role="button" tabindex="0" aria-pressed="false" aria-label="Evidência pública atual usada na resposta grounded">
+              <title>Evidência pública atual</title><rect class="home-flow-node__shape" width="190" height="58" rx="10" /><text class="home-flow-node__label" x="95" y="35" text-anchor="middle">Evidência pública</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 1790)" data-flow-term="human-agent" data-flow-groups="human response" role="button" tabindex="0" aria-pressed="false" aria-label="Human Escalation, coordena transições tipadas de atendimento humano">
+              <title>Human Escalation</title><rect class="home-flow-node__shape" width="270" height="67" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_EQUIPE-140.png' %}" x="18" y="16" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Human Escalation</text><text class="home-flow-node__sub-label" x="66" y="50">transição tipada</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(115 1878)" data-flow-term="human-transition" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Transição tipada de oferta, confirmação ou aceite">
+              <title>Transição humana tipada</title><rect class="home-flow-node__shape" width="190" height="67" rx="10" /><text class="home-flow-node__label" x="95" y="30" text-anchor="middle">Transição tipada</text><text class="home-flow-node__sub-label" x="95" y="50" text-anchor="middle">oferta · aceite · resolução</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--cooperative home-flow-node--mobile" transform="translate(45 1995)" data-flow-term="cooperative-synthesis" data-flow-groups="cooperative knowledge ops response" role="button" tabindex="0" aria-pressed="false" aria-label="Síntese cooperativa de fatos OPS e conhecimento grounded">
+              <title>Síntese cooperativa: OPS mais RAG</title><rect class="home-flow-node__shape" width="300" height="58" rx="12" /><text class="home-flow-node__label" x="150" y="25" text-anchor="middle">Síntese cooperativa</text><text class="home-flow-node__sub-label" x="150" y="44" text-anchor="middle">OPS + evidências RAG</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile home-flow-node--assembly" transform="translate(45 2105)" data-flow-term="assembly" data-flow-groups="response conversation knowledge ops web human cooperative" role="button" tabindex="0" aria-pressed="false" aria-label="Assembly, reúne a saída do grafo">
+              <title>Assembly: reúne a saída do grafo</title><rect class="home-flow-node__shape" width="300" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_DOCUMENTO-180.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Assembly</text><text class="home-flow-node__sub-label" x="66" y="50">saída do LangGraph</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 2210)" data-flow-term="output-security" data-flow-groups="security response" role="button" tabindex="0" aria-pressed="false" aria-label="Output Security, analisa a resposta candidata após o Assembly">
+              <title>Output Security</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CHECK-SEGURANÇA.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Output Security</text><text class="home-flow-node__sub-label" x="66" y="50">após o grafo</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 2310)" data-flow-term="api-response" data-flow-groups="response" role="button" tabindex="0" aria-pressed="false" aria-label="Resposta tipada, contém somente campos permitidos pela API">
+              <title>Resposta tipada e allowlisted</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_DOCUMENTO-180.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Resposta tipada</text><text class="home-flow-node__sub-label" x="66" y="50">campos allowlisted</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 2410)" data-flow-term="django-persist" data-flow-groups="response request" role="button" tabindex="0" aria-pressed="false" aria-label="Django persiste a resposta do agente no histórico">
+              <title>Django: persiste no histórico da conversa</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_COMPUTADOR.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Django persiste</text><text class="home-flow-node__sub-label" x="66" y="50">histórico da conversa</text>
+            </g>
+            <g class="home-flow-node home-flow-node--major home-flow-node--mobile" transform="translate(75 2510)" data-flow-term="user-response" data-flow-groups="response" role="button" tabindex="0" aria-pressed="false" aria-label="Cliente recebe a resposta pelo portal">
+              <title>Cliente recebe a resposta pelo portal</title><rect class="home-flow-node__shape" width="240" height="68" rx="12" /><image class="home-flow-node__icon" href="{% static 'ICONES - PNG/FUNCIONAIS/ICONES_CONVERSA.png' %}" x="18" y="17" width="34" height="34" aria-hidden="true" focusable="false" /><text class="home-flow-node__label" x="66" y="30">Cliente recebe</text><text class="home-flow-node__sub-label" x="66" y="50">resposta no portal</text>
+            </g>
+
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(45 2700)" data-flow-term="explicit-confirmation" data-flow-groups="human request" role="button" tabindex="0" aria-pressed="false" aria-label="Confirmação explícita do cliente para iniciar atendimento humano">
+              <title>Cliente confirma atendimento humano</title><rect class="home-flow-node__shape" width="300" height="68" rx="12" /><text class="home-flow-node__label" x="150" y="30" text-anchor="middle">Cliente confirma atendimento</text><text class="home-flow-node__sub-label" x="150" y="50" text-anchor="middle">humano</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(45 2820)" data-flow-term="transition-api" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="FastAPI valida a transição interna de handoff">
+              <title>FastAPI: transição interna</title><rect class="home-flow-node__shape" width="300" height="68" rx="12" /><text class="home-flow-node__label" x="150" y="30" text-anchor="middle">FastAPI · transição interna</text><text class="home-flow-node__sub-label" x="150" y="50" text-anchor="middle">delegada ao agente de handoff</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(45 2910)" data-flow-term="waiting-queue" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Django persiste a fila de conversas em espera">
+              <title>Django persiste a fila WAITING_HUMAN</title><rect class="home-flow-node__shape" width="300" height="68" rx="12" /><text class="home-flow-node__label" x="150" y="30" text-anchor="middle">Fila Django · WAITING_HUMAN</text><text class="home-flow-node__sub-label" x="150" y="50" text-anchor="middle">estado persistido no portal</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(45 3000)" data-flow-term="operator-accept" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Atendente autorizado assume a conversa pela fila">
+              <title>Atendente autorizado aceita a conversa</title><rect class="home-flow-node__shape" width="300" height="68" rx="12" /><text class="home-flow-node__label" x="150" y="30" text-anchor="middle">Atendente autorizado assume</text><text class="home-flow-node__sub-label" x="150" y="50" text-anchor="middle">uma única atribuição persistida</text>
+            </g>
+            <g class="home-flow-node home-flow-node--small home-flow-node--mobile" transform="translate(45 3090)" data-flow-term="automation-suspended" data-flow-groups="human" role="button" tabindex="0" aria-pressed="false" aria-label="Automação suspensa após o aceite do atendente">
+              <title>Automação suspensa após o aceite</title><rect class="home-flow-node__shape" width="300" height="58" rx="12" /><text class="home-flow-node__label" x="150" y="36" text-anchor="middle">Automação suspensa após o aceite</text>
+            </g>
+          </svg>
+        </div>
+
+        <aside class="home-flow-details" data-flow-details aria-live="polite" aria-atomic="true" aria-labelledby="home-flow-details-title">
+          <p class="home-flow-details__eyebrow">Detalhes do fluxo</p>
+          <div>
+            <h3 id="home-flow-details-title" data-flow-details-title>Explore a arquitetura</h3>
+            <p data-flow-details-description>Passe o mouse ou toque em um componente; também é possível navegar pelo diagrama com o teclado.</p>
+            <p class="home-flow-details__uses" data-flow-details-uses hidden></p>
+          </div>
+        </aside>
+      </div>
     </section>
   </main>
-  <footer class="site-footer">Portal Getnet Support</footer>
 </body>
 </html>
