@@ -362,6 +362,15 @@ class CustomerSupportAgent:
 
         if not request.authorization.can_read_operational_facts:
             return CustomerSupportResult(status=CustomerSupportStatus.UNAUTHORIZED, reason="OPERATIONAL_ACCESS_DENIED")
+        if request.operation is None and self._needs_cancellation_lookup_clarification(request):
+            return CustomerSupportResult(
+                status=CustomerSupportStatus.CLARIFICATION_REQUIRED,
+                answer=(
+                    "Claro. Para te ajudar com o protocolo de cancelamento, preciso de um detalhe: "
+                    "qual é o protocolo que você quer consultar?"
+                ),
+                reason="CANCELLATION_LOOKUP_SCOPE_REQUIRED",
+            )
         if request.operation is None and self._needs_protocol_scope_clarification(request):
             return CustomerSupportResult(
                 status=CustomerSupportStatus.CLARIFICATION_REQUIRED,
@@ -725,6 +734,41 @@ class CustomerSupportAgent:
             return False
         return bool(
             re.search(r"\b(qual|quais|numero|ultimo|mais recente|latest|newest|what|which)\b", current)
+        )
+
+    @classmethod
+    def _needs_cancellation_lookup_clarification(cls, request: CustomerSupportRequest) -> bool:
+        """Ask for the subject of a broad OPS lookup without implying a cancellation action."""
+
+        current = cls._normalize_business_text(request.question)
+        history = cls._normalize_business_text(
+            " ".join(item.content for item in request.conversation_context)
+        )
+        combined = f"{current} {history}"
+        if not re.search(r"\bprotocol(?:o|os|s)?\b", current):
+            return False
+        if not re.search(r"\bcancel\w*\b", current):
+            return False
+        if re.search(r"\bpoc\s+ops\s+\d{4}\b", combined):
+            return False
+        if re.search(
+            r"\b(?:get\s+smart|get\s+classica|pix|link\s+de\s+pagamento|maquininha|"
+            r"terminal|antecipacao|crediario|cartao|produto\s+(?!ou\b)\w+|servico\s+\w+)\b",
+            combined,
+        ):
+            return False
+        if re.search(
+            r"\b(?:mais recente|mais novo|ultimo|ultimos|recentes?|latest|newest|"
+            r"hoje|ontem|semana|mes|ano|periodo|entre|quantos|quantas|liste|listar)\b",
+            current,
+        ):
+            return False
+        return bool(
+            re.search(
+                r"\b(?:informacao|informacoes|dados|detalhe|detalhes|status|situacao|"
+                r"moviment\w*|histor\w*|andamento|consult\w*|saber|ver)\b",
+                current,
+            )
         )
 
     @classmethod

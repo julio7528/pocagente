@@ -25,3 +25,7 @@ venv/
 # Local database backups and Dockerization validation artifacts
 backups/
 .docker-secrets/
+
+# Local knowledge and reference materials
+/knowledge/
+/reference/
