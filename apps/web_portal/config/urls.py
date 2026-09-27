@@ -1,6 +1,7 @@
 """Browser-facing route composition for the Django portal."""
 
 from django.urls import include, path
+from django.views.generic import TemplateView
 
 from apps.web_portal.accounts import views as account_views
 from apps.web_portal.admin_portal.admin_site import technical_admin_site
@@ -9,6 +10,7 @@ from apps.web_portal.config import health
 
 
 urlpatterns = [
+    path("", TemplateView.as_view(template_name="home.html"), name="home"),
     path("health/", health.liveness, name="health"),
     path("ready/", health.readiness, name="ready"),
     path("login/", account_views.login_view, name="login"),

@@ -9,41 +9,120 @@
   <link rel="stylesheet" href="{% static 'portal.css' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'getnet-favicon-32x32.png' %}">
   <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
+  <link rel="stylesheet" href="{% static 'login.css' %}">
+  <script src="{% static 'login.js' %}" defer></script>
 </head>
-<body>
-  <header class="site-header"><span>Getnet Support</span></header>
-  <main class="auth-shell">
-    <section class="card" aria-labelledby="login-title">
-      <h1 id="login-title">Entrar</h1>
-      <p class="muted">Acesse o portal com sua identidade autorizada.</p>
+<body class="login-page">
+  <main class="login-layout" data-login-root data-initial-state="{% if form.errors %}login{% else %}welcome{% endif %}">
+    <div class="login-hero" aria-hidden="true">
+      <img src="{% static 'herologin.png' %}" alt="">
+    </div>
 
-      {% if messages %}
-        <div class="message-list" aria-live="polite">
-          {% for message in messages %}<p class="message">{{ message }}</p>{% endfor %}
-        </div>
-      {% endif %}
+    <section class="login-panel" aria-label="Acesso ao Portal de Suporte">
+      <button class="login-back" type="button" aria-label="Voltar para as boas-vindas" data-login-back
+        {% if not form.errors %}hidden{% endif %}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 12H5m6-6-6 6 6 6"/>
+        </svg>
+      </button>
 
-      {% if form.non_field_errors %}
-        <div class="form-errors" id="login-errors" role="alert">
-          {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
-        </div>
-      {% endif %}
+      <a class="login-brand" href="{% url 'home' %}" aria-label="Ir para a página inicial">
+        <img src="{% static 'getnet-logo-wide.png' %}" alt="Getnet">
+      </a>
 
-      <form method="post" action="{% url 'login' %}" aria-describedby="login-errors">
-        {% csrf_token %}
-        <div class="field">
-          <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
-          {{ form.username }}
-        </div>
-        <div class="field">
-          <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
-          {{ form.password }}
-        </div>
-        <button type="submit">Entrar</button>
-      </form>
-      <p class="auth-secondary-link"><a href="{% url 'password-reset-request' %}">Esqueci minha senha</a></p>
+      <div class="login-panel__body">
+        <section class="login-view login-welcome{% if not form.errors %} is-visible{% endif %}"
+          aria-labelledby="welcome-title" data-login-view="welcome" {% if form.errors %}hidden{% endif %}>
+          <h1 id="welcome-title" class="login-welcome__title">
+            <span>Boas-vindas ao</span>
+            <strong>Portal de Suporte</strong>
+          </h1>
+          <p class="login-welcome__prompt">Conte pra gente, como podemos te ajudar?</p>
+          <div class="login-welcome__actions">
+            <button class="login-action login-action--primary" type="button" data-login-open>Sou cliente</button>
+            <a class="login-action login-action--secondary" href="{% url 'password-reset-request' %}">Esqueci minha senha</a>
+          </div>
+        </section>
+
+        <section class="login-view login-auth{% if form.errors %} is-visible{% endif %}"
+          aria-labelledby="login-title" data-login-view="login" {% if not form.errors %}hidden{% endif %}>
+          <div class="login-auth__heading">
+            <h1 id="login-title">Acessar</h1>
+            <p>Acesse o Portal de Suporte.</p>
+          </div>
+
+          {% if messages %}
+            <div class="login-messages" aria-live="polite">
+              {% for message in messages %}<p class="login-message">{{ message }}</p>{% endfor %}
+            </div>
+          {% endif %}
+
+          {% if form.non_field_errors %}
+            <div class="login-form-errors" id="login-errors" role="alert">
+              {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+          {% endif %}
+
+          <form class="login-form" method="post" action="{% url 'login' %}" novalidate data-login-form
+            {% if form.non_field_errors %}aria-describedby="login-errors"{% endif %}>
+            {% csrf_token %}
+
+            <div class="login-field{% if form.username.errors %} is-invalid{% endif %}" data-login-field>
+              <label class="login-field__label" for="{{ form.username.id_for_label }}">Usuário</label>
+              <div class="login-field__control">
+                {{ form.username }}
+              </div>
+              <p class="login-field__error" id="login-username-required" aria-live="polite" data-required-error hidden>Este campo é obrigatório.</p>
+              {% if form.username.errors %}
+                <div class="login-field__server-errors" id="login-username-errors" role="alert">
+                  {{ form.username.errors }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="login-field{% if form.password.errors %} is-invalid{% endif %}" data-login-field>
+              <label class="login-field__label" for="{{ form.password.id_for_label }}">Senha</label>
+              <div class="login-field__control login-field__control--password">
+                <span class="login-field__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="5" y="10" width="14" height="10" rx="2"/>
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+                  </svg>
+                </span>
+                {{ form.password }}
+                <button class="login-password-toggle" type="button" aria-label="Mostrar senha" aria-pressed="false" data-password-toggle>
+                  <svg class="login-eye login-eye--show" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/>
+                    <circle cx="12" cy="12" r="2.7"/>
+                  </svg>
+                  <svg class="login-eye login-eye--hide" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m3 3 18 18M10.6 6.2A10.7 10.7 0 0 1 12 6c6 0 9.5 6 9.5 6a17.8 17.8 0 0 1-2.2 2.9M6.3 6.3C3.9 8 2.5 12 2.5 12s3.5 6 9.5 6a9 9 0 0 0 3.1-.5M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="login-field__error" id="login-password-required" aria-live="polite" data-required-error hidden>Este campo é obrigatório.</p>
+              {% if form.password.errors %}
+                <div class="login-field__server-errors" id="login-password-errors" role="alert">
+                  {{ form.password.errors }}
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="login-remember">
+              <label class="login-switch">
+                <input type="checkbox" role="switch" data-remember-username>
+                <span class="login-switch__track" aria-hidden="true"><span></span></span>
+                <span class="login-switch__label">Lembrar usuário</span>
+              </label>
+            </div>
+
+            <button class="login-submit" type="submit" disabled aria-disabled="true" data-login-submit>Acessar</button>
+          </form>
+
+          <a class="login-forgot" href="{% url 'password-reset-request' %}">Esqueceu sua senha?</a>
+        </section>
+      </div>
     </section>
   </main>
-  <footer class="site-footer">Portal Getnet Support</footer>
 </body>
 </html>
