@@ -8,15 +8,14 @@
   <script src="{% static 'portal-theme.js' %}"></script>
   <link rel="stylesheet" href="{% static 'portal.css' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'getnet-favicon-32x32.png' %}">
+  <link rel="stylesheet" href="{% static 'portal-header.css' %}">
   <link rel="stylesheet" href="{% static 'support.css' %}">
   <script src="{% static 'support-live.js' %}" defer></script>
+  <script src="{% static 'portal-header.js' %}" defer></script>
   <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
 </head>
 <body class="support-page">
-  <header class="site-header support-header">
-    <a class="brand-link" href="{% url 'support-landing' %}">Getnet Support</a>
-    <span class="header-section">Portal de atendimento</span>
-  </header>
+  {% include "shared/app_header.html" with app_header_label="Central de Atendimento Personalizado" %}
 
   <main class="support-dashboard" data-live-poll-url="{% url 'support-updates' %}" data-live-version="{{ queue_version }}">
     {% if messages %}
@@ -82,7 +81,6 @@
   </main>
   <footer class="site-footer support-footer">
     <span>Getnet Support · Atendimento</span>
-    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sair</button></form>
   </footer>
 </body>
 </html>

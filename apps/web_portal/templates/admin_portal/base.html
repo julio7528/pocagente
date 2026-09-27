@@ -8,14 +8,13 @@
   <script src="{% static 'portal-theme.js' %}"></script>
   <link rel="stylesheet" href="{% static 'portal.css' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'getnet-favicon-32x32.png' %}">
+  <link rel="stylesheet" href="{% static 'portal-header.css' %}">
   <link rel="stylesheet" href="{% static 'admin-portal.css' %}">
+  <script src="{% static 'portal-header.js' %}" defer></script>
   <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
 </head>
 <body class="admin-page">
-  <header class="site-header admin-header">
-    <a class="brand-link" href="{% url 'admin-overview' %}">Getnet Support</a>
-    <span class="header-section">Administração do portal</span>
-  </header>
+  {% include "shared/app_header.html" with app_header_label="Portal de Administração" %}
   <div class="admin-layout">
     <aside class="admin-sidebar" aria-label="Navegação administrativa">
       <p class="eyebrow">Gestão</p>
@@ -39,7 +38,6 @@
   </div>
   <footer class="site-footer admin-footer">
     <span>Getnet Support · Administração</span>
-    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sair</button></form>
   </footer>
   {% block scripts %}{% endblock %}
 </body>

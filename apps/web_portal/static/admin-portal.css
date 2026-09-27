@@ -1,5 +1,4 @@
 .admin-page { background: #f4f7f6; }
-.admin-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .admin-layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 0; }
 .admin-sidebar { display: flex; flex-direction: column; gap: 1.1rem; padding: 1.5rem; background: #fff; border-right: 1px solid #d8e1df; }
 .admin-sidebar .eyebrow { margin-bottom: 0; }

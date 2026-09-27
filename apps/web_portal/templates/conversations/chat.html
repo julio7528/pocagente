@@ -9,26 +9,15 @@
   <script src="{% static 'portal-theme.js' %}"></script>
   <link rel="stylesheet" href="{% static 'portal.css' %}">
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'getnet-favicon-32x32.png' %}">
+  <link rel="stylesheet" href="{% static 'portal-header.css' %}">
   <link rel="stylesheet" href="{% static 'client-shell.css' %}">
   <script src="{% static 'client-chat.js' %}" defer></script>
-  <script src="{% static 'client-menu.js' %}" defer></script>
+  <script src="{% static 'portal-header.js' %}" defer></script>
   <link rel="stylesheet" href="{% static 'portal-theme.css' %}">
 </head>
 
 <body class="client-page">
-  <header class="site-header client-header">
-    <a class="brand-link client-brand" href="{% url 'client-landing' %}"><img src="{% static 'getnet-logo-wide.png' %}" alt="">Central de Atendimento</a>
-    <div class="client-menu-wrap">
-      <button class="client-menu-trigger" type="button" aria-label="Abrir menu" aria-haspopup="true"
-        aria-expanded="false" aria-controls="client-menu" data-client-menu-trigger>•••</button>
-      <div class="client-menu" id="client-menu" role="menu" hidden data-client-menu>
-        <button type="button" role="menuitem" class="client-menu-item" data-theme-toggle><span class="theme-icon"
-            aria-hidden="true">☾</span><span data-theme-label>Tema escuro</span></button>
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" role="menuitem"
-            class="client-menu-item"><span aria-hidden="true">↪</span><span>Sair</span></button></form>
-      </div>
-    </div>
-  </header>
+  {% include "shared/app_header.html" with app_header_label="Central de Atendimento" %}
 
   <div class="client-layout">
     <aside class="client-sidebar" aria-label="Conversas">

@@ -1,7 +1,7 @@
 (() => {
   const initializeMenu = () => {
-    const trigger = document.querySelector("[data-client-menu-trigger]");
-    const menu = document.querySelector("[data-client-menu]");
+    const trigger = document.querySelector("[data-app-header-menu-trigger]");
+    const menu = document.querySelector("[data-app-header-menu]");
     const themeToggle = document.querySelector("[data-theme-toggle]");
     if (!trigger || !menu) return;
 
@@ -13,7 +13,7 @@
       if (!themeToggle) return;
       const dark = document.documentElement.dataset.theme === "dark";
       themeToggle.querySelector("[data-theme-label]").textContent = dark ? "Tema claro" : "Tema escuro";
-      themeToggle.querySelector(".theme-icon").textContent = dark ? "☀" : "☾";
+      themeToggle.querySelector(".app-header__theme-icon").textContent = dark ? "☀" : "☾";
     };
 
     updateThemeLabel();

@@ -1,0 +1,32 @@
+{% load static %}
+{% if request.user.role == "CLIENT" %}
+  {% url 'client-landing' as app_header_home_url %}
+{% elif request.user.role == "SUPPORT_AGENT" %}
+  {% url 'support-landing' as app_header_home_url %}
+{% elif request.user.role == "ADMIN" %}
+  {% url 'admin-overview' as app_header_home_url %}
+{% else %}
+  {% url 'client-landing' as app_header_home_url %}
+{% endif %}
+<header class="site-header app-header">
+  <a class="brand-link app-header__brand" href="{{ app_header_home_url }}">
+    <img src="{% static 'getnet-logo-wide.png' %}" alt="">
+    <span>{{ app_header_label }}</span>
+  </a>
+  <div class="app-header__menu-wrap">
+    <button class="app-header__menu-trigger" type="button" aria-label="Abrir menu" aria-haspopup="true"
+      aria-expanded="false" aria-controls="app-header-menu" data-app-header-menu-trigger>•••</button>
+    <div class="app-header__menu" id="app-header-menu" role="menu" hidden data-app-header-menu>
+      <button type="button" role="menuitem" class="app-header__menu-item" data-theme-toggle>
+        <span class="app-header__theme-icon" aria-hidden="true">☾</span>
+        <span data-theme-label>Tema escuro</span>
+      </button>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" role="menuitem" class="app-header__menu-item">
+          <span aria-hidden="true">↪</span><span>Sair</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</header>

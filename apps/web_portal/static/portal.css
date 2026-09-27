@@ -29,8 +29,6 @@ button, .button-link { display: inline-block; border: 0; border-radius: .375rem;
 
 /* Client portal: server-rendered transcript with an owned conversation list. */
 .brand-link { color: inherit; text-decoration: none; }
-.client-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.header-section { color: #526361; font-size: .9rem; font-weight: 500; }
 .client-layout { display: grid; grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr); min-height: 0; }
 .client-sidebar { display: flex; flex-direction: column; gap: 1.5rem; padding: 1.5rem; background: #fff; border-right: 1px solid #d8e1df; min-width: 0; }
 .client-sidebar h2 { font-size: .95rem; margin: 0 0 .75rem; }

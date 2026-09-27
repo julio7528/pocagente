@@ -1,0 +1,87 @@
+/* Shared application header used by the client, support, and admin portals. */
+.app-header {
+  --app-header-height: 3.9rem;
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: var(--app-header-height);
+  min-height: var(--app-header-height);
+  padding: .85rem 1.5rem;
+  background: #fff;
+  border-color: #e8e8e8;
+}
+.app-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  color: #242424;
+  font-size: clamp(.75rem, 3.9vw, 1rem);
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.app-header__brand img {
+  display: block;
+  flex: none;
+  width: auto;
+  height: calc(var(--app-header-height) * .46);
+  max-width: 5rem;
+  object-fit: contain;
+}
+.app-header__menu-wrap { position: relative; }
+.app-header__menu-trigger {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border-radius: .55rem;
+  background: transparent;
+  color: #505050;
+  letter-spacing: .1em;
+  font-size: 1rem;
+  line-height: 1;
+}
+.app-header__menu-trigger:hover,
+.app-header__menu-trigger[aria-expanded="true"] { background: #f1f1f1; }
+.app-header__menu {
+  position: absolute;
+  top: calc(100% + .5rem);
+  right: 0;
+  z-index: 4;
+  width: 11.75rem;
+  padding: .35rem;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: .7rem;
+  box-shadow: 0 .8rem 2rem rgb(0 0 0 / 12%);
+}
+.app-header__menu[hidden] { display: none; }
+.app-header__menu form { margin: 0; }
+.app-header__menu-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  width: 100%;
+  padding: .65rem .75rem;
+  background: transparent;
+  border-radius: .4rem;
+  color: #242424;
+  text-align: left;
+  font-size: .88rem;
+  font-weight: 500;
+}
+.app-header__menu-item > span:first-child {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  font-size: 1rem;
+}
+.app-header__menu-item:hover { background: #f3f3f3; }
+
+@media (max-width: 48rem) {
+  .app-header { gap: .5rem; padding: .65rem 1rem; }
+  .app-header__brand { min-width: 0; white-space: normal; }
+}
