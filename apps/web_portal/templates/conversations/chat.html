@@ -170,7 +170,7 @@
     </div>
     <button class="client-debugger-toggle" type="button" aria-label="Debugger Mode"
       aria-describedby="client-debugger-tooltip" aria-controls="client-debugger-drawer"
-      aria-expanded="false" data-debugger-toggle><span aria-hidden="true">🐞</span></button>
+      aria-expanded="false" data-debugger-toggle><img src="{% static 'debug-script.svg' %}" alt="" aria-hidden="true"></button>
   </div>
   {{ debugger_payload|json_script:"client-debugger-payload" }}
   {% endif %}

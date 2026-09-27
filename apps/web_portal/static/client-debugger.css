@@ -59,8 +59,8 @@
   border-radius: 50%;
   background: #a51224;
   box-shadow: 0 .4rem 1.1rem rgb(0 0 0 / 22%);
-  font-size: 1.35rem;
 }
+.client-debugger-toggle img { display: block; width: 1.45rem; height: 1.45rem; }
 .client-debugger-toggle[aria-expanded="true"] { background: #73101c; }
 .client-debugger-tooltip {
   position: absolute;

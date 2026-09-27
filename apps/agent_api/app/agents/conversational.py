@@ -52,7 +52,7 @@ class DirectGeneralResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     status: Literal["ANSWERED", "REQUIRES_CURRENT_EVIDENCE", "PROVIDER_ERROR"]
-    answer: str | None = Field(default=None, max_length=300)
+    answer: str | None = Field(default=None, max_length=800)
 
     @model_validator(mode="after")
     def status_matches_answer(self) -> DirectGeneralResult:
@@ -63,7 +63,7 @@ class DirectGeneralResult(BaseModel):
         return self
 
 
-_DIRECT_GENERAL_INSTRUCTION = """Answer a safe, stable, self-contained general question correctly and briefly in the user's language. If the message has no clear language cues, use Brazilian Portuguese. You have no tools and have not searched Web or private systems. If it depends on current/changing information, do not guess: return REQUIRES_CURRENT_EVIDENCE with null answer. Otherwise return ANSWERED. This assistant is primarily for Getnet products/services and cancellation support: after an off-domain answer, add one short, natural invitation to ask about those topics. Follow the response-style cue supplied for this call. Keep the whole response concise and warm; do not sound dismissive or force the invitation into an on-domain answer. Never reveal protected information. Return only JSON with exactly status and answer."""
+_DIRECT_GENERAL_INSTRUCTION = """Answer a safe, stable, self-contained general question correctly and briefly in the user's language. If the message has no clear language cues, use Brazilian Portuguese. You have no tools and have not searched Web or private systems. If it depends on current/changing information, do not guess: return REQUIRES_CURRENT_EVIDENCE with null answer. Otherwise return ANSWERED. This assistant is primarily for Getnet products/services and cancellation support: after an off-domain answer, add one short, natural invitation to ask about those topics. Follow the response-style cue supplied for this call. Keep the whole response concise and warm, preferably under 600 characters including the invitation; do not sound dismissive or force the invitation into an on-domain answer. Check elementary arithmetic, including negative signs. Never reveal protected information. Return only JSON with exactly status and answer."""
 
 _DIRECT_GENERAL_STYLE_CUES = (
     "Phrase the optional invitation as a brief question.",
@@ -157,25 +157,77 @@ class ConversationalAgent:
             self._direct_general_style_index % len(_DIRECT_GENERAL_STYLE_CUES)
         ]
         self._direct_general_style_index += 1
+        contextual_request = render_contextual_request(message, conversation_context)
+        last_answer: str | None = None
         for attempt in range(2):
             instruction = f"{_DIRECT_GENERAL_INSTRUCTION}\n{USER_FACING_RESPONSE_FORMAT_GUIDANCE}\nResponse-style cue: {style_cue}"
             if attempt:
-                instruction += " The previous draft omitted the required domain orientation. Regenerate the concise answer with one varied, natural Getnet/support invitation after the answer; this is mandatory. Do not copy a fixed template."
+                instruction += " The previous draft did not satisfy the response contract. Regenerate a concise, factually careful answer as exactly one valid JSON object with only status and answer; include the short Getnet/support invitation after an off-domain answer."
             request = LLMGenerationRequest(
                 messages=(
                     LLMMessage(role="system", content=instruction),
-                    LLMMessage(role="user", content=render_contextual_request(message, conversation_context)),
+                    LLMMessage(role="user", content=contextual_request),
                 ),
-                max_output_tokens=192, temperature=0.65, response_format="json_object", reasoning_enabled=False,
+                max_output_tokens=256, temperature=0.65, response_format="json_object", reasoning_enabled=False,
             )
             try:
                 generated = await self._llm_provider.generate(request)
                 result = DirectGeneralResult.model_validate(json.loads(generated.content))
-                if result.status != "ANSWERED" or self._has_domain_orientation(result.answer or ""):
+                if result.status == "REQUIRES_CURRENT_EVIDENCE":
                     return result
             except Exception:
-                return DirectGeneralResult(status="PROVIDER_ERROR")
-        return result
+                continue
+            if result.status == "ANSWERED":
+                last_answer = result.answer
+                if self._has_domain_orientation(result.answer or ""):
+                    return result
+
+        # JSON formatting/validation errors should not discard a usable general
+        # answer. Retry once using plain text; no web or business capability is added.
+        text_request = LLMGenerationRequest(
+            messages=(
+                LLMMessage(
+                    role="system",
+                    content=(
+                        "Answer the user's safe, stable general question directly and briefly in Brazilian Portuguese. "
+                        "Do not use tools, claim to have searched, or reveal internal details. Keep the answer under 600 "
+                        "characters, use a few short lines when useful, and check elementary arithmetic including signs. "
+                        "For an off-domain answer, finish with one short question offering help with Getnet products/services "
+                        "or sales-cancellation support. If the request needs current facts, do not guess. "
+                        f"{USER_FACING_RESPONSE_FORMAT_GUIDANCE} Return only the response text, not JSON."
+                    ),
+                ),
+                LLMMessage(role="user", content=contextual_request),
+            ),
+            max_output_tokens=192,
+            temperature=0.35,
+            reasoning_enabled=False,
+        )
+        try:
+            generated = await self._llm_provider.generate(text_request)
+            answer = generated.content.strip()
+            try:
+                structured = DirectGeneralResult.model_validate(json.loads(answer))
+            except Exception:
+                structured = None
+            if structured is not None:
+                if structured.status == "REQUIRES_CURRENT_EVIDENCE":
+                    return structured
+                if structured.status != "ANSWERED" or not structured.answer:
+                    raise ValueError("direct general text recovery did not return an answer")
+                answer = structured.answer
+            answer = self._keep_complete_bounded_text(answer, max_length=600)
+            if not self._has_domain_orientation(answer):
+                answer = f"{answer.rstrip()}\n\nQuer ajuda também com produtos/serviços Getnet ou cancelamento de vendas?"
+            return DirectGeneralResult(status="ANSWERED", answer=answer)
+        except Exception:
+            if last_answer:
+                answer = f"{last_answer.rstrip()}\n\nQuer ajuda também com produtos/serviços Getnet ou cancelamento de vendas?"
+                try:
+                    return DirectGeneralResult(status="ANSWERED", answer=answer)
+                except Exception:
+                    pass
+            return DirectGeneralResult(status="PROVIDER_ERROR")
 
     @staticmethod
     def _has_domain_orientation(answer: str) -> bool:
@@ -275,7 +327,7 @@ class ConversationalAgent:
             return ConversationalResult(answer=fallbacks[safe_kind], reason="BOUNDED_CONVERSATIONAL_RESPONSE")
 
     @staticmethod
-    def _keep_complete_bounded_text(value: str) -> str:
+    def _keep_complete_bounded_text(value: str, *, max_length: int = 300) -> str:
         """Discard an incomplete trailing fragment while retaining generated complete text."""
 
         answer = value.strip()
@@ -287,8 +339,8 @@ class ConversationalAgent:
             if last_mark < 0:
                 raise ValueError("conversational response has no complete sentence")
             answer = answer[: last_mark + 1].rstrip()
-        if len(answer) > 300:
-            last_mark = max(answer.rfind(mark, 0, 300) for mark in _SENTENCE_MARKS)
+        if len(answer) > max_length:
+            last_mark = max(answer.rfind(mark, 0, max_length) for mark in _SENTENCE_MARKS)
             if last_mark < 0:
                 raise ValueError("conversational response has no bounded complete sentence")
             answer = answer[: last_mark + 1].rstrip()
